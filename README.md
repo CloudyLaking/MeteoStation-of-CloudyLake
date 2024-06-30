@@ -7,7 +7,16 @@
 当前可以根据输入的站号，从网站上下载数据，输出实况图，包括降水量，湿度，温度
 # 1.0.2
 计算露点温度和体感温度
-露点温度公式：
-露点温度公式：
-\[ T_d = T - \frac{{100 - RH}}{5} \]
-其中，\( T_d \) 为露点温度，\( T \) 为当前温度，\( RH \) 为相对湿度。
+露点温度根据Magnus公式
+        a = 17.625
+        b = 243.04
+        gamma = (a * temperature) / (b + temperature) + np.log(humidity / 100.0)
+        dewpoint = (b * gamma) / (a - gamma)
+        dewpoint_rounded = round(dewpoint, 2)
+        dewpoint_column.append(dewpoint_rounded)
+调整坐标轴
+根据国家标准调整雨量柱的颜色
+调整了很多东西
+#1.0.3
+计算了体感温度加入
+并且把代码分区
