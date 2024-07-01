@@ -130,10 +130,10 @@ def drawdata(weather_data,title):
         precipitation_column = [float(row[7]) for row in reversed(weather_data[1:])]
 
         # 提取气压列
-        pressure_column = [float(row[4]) for row in reversed(weather_data[1:])]
+        pressure_column = [float(row[2]) for row in reversed(weather_data[1:])]
 
         #计算海平面气压
-        def 
+        
 
     get_data()
 
