@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
+import matplotlib.gridspec as gridspec
 import numpy as np
 
 # 请求数据
@@ -54,25 +55,41 @@ def drawdata(weather_data,station_info):
     '''
     def init_chart():
         # 设置图形大小
-        global fig, ax1, ax2 ,ax3 
-        fig, ax1 = plt.subplots(figsize=(15, 8))
+        global fig, ax1, ax2 ,ax3 ,ax4 ,ax5
+        fig= plt.figure(figsize=(15, 10))
+        # 定义GridSpec：2行1列
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
+        ax1 = fig.add_subplot(gs[0])
+        # 创建ax4,ax5
+
+        ax4 = fig.add_subplot(gs[1])
+        ax5 = ax4.twinx()
+        #确保与ax1的x轴对齐
+        
+        # 将ax4的x轴刻度和标签移动到上方并且隐藏数据
+        ax4.xaxis.tick_top()
+        ax4.xaxis.set_label_position('top')
+        ax4.set_xticklabels([])
+        # 调整子图布局参数
         plt.subplots_adjust(left=0.12)
+        #ax4和ax1之间距离
+        plt.subplots_adjust(hspace=0.08)
         ax3 = ax1.twinx()
         ax2 = ax1.twinx()
         # 隐藏第三个y轴的刻度和标签
         ax3.get_yaxis().set_visible(False)
         # 隐藏第三个y轴的轴线
         ax3.spines['right'].set_visible(False)
-
         # 设置中文显示
         font_manager.fontManager.addfont(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\MiSans VF.ttf')
         plt.rcParams['font.sans-serif'] = ['MiSans VF']
 
-
-        #标题
-        plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', fontname='Microsoft YaHei', pad=20)   
+        # 标题
+        plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', fontname='Microsoft YaHei', pad=22)   
         # 绘制经纬度与查询时次
-        plt.text(-0.15, 1.1, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
+        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
+        # 上水印
+        plt.text( 1.15, 1.1,f'''By @CloudyLake''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
 
     '''
@@ -152,7 +169,6 @@ def drawdata(weather_data,station_info):
         def calculate_sealevel_pressure(pressure_column, station_height=0):
             """
             根据气压和站点高度计算海平面气压。
-
             参数:
             - pressure_column: 气压列表（hPa）
             - station_height: 站点高度（m）
@@ -169,18 +185,18 @@ def drawdata(weather_data,station_info):
             return sealevel_pressure_column
         sealevel_pressure_column = calculate_sealevel_pressure(pressure_column, station_height)
         # 提取风向列
-        wind_direction_colomn = [row[4] for row in reversed(weather_data[1:])]
+        wind_direction_column = [row[4] for row in reversed(weather_data[1:])]
         #处理无持续风向与分隔风向
-        for i in range(len(wind_direction_colomn)):
-            if wind_direction_colomn[i] == '-':
-                wind_direction_colomn[i] = '0'
-            #以'/'为分隔分开为一个元组
-            wind_direction_colomn[i] = wind_direction_colomn[i].split('/') if '/' in wind_direction_colomn[i] else wind_direction_colomn[i]
+        for i in range(len(wind_direction_column)):
+            if wind_direction_column[i] == '-':
+                wind_direction_column[i] = ['0','0']
+            #以'/'为分隔分开为一个列表
+            wind_direction_column[i] = wind_direction_column[i].split('/') if '/' in wind_direction_column[i] else wind_direction_column[i]
+            print(wind_direction_column[i])
         # 提取风速列
         wind_speed_column = [float(row[5]) for row in reversed(weather_data[1:])]
         #提取最大风速
-        max_wind_speed_column = [float(row[6]) for row in reversed(weather_data[1:])]
-        #提取能见度
+        max_wind_speed_column = [float(row[6]) if row[6] != '' else 0 for row in reversed(weather_data[1:])]        #提取能见度
         visibility_column = [float(row[8]) for row in reversed(weather_data[1:])]
     init_data()
     '''
@@ -210,7 +226,7 @@ def drawdata(weather_data,station_info):
     '''
     ######温度，露点温度与体感温度，湿度
     '''
-    # 绘制主图
+    # 绘制温度图
     def draw_temperature_dewpoint_heatindex_humidity():
         #绘制体感温度关系图
         ax1.plot(time_column, heat_index_column, color='orange', marker='o', label='Heat Index', zorder=2)
@@ -241,21 +257,21 @@ def drawdata(weather_data,station_info):
 
             # 仅在第一个数据点旁添加说明
             if i == 0:
-                temperature_text = ax1.annotate('温度(°C) \n\n' + str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
-                dewpoint_text = ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], temperature_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
-                humidity_text = ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
-                heat_index_text = ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
+                ax1.annotate('温度(°C) \n\n' + str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
+                ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], temperature_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
+                ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
+                ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
             else:
-                temperature_text = ax1.annotate(str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
-                dewpoint_text = ax1.annotate(str(dewpoint_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
-                heat_index_text = ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
-                humidity_text = ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
+                ax1.annotate(str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
+                ax1.annotate(str(dewpoint_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
+                ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
+                ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
 
         # 添加图例
         # 左侧湿度颜色映射
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=100))
         sm.set_array([])
-        cbar_ax = fig.add_axes([0.02, 0.1, 0.02, 0.8])  # 这里的数字分别代表[左, 下, 宽, 高]
+        cbar_ax = fig.add_axes([0.02, 0.15, 0.02, 0.73])  # 这里的数字分别代表[左, 下, 宽, 高]
         cbar = fig.colorbar(sm, cax=cbar_ax)
         cbar.set_label('湿度映射(%)')
         # 右侧温度和体感温度图例/降雨等级
@@ -309,7 +325,11 @@ def drawdata(weather_data,station_info):
     colors_12h=get_precipitation_color()
     # 绘制降水量柱状图
     def draw_precipitation_bar():
-        
+        # 背景画上浅蓝浅黄交替竖线定位竖列
+        for i in range(len(time_column)):
+            ax2.axvline(x=time_column[i], color='lightblue', linestyle=':', linewidth=2)
+
+
         ax2.bar(time_column, precipitation_column, color=colors_12h, label='降水量')
     
         ax2.set_ylabel('降水量(mm)', color='green')
@@ -317,7 +337,6 @@ def drawdata(weather_data,station_info):
         
         # 绘制温度和露点温度、体感温度、湿度数据标签
         for i in range(len(time_column)):
-
             # 仅在第一个数据点旁添加说明
             if i == 0: 
                 ax2.annotate(str(precipitation_column[i]), (time_column[i],precipitation_column[i]), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
@@ -346,7 +365,61 @@ def drawdata(weather_data,station_info):
              transform=ax2.transAxes, fontsize=8, ha='right')
     write_precipitation_data()
 
+    '''
+    #####风向风速
+    '''
+    def draw_wind_with_arrows():
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from matplotlib.transforms import Affine2D
+        from PIL import Image
 
+        #背景竖线
+        for i in range(len(time_column)):
+            ax4.axvline(x=time_column[i], color='lightblue', linestyle=':', linewidth=2)
+
+        # 读取风向图像
+        img = Image.open(r"C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\1.0Basic function\画板 1.png")
+        img.format
+
+        # 更新ax4的x轴范围以匹配ax1
+        ax4.set_xlim(ax1.get_xlim())
+        ax4.plot(time_column, wind_speed_column, color='lightblue', marker='o', label='风速', zorder=1)
+        ax4.set_ylabel('风速(m/s)', color='black')
+        ax4.tick_params(axis='y', labelcolor='black')
+        diff=max(wind_speed_column)-min(wind_speed_column)
+        ax4.set_ylim([min(wind_speed_column)-diff*2, max(wind_speed_column)+diff*1])
+
+        #画箭头
+        for i in range(len(time_column)):
+            if wind_direction_column[i] != '0':
+                # 旋转箭头图像
+                img_rotated = img.rotate(-float(wind_direction_column[i][0]))
+                # 创建图像注释
+                imagebox = OffsetImage(img_rotated, zoom=0.045)
+                ab = AnnotationBbox(imagebox, (time_column[i], wind_speed_column[i]), frameon=False)
+                ax4.add_artist(ab)
+        
+        #添加风速标签
+        for i in range(len(time_column)):
+            if wind_direction_column[i] != '0':
+                ax4.annotate(str(wind_speed_column[i]), (time_column[i], wind_speed_column[i]), ha='center', va='bottom', xytext=(0, 10), textcoords='offset points')
+
+        #画一条0风速线
+        ax4.axhline(0, color='black',linestyle = '--', linewidth=1)
+    draw_wind_with_arrows()
+
+    '''
+    #####能见度
+    '''
+    def draw_visibility():
+        ax5.bar(time_column, visibility_column, color='#B8B8B8AA', label='能见度')
+        ax5.set_ylabel('能见度(km)', color='black')
+        ax5.tick_params(axis='y', labelcolor='grey')
+        diff=max(visibility_column)-min(visibility_column)
+        ax5.set_ylim([0, max(visibility_column)+diff*5.5])
+        for i in range(len(time_column)):
+            ax5.annotate(str(visibility_column[i]), (time_column[i], visibility_column[i]), ha='center', va='bottom', xytext=(0, 10), textcoords='offset points', fontsize=9)
+    draw_visibility()
     '''
     #####保存图片
     '''
