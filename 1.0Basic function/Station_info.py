@@ -35,6 +35,7 @@ def getdata(url):
 
 #得到站点信息
 def get_station_info(number):
+
     # 从文本文件中提取站点信息
     with open(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\station info.txt', 'r', encoding='utf-8') as file:
         station_info = file.read()
@@ -42,11 +43,21 @@ def get_station_info(number):
     station_info = station_info.split('\n')
     #分割每一行
     station_info = [info.split(' ') for info in station_info]
+
     #寻找
     for station in station_info:
-        if number in station[1]:
-            return station
-    return None
+        if number.isdigit()==False:
+            if number in station[2]:
+                return station, station[1]
+            else:
+                continue
+        else :
+            if number == station[1]:
+                return station, number
+            else:
+                continue
+
+    return None, None
 
 # 绘制数据
 def drawdata(weather_data,station_info):
@@ -220,7 +231,7 @@ def drawdata(weather_data,station_info):
                 ax3.annotate(str(sealevel_pressure_column[i]), (time_column[i], sealevel_pressure_column[i]), ha='center', va='bottom', xytext=(0, -30), textcoords='offset points', fontsize=9)
         # 设置y轴的上下端点值
         diff = max(pressure_column) - min(pressure_column)
-        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 3])  # 确保底部从0开始
+        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 4])  # 确保底部从0开始
     draw_pressure()
 
     '''
@@ -251,6 +262,10 @@ def drawdata(weather_data,station_info):
         ax1.set_ylabel('实况温度(°C)',)
         ax1.tick_params(axis='y')
 
+        # 设置y1温度轴的上下端点值
+        diff=max(temperature_column+heat_index_column)-min(temperature_column+heat_index_column)
+        ax1.set_ylim([min(heat_index_column)-diff*2, max(heat_index_column)+diff*0.2])
+
         # 绘制温度和露点温度、体感温度、湿度数据标签
         for i in range(len(time_column)):
             texts=[]
@@ -259,13 +274,13 @@ def drawdata(weather_data,station_info):
             if i == 0:
                 ax1.annotate('温度(°C) \n\n' + str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
                 ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], temperature_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
-                ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
-                ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
+                ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
+                ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i],max(heat_index_column)+diff*0.2), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
             else:
                 ax1.annotate(str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
                 ax1.annotate(str(dewpoint_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
-                ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
-                ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+3), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
+                ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
+                ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
 
         # 添加图例
         # 左侧湿度颜色映射
@@ -281,9 +296,6 @@ def drawdata(weather_data,station_info):
         legend_lines = [Line2D([0], [0], color=color, lw=2) for color in legend_colors]
         ax1.legend(legend_lines, legend_labels, loc='center left', bbox_to_anchor=(1.05, 0.75))
         
-        # 设置y1温度轴的上下端点值
-        diff=max(temperature_column)-min(temperature_column)
-        ax1.set_ylim([min(heat_index_column)-diff*6, max(heat_index_column)+diff*0.5])
     draw_temperature_dewpoint_heatindex_humidity()
 
     '''
@@ -393,7 +405,7 @@ def drawdata(weather_data,station_info):
         for i in range(len(time_column)):
             if wind_direction_column[i] != '0':
                 # 旋转箭头图像
-                img_rotated = img.rotate(-float(wind_direction_column[i][0]))
+                img_rotated = img.rotate(-float(wind_direction_column[i][0])+180)
                 # 创建图像注释
                 imagebox = OffsetImage(img_rotated, zoom=0.045)
                 ab = AnnotationBbox(imagebox, (time_column[i], wind_speed_column[i]), frameon=False)
@@ -429,14 +441,21 @@ def drawdata(weather_data,station_info):
 
 # 主函数
 def main():
+    
+    # 输入站号或站名
+    number = input("请输入站号或站名：（如：58362 或 无锡）：")
+    # 处理
+    if number == '':
+        url = 'https://q-weather.info/weather/58362/today/'
+        number = '58362'
+        station_info=get_station_info(number)
+    elif not number.isdigit():
+        station_info,number = get_station_info(number)
+        # 网址
+        url = 'https://q-weather.info/weather/{}/today/'.format(number)
+        
     while True:
         try:    
-            # 生成地址
-            number = input("请输入站号：（如：58362）：")
-            url = 'https://q-weather.info/weather/{}/today/'.format(number)
-            if number == '':
-                url = 'https://q-weather.info/weather/58362/today/'
-                number='58362'
             # 获取数据
             weather_data = getdata(url)
 
@@ -446,7 +465,7 @@ def main():
             print("请再次尝试输入站号。")
     # 输出
     if weather_data:
-        station_info=get_station_info(number)
+        
         drawdata(weather_data,station_info)
 if __name__ == "__main__":
     main()
