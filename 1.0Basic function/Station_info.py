@@ -46,16 +46,13 @@ def get_station_info(number):
 
     #寻找
     for station in station_info:
-        if number.isdigit()==False:
-            if number in station[2]:
-                return station, station[1]
-            else:
-                continue
-        else :
+        if number.isdigit() and len(number) == 5:
             if number == station[1]:
+                print(station)
                 return station, number
-            else:
-                continue
+        else :
+            if number == station[2]:
+                return station, station[1]
 
     return None, None
 
@@ -67,7 +64,7 @@ def drawdata(weather_data,station_info):
     def init_chart():
         # 设置图形大小
         global fig, ax1, ax2 ,ax3 ,ax4 ,ax5
-        fig= plt.figure(figsize=(15, 10))
+        fig= plt.figure(figsize=(15, 9))
         # 定义GridSpec：2行1列
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
         ax1 = fig.add_subplot(gs[0])
@@ -114,6 +111,8 @@ def drawdata(weather_data,station_info):
         temperature_column = [float(row[1]) for row in reversed(weather_data[1:])]
         # 提取湿度列
         humidity_column = [float(row[3]) for row in reversed(weather_data[1:])]
+        if humidity_column[-1] == 0:
+            humidity_column[-1] = humidity_column[-2]
         # Magnus公式计算露点温度
         def calculate_dewpoint(temperature_column, humidity_column):
             """
@@ -175,6 +174,8 @@ def drawdata(weather_data,station_info):
         precipitation_column = [float(row[7]) for row in reversed(weather_data[1:])]
         # 提取气压列
         pressure_column = [float(row[2]) for row in reversed(weather_data[1:])]
+        if pressure_column[-1] == 0:
+            pressure_column[-1] = pressure_column[-2]
         #计算海平面气压
         station_height=float(station_info[5])
         def calculate_sealevel_pressure(pressure_column, station_height=0):
@@ -448,8 +449,8 @@ def main():
     if number == '':
         url = 'https://q-weather.info/weather/58362/today/'
         number = '58362'
-        station_info=get_station_info(number)
-    elif not number.isdigit():
+        station_info , number =get_station_info(number)
+    else:
         station_info,number = get_station_info(number)
         # 网址
         url = 'https://q-weather.info/weather/{}/today/'.format(number)
@@ -465,7 +466,6 @@ def main():
             print("请再次尝试输入站号。")
     # 输出
     if weather_data:
-        
         drawdata(weather_data,station_info)
 if __name__ == "__main__":
     main()
