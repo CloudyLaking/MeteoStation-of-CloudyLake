@@ -35,7 +35,6 @@ def getdata(url):
 
 #得到站点信息
 def get_station_info(number):
-
     # 从文本文件中提取站点信息
     with open(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\station info.txt', 'r', encoding='utf-8') as file:
         station_info = file.read()
@@ -47,11 +46,10 @@ def get_station_info(number):
     #寻找
     for station in station_info:
         if number.isdigit() and len(number) == 5:
-            if number == station[1]:
-                print(station)
+            if number in station[1]:
                 return station, number
         else :
-            if number == station[2]:
+            if number in station[2]:
                 return station, station[1]
 
     return None, None
@@ -99,18 +97,46 @@ def drawdata(weather_data,station_info):
         # 上水印
         plt.text( 1.15, 1.1,f'''By @CloudyLake''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
-
+    print('图像初始化完成')
     '''
     #####提取数据
     '''
     def init_data():
         global time_column, temperature_column, humidity_column, dewpoint_column, heat_index_column, precipitation_column,pressure_column,sealevel_pressure_column,wind_speed_column,wind_direction_column,max_wind_speed_column,visibility_column
-        # 提取时间列
-        time_column = [row[0][11:16] for row in reversed(weather_data[1:])]
-        # 提取温度列
-        temperature_column = [float(row[1]) for row in reversed(weather_data[1:])]
-        # 提取湿度列
-        humidity_column = [float(row[3]) for row in reversed(weather_data[1:])]
+        #统一提取源数据
+        for i1 in range(len(weather_data[0])):
+            for key in ['时次','瞬时温度', '相对湿度', '地面气压', '瞬时风向','2分钟平均风向', '瞬时风速','2分钟平均风速', '1小时降水', '10分钟平均能见度', '1小时极大风速']:
+                # 提取时间列
+                if weather_data[0][i1] == key and key == '时次':
+                    time_column = [row[i1][11:16] for row in reversed(weather_data[1:])]
+                # 提取温度列
+                if weather_data[0][i1] == key and key == '瞬时温度':
+                    temperature_column = [float(row[i1]) for row in reversed(weather_data[1:])]        
+                # 提取湿度列
+                if weather_data[0][i1] == key and key == '相对湿度':
+                    humidity_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                # 提取降水量列
+                if weather_data[0][i1] == key and key == '1小时降水':
+                    precipitation_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                # 提取气压列
+                if weather_data[0][i1] == key and key == '地面气压':
+                    pressure_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                # 提取风向列
+                if weather_data[0][i1] == key and( key == '瞬时风向' or key == '2分钟平均风向'):
+                    wind_direction_column = [row[i1] for row in reversed(weather_data[1:])]
+                # 提取风速列
+                if weather_data[0][i1] == key and (key == '瞬时风速' or key == '2分钟平均风速'):
+                    if weather_data[1][i1][0].isdigit():
+                        wind_speed_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                    else:
+                        wind_speed_column = [float(row[i1][1]) for row in reversed(weather_data[1:])]
+                #提取最大风速列
+                if weather_data[0][i1] == key and key == '1小时极大风速':
+                    max_wind_speed_column = [float(row[i1]) if row[6] != '' else 0 for row in reversed(weather_data[1:])]
+                # 提取能见度列
+                if weather_data[0][i1] == key and key == '10分钟平均能见度':
+                    visibility_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+        #处理湿度
         if humidity_column[-1] == 0:
             humidity_column[-1] = humidity_column[-2]
         # Magnus公式计算露点温度
@@ -150,32 +176,46 @@ def drawdata(weather_data,station_info):
             # 将摄氏度转换为华氏度，因为热指数的计算公式基于华氏度
             heat_index_column = []
             for temperature_celsius, humidity in zip(temperature_column, humidity_column):
-
+                humidity = humidity / 100.0
                 temperature_fahrenheit = temperature_celsius * 9 / 5 + 32
-        
-                # 使用NOAA的热指数公式
-                heat_index_fahrenheit = (
-                    -42.379 + 2.04901523 * temperature_fahrenheit + 10.14333127 * humidity
-                    - 0.22475541 * temperature_fahrenheit * humidity
-                    - 6.83783e-3 * temperature_fahrenheit**2
-                    - 5.481717e-2 * humidity**2
-                    + 1.22874e-3 * temperature_fahrenheit**2 * humidity
-                    + 8.5282e-4 * temperature_fahrenheit * humidity**2
-                    - 1.99e-6 * temperature_fahrenheit**2 * humidity**2
-                )
-        
+            
+                # 简化公式计算热指数
+                simple_hi_fahrenheit = 0.5 * (temperature_fahrenheit + 61.0 + ((temperature_fahrenheit - 68.0) * 1.2) + (humidity * 100 * 0.094))
+            
+                # 如果简化公式计算的热指数大于等于80°F，使用完整的回归方程
+                if simple_hi_fahrenheit >= 80:
+                    heat_index_fahrenheit = (
+                        -42.379 + 2.04901523 * temperature_fahrenheit + 10.14333127 * humidity * 100
+                        - 0.22475541 * temperature_fahrenheit * humidity * 100
+                        - 6.83783e-3 * temperature_fahrenheit**2
+                        - 5.481717e-2 * (humidity * 100)**2
+                        + 1.22874e-3 * temperature_fahrenheit**2 * humidity * 100
+                        + 8.5282e-4 * temperature_fahrenheit * (humidity * 100)**2
+                        - 1.99e-6 * temperature_fahrenheit**2 *(humidity * 100)**2
+                    )
+            
+                    # 应用特定条件下的调整
+                    if humidity < 0.13 and 80 <= temperature_fahrenheit <= 112:
+                        adjustment = ((13 - humidity * 100) / 4) * ((17 - abs(temperature_fahrenheit - 95)) / 17)**0.5
+                        heat_index_fahrenheit -= adjustment
+                    elif humidity > 0.85 and 80 <= temperature_fahrenheit <= 87:
+                        adjustment = ((humidity * 100 - 85) / 10) * ((87 - temperature_fahrenheit) / 5)
+                        heat_index_fahrenheit += adjustment
+                else:
+                    heat_index_fahrenheit = simple_hi_fahrenheit
+            
                 # 将热指数从华氏度转换回摄氏度
                 heat_index_celsius = (heat_index_fahrenheit - 32) * 5 / 9
                 heat_index_column.append(round(heat_index_celsius, 2))
 
             return heat_index_column
         heat_index_column = calculate_heat_index(temperature_column, humidity_column)
-        # 提取降水量列
-        precipitation_column = [float(row[7]) for row in reversed(weather_data[1:])]
-        # 提取气压列
-        pressure_column = [float(row[2]) for row in reversed(weather_data[1:])]
-        if pressure_column[-1] == 0:
+        #处理气压
+        if pressure_column[-1] == 0 :
             pressure_column[-1] = pressure_column[-2]
+        for pressure in pressure_column:
+            if pressure == '-':
+                pressure = 500.0
         #计算海平面气压
         station_height=float(station_info[5])
         def calculate_sealevel_pressure(pressure_column, station_height=0):
@@ -196,21 +236,15 @@ def drawdata(weather_data,station_info):
                 sealevel_pressure_column = [round(p, 1) for p in sealevel_pressure_column]
             return sealevel_pressure_column
         sealevel_pressure_column = calculate_sealevel_pressure(pressure_column, station_height)
-        # 提取风向列
-        wind_direction_column = [row[4] for row in reversed(weather_data[1:])]
         #处理无持续风向与分隔风向
         for i in range(len(wind_direction_column)):
             if wind_direction_column[i] == '-':
                 wind_direction_column[i] = ['0','0']
             #以'/'为分隔分开为一个列表
             wind_direction_column[i] = wind_direction_column[i].split('/') if '/' in wind_direction_column[i] else wind_direction_column[i]
-            print(wind_direction_column[i])
-        # 提取风速列
-        wind_speed_column = [float(row[5]) for row in reversed(weather_data[1:])]
-        #提取最大风速
-        max_wind_speed_column = [float(row[6]) if row[6] != '' else 0 for row in reversed(weather_data[1:])]        #提取能见度
-        visibility_column = [float(row[8]) for row in reversed(weather_data[1:])]
     init_data()
+    print('该站点数据列提取完成')
+
     '''
     #####气压
     '''
@@ -221,6 +255,7 @@ def drawdata(weather_data,station_info):
         ax3.set_ylabel('气压(hPa)', color='blue')
         ax3.tick_params(axis='y', labelcolor='blue')
         # 绘制气压与海平面数据标签
+        diff = max(pressure_column) - min(pressure_column)
         for i, value in enumerate(pressure_column):
             # 仅在第一个数据点旁添加说明
             if i == -1:
@@ -228,13 +263,13 @@ def drawdata(weather_data,station_info):
                 ax3.annotate(str(value), (time_column[i], value), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points', fontsize=9)
                 ax3.annotate('海平面气压(hPa):                        ', (time_column[i], sealevel_pressure_column[i]), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points', fontsize=9)
             else:
-                ax3.annotate(str(value),                       (time_column[i], value),                       ha='center', va='bottom', xytext=(0, 0), textcoords='offset points', fontsize=9)
-                ax3.annotate(str(sealevel_pressure_column[i]), (time_column[i], sealevel_pressure_column[i]), ha='center', va='bottom', xytext=(0, -30), textcoords='offset points', fontsize=9)
+                ax3.annotate(str(value),                       (time_column[i], value),                       ha='center', va='bottom', xytext=(0, 0), textcoords='offset pixels', fontsize=9)
+                ax3.annotate(str(sealevel_pressure_column[i]), (time_column[i], value), ha='center', va='bottom', xytext=(0, -60), textcoords='offset pixels', fontsize=9)
         # 设置y轴的上下端点值
         diff = max(pressure_column) - min(pressure_column)
         ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 4])  # 确保底部从0开始
     draw_pressure()
-
+    print('气压数据绘制完成')
     '''
     ######温度，露点温度与体感温度，湿度
     '''
@@ -265,7 +300,7 @@ def drawdata(weather_data,station_info):
 
         # 设置y1温度轴的上下端点值
         diff=max(temperature_column+heat_index_column)-min(temperature_column+heat_index_column)
-        ax1.set_ylim([min(heat_index_column)-diff*2, max(heat_index_column)+diff*0.2])
+        ax1.set_ylim([min(heat_index_column)-diff*1.8, max(heat_index_column)+diff*0.5])
 
         # 绘制温度和露点温度、体感温度、湿度数据标签
         for i in range(len(time_column)):
@@ -275,13 +310,13 @@ def drawdata(weather_data,station_info):
             if i == 0:
                 ax1.annotate('温度(°C) \n\n' + str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
                 ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], temperature_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
-                ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
-                ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i],max(heat_index_column)+diff*0.2), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
+                ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
+                ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i],max(heat_index_column)+diff*0.5), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
             else:
                 ax1.annotate(str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
                 ax1.annotate(str(dewpoint_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
-                ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
-                ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.2), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
+                ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
+                ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
 
         # 添加图例
         # 左侧湿度颜色映射
@@ -296,9 +331,8 @@ def drawdata(weather_data,station_info):
         legend_colors = ['red', 'orange']
         legend_lines = [Line2D([0], [0], color=color, lw=2) for color in legend_colors]
         ax1.legend(legend_lines, legend_labels, loc='center left', bbox_to_anchor=(1.05, 0.75))
-        
     draw_temperature_dewpoint_heatindex_humidity()
-
+    print('温度，露点温度，体感温度，湿度数据绘制完成')
     '''
     #####降水
     '''
@@ -377,7 +411,7 @@ def drawdata(weather_data,station_info):
              format(precipitation_6h,precipitation_12h,precipitation_24h),\
              transform=ax2.transAxes, fontsize=8, ha='right')
     write_precipitation_data()
-
+    print('降水数据绘制完成')
     '''
     #####风向风速
     '''
@@ -385,13 +419,21 @@ def drawdata(weather_data,station_info):
         from matplotlib.offsetbox import OffsetImage, AnnotationBbox
         from matplotlib.transforms import Affine2D
         from PIL import Image
+        
+        global wind_speed_column
+        #如果风速列查询出现错误，用极大风代替
+        try:
+            w = wind_speed_column[0]
+            print(w)
+        except:
+            wind_speed_column = max_wind_speed_column
 
         #背景竖线
         for i in range(len(time_column)):
             ax4.axvline(x=time_column[i], color='lightblue', linestyle=':', linewidth=2)
 
-        # 读取风向图像
-        img = Image.open(r"C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\1.0Basic function\画板 1.png")
+        # 读取风向标图像
+        img = Image.open(r"C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\Basic function\画板 1.png")
         img.format
 
         # 更新ax4的x轴范围以匹配ax1
@@ -420,7 +462,7 @@ def drawdata(weather_data,station_info):
         #画一条0风速线
         ax4.axhline(0, color='black',linestyle = '--', linewidth=1)
     draw_wind_with_arrows()
-
+    print('风向风速数据绘制完成')
     '''
     #####能见度
     '''
@@ -433,16 +475,17 @@ def drawdata(weather_data,station_info):
         for i in range(len(time_column)):
             ax5.annotate(str(visibility_column[i]), (time_column[i], visibility_column[i]), ha='center', va='bottom', xytext=(0, 10), textcoords='offset points', fontsize=9)
     draw_visibility()
+    print('能见度数据绘制完成')
     '''
     #####保存图片
     '''
     # 显示图形
     plt.savefig('weather.png', dpi=300)
+    print('图片已保存')
     plt.close()
 
 # 主函数
 def main():
-    
     # 输入站号或站名
     number = input("请输入站号或站名：（如：58362 或 无锡）：")
     # 处理
@@ -451,10 +494,12 @@ def main():
         number = '58362'
         station_info , number =get_station_info(number)
     else:
-        station_info,number = get_station_info(number)
+        station_info, number = get_station_info(number)
         # 网址
         url = 'https://q-weather.info/weather/{}/today/'.format(number)
-        
+    print('该站点信息提取完成:\n',station_info,'\n开始获取站点数据...')
+
+    # 获取站点数据
     while True:
         try:    
             # 获取数据
@@ -464,6 +509,7 @@ def main():
         except Exception as e:
             print("发生错误：", e)
             print("请再次尝试输入站号。")
+    print('站点数据获取完成\n最近一组:',weather_data[1],'\n开始绘制数据...')
     # 输出
     if weather_data:
         drawdata(weather_data,station_info)
