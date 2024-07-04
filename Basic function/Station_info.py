@@ -89,7 +89,9 @@ def drawdata(weather_data,station_info):
         # 隐藏第三个y轴的轴线
         ax3.spines['right'].set_visible(False)
         # 设置中文显示
-        font_manager.fontManager.addfont(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\MiSans VF.ttf')
+        import pathlib
+        folder = pathlib.Path(__file__).parent.resolve()
+        font_manager.fontManager.addfont(f'{folder}/MiSans VF.ttf')
         plt.rcParams['font.sans-serif'] = ['MiSans VF']
 
         # 标题
@@ -434,7 +436,9 @@ def drawdata(weather_data,station_info):
             ax4.axvline(x=time_column[i], color='lightblue', linestyle=':', linewidth=2)
 
         # 读取风向标图像
-        img = Image.open(r"C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\Basic function\画板 1.png")
+        import pathlib
+        folder = pathlib.Path(__file__).parent.resolve()
+        img = Image.open(f"{folder}/画板 1.png")
         img.format
 
         # 更新ax4的x轴范围以匹配ax1
