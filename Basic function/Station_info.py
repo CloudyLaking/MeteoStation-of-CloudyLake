@@ -6,6 +6,8 @@ from matplotlib import font_manager
 import matplotlib.gridspec as gridspec
 import numpy as np
 
+version = '1.1.1'
+
 # 请求数据
 def getdata(url):
     response = requests.get(url)
@@ -99,7 +101,7 @@ def drawdata(weather_data,station_info):
         # 绘制经纬度与查询时次
         plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
-        plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:1.0.7''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
+        plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:{version}''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
     print('图像初始化完成')
     '''
@@ -115,31 +117,31 @@ def drawdata(weather_data,station_info):
                     time_column = [row[i1][11:16] for row in reversed(weather_data[1:])]
                 # 提取温度列
                 if weather_data[0][i1] == key and key == '瞬时温度':
-                    temperature_column = [float(row[i1]) for row in reversed(weather_data[1:])]        
+                    temperature_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]        
                 # 提取湿度列
                 if weather_data[0][i1] == key and key == '相对湿度':
-                    humidity_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                    humidity_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 # 提取降水量列
                 if weather_data[0][i1] == key and key == '1小时降水':
-                    precipitation_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                    precipitation_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 # 提取气压列
                 if weather_data[0][i1] == key and key == '地面气压':
-                    pressure_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                    pressure_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 # 提取风向列
                 if weather_data[0][i1] == key and( key == '瞬时风向' or key == '2分钟平均风向'):
-                    wind_direction_column = [row[i1] for row in reversed(weather_data[1:])]
+                    wind_direction_column = [row[i1] if row[i1] != '-' or '' else '0' for row in reversed(weather_data[1:])]
                 # 提取风速列
                 if weather_data[0][i1] == key and (key == '瞬时风速' or key == '2分钟平均风速'):
                     if weather_data[1][i1][0].isdigit():
-                        wind_speed_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                        wind_speed_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                     else:
-                        wind_speed_column = [float(row[i1][1]) for row in reversed(weather_data[1:])]
+                        wind_speed_column = [float(row[i1][1]) if row[i1][1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 #提取最大风速列
                 if weather_data[0][i1] == key and key == '1小时极大风速':
-                    max_wind_speed_column = [float(row[i1]) if row[6] != '' else 0 for row in reversed(weather_data[1:])]
+                    max_wind_speed_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 # 提取能见度列
                 if weather_data[0][i1] == key and key == '10分钟平均能见度':
-                    visibility_column = [float(row[i1]) for row in reversed(weather_data[1:])]
+                    visibility_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
         #处理湿度
         if humidity_column[-1] == 0:
             humidity_column[-1] = humidity_column[-2]
@@ -279,6 +281,10 @@ def drawdata(weather_data,station_info):
     '''
     # 绘制温度图
     def draw_temperature_dewpoint_heatindex_humidity():
+        try:
+            w = temperature_column[0]
+        except:
+            temperature_column = [0]*24
         #绘制体感温度关系图
         ax1.plot(time_column, heat_index_column, color='orange', marker='o', label='Heat Index', zorder=2)
 
@@ -373,7 +379,6 @@ def drawdata(weather_data,station_info):
         # 调整子图布局参数
         plt.subplots_adjust(right=0.85) 
         return colors_12h
-    colors_12h=get_precipitation_color()
     # 绘制降水量柱状图
     def draw_precipitation_bar():
         # 背景画上浅蓝浅黄交替竖线定位竖列
@@ -400,7 +405,6 @@ def drawdata(weather_data,station_info):
         # 添加竖线
         for time in time_column:
             plt.axvline(x=time, color='lightblue', linestyle=':', linewidth=1)
-    draw_precipitation_bar()
     #右上角添加累计降水量数据
     def write_precipitation_data():
         # 计算最近6h累计降水量
@@ -414,7 +418,15 @@ def drawdata(weather_data,station_info):
              '近6h累计降水量: {} mm\n近12h累计降水量: {} mm\n近24h累计降水量: {} mm'.\
              format(precipitation_6h,precipitation_12h,precipitation_24h),\
              transform=ax2.transAxes, fontsize=8, ha='right')
-    write_precipitation_data()
+    try:
+        w = precipitation_column[0]
+        colors_12h=get_precipitation_color()
+        draw_precipitation_bar()
+        write_precipitation_data()
+    except:
+        pass
+    
+    
     print('降水数据绘制完成')
     '''
     #####风向风速
@@ -472,6 +484,10 @@ def drawdata(weather_data,station_info):
     #####能见度
     '''
     def draw_visibility():
+        try:
+            w = visibility_column[0]
+        except:
+            return None
         ax5.bar(time_column, visibility_column, color='#B8B8B8AA', label='能见度')
         ax5.set_ylabel('能见度(km)', color='black')
         ax5.tick_params(axis='y', labelcolor='grey')

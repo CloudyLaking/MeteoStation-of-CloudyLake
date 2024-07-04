@@ -8,10 +8,13 @@ import numpy as np
 
 import pyecharts
 
-#得到站点信息
+import pathlib
+folder = pathlib.Path(__file__).parent.resolve()
+
+# 得到站点位置数据
 def get_all_station_info():
     # 从文本文件中提取站点信息
-    with open(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\station info.txt', 'r', encoding='utf-8') as file:
+    with open(f'{folder}/MeteoStation-of-CloudyLake\station info.txt', 'r', encoding='utf-8') as file:
         station_info = file.read()
     # 分割列
     station_info = station_info.split('\n')
