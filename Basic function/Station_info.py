@@ -36,7 +36,9 @@ def getdata(url):
 #得到站点信息
 def get_station_info(number):
     # 从文本文件中提取站点信息
-    with open(r'C:\Users\lyz13\OneDrive\CloudyLake Programming\MeteoStation of CloudyLake\MeteoStation-of-CloudyLake\station info.txt', 'r', encoding='utf-8') as file:
+    import pathlib
+    folder = pathlib.Path(__file__).parent.resolve()
+    with open(f'{folder}/station info.txt', 'r', encoding='utf-8') as file:
         station_info = file.read()
     # 分割列
     station_info = station_info.split('\n')
@@ -95,7 +97,7 @@ def drawdata(weather_data,station_info):
         # 绘制经纬度与查询时次
         plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
-        plt.text( 1.15, 1.1,f'''By @CloudyLake''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
+        plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:1.0.7''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
     print('图像初始化完成')
     '''
@@ -424,7 +426,6 @@ def drawdata(weather_data,station_info):
         #如果风速列查询出现错误，用极大风代替
         try:
             w = wind_speed_column[0]
-            print(w)
         except:
             wind_speed_column = max_wind_speed_column
 
