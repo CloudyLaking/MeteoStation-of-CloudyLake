@@ -106,7 +106,7 @@ def draw_datamap(station_info, data, data_type):
 def draw_map(station_info):
     # 创建地图
     fig = plt.figure(figsize=(12, 10))
-    gs = gridspec.GridSpec(1, 1 )  
+    gs = gridspec.GridSpec(1, 1)  
     ax = fig.add_subplot(gs[0], projection=ccrs.PlateCarree())
     plt.subplots_adjust(left=0.12, right=0.98, top=0.98, bottom=0.05)
 

@@ -48,15 +48,16 @@ def get_station_info(number):
     station_info = [info.split(' ') for info in station_info]
 
     #寻找
-    for station in station_info:
+    for station in station_info[1:]:
         if number.isdigit() and len(number) == 5:
             if number in station[1]:
                 return station, number
         else :
-            if number in station[2]:
+            if number in station[2] and number !='':
                 return station, station[1]
-
-    return None, None
+            else:
+                pass
+    return ['上海', '58362', '宝山', '3139', '12145', '4.5', '3.3'], '58362'
 
 # 绘制数据
 def drawdata(weather_data,station_info):
@@ -436,6 +437,7 @@ def drawdata(weather_data,station_info):
         from matplotlib.transforms import Affine2D
         from PIL import Image
         
+        global wind_speed_column
         #如果风速列查询出现错误，用极大风代替
         try:
             w = wind_speed_column[0]
@@ -477,12 +479,6 @@ def drawdata(weather_data,station_info):
 
         #画一条0风速线
         ax4.axhline(0, color='black',linestyle = '--', linewidth=1)
-
-        #绘制最大风速
-        for i in range(len(time_column)):
-            if max_wind_speed_column[i] != '0':
-                ax4.annotate(str(max_wind_speed_column[i]), (time_column[i],min(wind_speed_column)-diff*2 ), ha='center', va='bottom', xytext=(0, 10), textcoords='offset points')
-
     draw_wind_with_arrows()
     print('风向风速数据绘制完成')
     '''
@@ -513,16 +509,18 @@ def drawdata(weather_data,station_info):
 # 主函数
 def main():
     # 输入站号或站名
-    number = input("请输入站号或站名：（如：58362 或 无锡）：")
-    # 处理
-    if number == '':
-        url = 'https://q-weather.info/weather/58362/today/'
-        number = '58362'
-        station_info , number =get_station_info(number)
+    number = input("请输入站号或站名:(如:58362 或 无锡）(默认58362)\n")
+    # 输入日期
+    date = input('请输入要查询的日期：(如:20200206)(默认今日)\n')
+    # 处理站号与日期
+    station_info, number = get_station_info(number)
+    if date =='':
+        url = f'https://q-weather.info/weather/{number}/today/'
     else:
-        station_info, number = get_station_info(number)
-        # 网址
-        url = 'https://q-weather.info/weather/{}/today/'.format(number)
+        date0 = date[0:4]+'-'+date[4:6]+'-'+date[6:8]
+        url = f'https://q-weather.info/weather/{number}/history/?date={date0}'
+        print(url)
+
     print('该站点信息提取完成:\n',station_info,'\n开始获取站点数据...')
 
     # 获取站点数据
