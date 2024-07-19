@@ -118,7 +118,7 @@ def drawdata(weather_data,station_info):
                     time_column = [row[i1][11:16] for row in reversed(weather_data[1:])]
                 # 提取温度列
                 if weather_data[0][i1] == key and key == '瞬时温度':
-                    temperature_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]        
+                    temperature_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
                 # 提取湿度列
                 if weather_data[0][i1] == key and key == '相对湿度':
                     humidity_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
@@ -282,15 +282,15 @@ def drawdata(weather_data,station_info):
     '''
     # 绘制温度图
     def draw_temperature_dewpoint_heatindex_humidity():
+        global temperature_column
         try:
-            w = temperature_column[0]
+            w=temperature_column[0]
         except:
             temperature_column = [0]*24
         #绘制体感温度关系图
         ax1.plot(time_column, heat_index_column, color='orange', marker='o', label='Heat Index', zorder=2)
 
         from matplotlib.colors import LinearSegmentedColormap
-        import matplotlib.pyplot as plt
     
         # 定义橙色到蓝色的颜色映射
         colors = ["#FF5900", "#3EE8D2"]  # 从橙色渐变到蓝色
