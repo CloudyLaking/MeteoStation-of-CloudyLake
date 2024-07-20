@@ -12,6 +12,13 @@ from bs4 import BeautifulSoup
 import pathlib
 folder = pathlib.Path(__file__).parent.resolve()
 
+# 设置中文显示
+import pathlib
+from matplotlib import font_manager
+folder = pathlib.Path(__file__).parent.resolve()
+font_manager.fontManager.addfont(f'{folder}/MiSans VF.ttf')
+plt.rcParams['font.sans-serif'] = ['MiSans VF']
+
 # 得到站点位置数据
 def get_all_station_info():
     # 从文本文件中提取站点信息

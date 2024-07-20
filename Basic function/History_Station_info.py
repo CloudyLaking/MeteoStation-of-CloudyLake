@@ -98,7 +98,7 @@ def drawdata(weather_data,station_info):
         plt.rcParams['font.sans-serif'] = ['MiSans VF']
 
         # 标题
-        plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', fontname='Microsoft YaHei', pad=22)   
+        plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', pad=22)   
         # 绘制经纬度与查询时次
         plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
@@ -118,31 +118,31 @@ def drawdata(weather_data,station_info):
                     time_column = [row[i1][11:16] for row in reversed(weather_data[1:])]
                 # 提取温度列
                 if weather_data[0][i1] == key and key == '瞬时温度':
-                    temperature_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    temperature_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取湿度列
                 if weather_data[0][i1] == key and key == '相对湿度':
-                    humidity_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    humidity_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取降水量列
                 if weather_data[0][i1] == key and key == '1小时降水':
-                    precipitation_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    precipitation_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取气压列
                 if weather_data[0][i1] == key and key == '地面气压':
-                    pressure_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    pressure_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取风向列
                 if weather_data[0][i1] == key and( key == '瞬时风向' or key == '2分钟平均风向'):
-                    wind_direction_column = [row[i1] if row[i1] != '-' or '' else '0' for row in reversed(weather_data[1:])]
+                    wind_direction_column = [row[i1] if row[i1] != '-' and row[i1] != '' else '0' for row in reversed(weather_data[1:])]
                 # 提取风速列
                 if weather_data[0][i1] == key and (key == '瞬时风速' or key == '2分钟平均风速'):
                     if weather_data[1][i1][0].isdigit():
-                        wind_speed_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                        wind_speed_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                     else:
-                        wind_speed_column = [float(row[i1][1]) if row[i1][1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                        wind_speed_column = [float(row[i1][1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 #提取最大风速列
                 if weather_data[0][i1] == key and key == '1小时极大风速':
-                    max_wind_speed_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    max_wind_speed_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取能见度列
                 if weather_data[0][i1] == key and key == '10分钟平均能见度':
-                    visibility_column = [float(row[i1]) if row[i1] != '-' or '' else 0 for row in reversed(weather_data[1:])]
+                    visibility_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
         #处理湿度
         if humidity_column[-1] == 0:
             humidity_column[-1] = humidity_column[-2]
@@ -274,7 +274,7 @@ def drawdata(weather_data,station_info):
                 ax3.annotate(str(sealevel_pressure_column[i]), (time_column[i], value), ha='center', va='bottom', xytext=(0, -60), textcoords='offset pixels', fontsize=9)
         # 设置y轴的上下端点值
         diff = max(pressure_column) - min(pressure_column)
-        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 4])  # 确保底部从0开始
+        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 4.5]) 
     draw_pressure()
     print('气压数据绘制完成')
     '''
@@ -533,7 +533,17 @@ def main():
         except Exception as e:
             print("发生错误：", e)
             print("请再次尝试输入站号。")
-    print('站点数据获取完成\n最近一组:',weather_data[1],'\n开始绘制数据...')
+
+    # 历史日期倒序
+    if date != '':
+        weather_data = [weather_data[0]] + list(reversed(weather_data[1:]))
+    print(weather_data)
+    print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
+    # 当前时间
+    import datetime
+    current_time = datetime.datetime.now()
+    print("获取时间：", current_time)
+
     # 输出
     if weather_data:
         drawdata(weather_data,station_info)
