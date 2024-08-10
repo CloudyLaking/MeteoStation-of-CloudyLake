@@ -520,73 +520,50 @@ def drawdata(weather_data,station_info):
     plt.close()
 
 # 主函数
-def main():
+def main(index):
+    global error_log, station_infos
 
-    # 站点信息
-    station_infos = get_station_infos()
-    # 错误日志
-    error_log = []
-    # 遍历站点
-    index = int(input('请输入开始序号:'))
-    indexx =index
-    for station_info in station_infos[index:]:
-        print('第',indexx,'/2169个站点')
+    # 站点
+    for station_info in station_infos[index:index]:
+        print('第',index,'/2169个站点')
+        index += 1
         number = station_info[1]
         # 生成url
         url = f'https://q-weather.info/weather/{number}/today/'
         print('该站点信息提取完成:\n',station_info,'\n开始获取站点数据...')
 
+
         # 获取站点数据
-        for _ in range(10):
+        for i in range(100):
             try:    
-                # 获取数据
                 weather_data = getdata(url)
+                print(f'站点数据获取完成\n第一组:{weather_data[0]}\n最近一组:{weather_data[1]}\n开始绘制数据...')
                 break
             except Exception as e:
                 print("发生错误：", e)
                 print("正在再次尝试。")
-        else:
-            print("尝试次数超过限制，无法获取数据。")
-            return
-        print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
+
 
         # 当前时间
         current_time = datetime.datetime.now()
         print("获取时间：", current_time)
 
-        # 输出
         if weather_data:
             try:
-                drawdata(weather_data,station_info)
+                drawdata(weather_data,station_info)  
             except Exception as e:
                 print("绘制数据时发生错误：", e)
                 error_log.append(station_info[1]+station_info[2])
-        
-        # 设置计时器
-        start_time = time.time()
-        elapsed_time = 0
-
-        # 等待30秒或直到完成绘制数据
-        while elapsed_time < 30:
-            if weather_data:
-                try:
-                    drawdata(weather_data,station_info)
-                    break
-                except Exception as e:
-                    print("绘制数据时发生错误：", e)
-                    error_log.append(station_info[1]+station_info[2])
             
-            # 更新计时器
-            elapsed_time = time.time() - start_time
-        
-        # 如果超过30秒仍未完成绘制数据，则进入下一次循环
-        if elapsed_time >= 30:
-            print("绘制数据超时，进入下一次循环。")
-            continue
-
-        # 更新索引
-        indexx += 1
 
 if __name__ == "__main__":
+    index0 = int(input('请输入开始序号:'))
+    # 错误日志
+    error_log = []
+    # 站点信息
+    station_infos = get_station_infos()
+    
+    index = index0
     for i in range(10000000000):
-        main()
+        for index in range(index0,2169):
+            main(index)

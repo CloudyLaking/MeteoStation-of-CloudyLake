@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import matplotlib.gridspec as gridspec
 import numpy as np
+import os
+version = '1.2.4'
 
-version = '1.1.2'
 
 # 请求数据
 def getdata(url):
@@ -501,17 +502,21 @@ def drawdata(weather_data,station_info):
     '''
     #####保存图片
     '''
-    # 显示图形
-    plt.savefig('weather.png', dpi=300)
-    print('图片已保存')
+
+    # 获取当前脚本文件的绝对路径
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 生成图片的完整路径
+    image_path = os.path.join(script_dir, f'weather.png')
+
+    # 保存图片到指定路径
+    plt.savefig(image_path, dpi=300)
+    print(f'图片已保存至 {image_path}')
     plt.close()
 
 # 主函数
-def main():
-    # 输入站号或站名
-    number = input("请输入站号或站名:(如:58362 或 无锡）(默认58362)\n")
-    # 输入日期
-    date = input('请输入要查询的日期：(如:20200206)(默认今日)\n')
+def main(number='58362', date='20200206'):
+    
     # 处理站号与日期
     station_info, number = get_station_info(number)
     if date =='':
@@ -528,7 +533,6 @@ def main():
         try:    
             # 获取数据
             weather_data = getdata(url)
-
             break
         except Exception as e:
             print("发生错误：", e)
@@ -537,7 +541,6 @@ def main():
     # 历史日期倒序
     if date != '':
         weather_data = [weather_data[0]] + list(reversed(weather_data[1:]))
-    print(weather_data)
     print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
     # 当前时间
     import datetime
@@ -547,5 +550,11 @@ def main():
     # 输出
     if weather_data:
         drawdata(weather_data,station_info)
+
 if __name__ == "__main__":
-    main()
+    # 输入站号或站名
+    number = input("请输入站号或站名:(如:58362 或 无锡）(默认58362)\n")
+    # 输入日期
+    date = input('请输入要查询的日期：(如:20200206)(默认今日)\n')
+    # 运行主函数
+    main(number, date)

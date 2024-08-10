@@ -1,0 +1,1 @@
+python3.12 /www/wwwroot/www.meteostation.top/MeteoStation-of-CloudyLake/'Basic function'/History_Station_info.py
