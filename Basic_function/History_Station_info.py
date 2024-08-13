@@ -6,7 +6,7 @@ from matplotlib import font_manager
 import matplotlib.gridspec as gridspec
 import numpy as np
 import os
-version = '1.2.4'
+version = '1.2.5'
 
 
 # 请求数据
@@ -101,7 +101,8 @@ def drawdata(weather_data,station_info):
         # 标题
         plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', pad=22)   
         # 绘制经纬度与查询时次
-        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
+        import datetime    
+        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {datetime.datetime.now()}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
         plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:{version}''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
@@ -110,7 +111,7 @@ def drawdata(weather_data,station_info):
     #####提取数据
     '''
     def init_data():
-        global time_column, temperature_column, humidity_column, dewpoint_column, heat_index_column, precipitation_column,pressure_column,sealevel_pressure_column,wind_speed_column,wind_direction_column,max_wind_speed_column,visibility_column
+        global time_column, temperature_column, humidity_column, dewpoint_column, heat_index_column, precipitation_column,pressure_column,sealevel_pressure_column,wind_speed_column,wind_direction_column,max_wind_speed_column,visibility_column,randomnum
         #统一提取源数据
         for i1 in range(len(weather_data[0])):
             for key in ['时次','瞬时温度', '相对湿度', '地面气压', '瞬时风向','2分钟平均风向', '瞬时风速','2分钟平均风速', '1小时降水', '10分钟平均能见度', '1小时极大风速']:
@@ -507,7 +508,7 @@ def drawdata(weather_data,station_info):
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # 生成图片的完整路径
-    image_path = os.path.join(script_dir, f'weather.png')
+    image_path = os.path.join(script_dir, f'{station_info[1]}_{randomnum}.png')
 
     # 保存图片到指定路径
     plt.savefig(image_path, dpi=300)
@@ -519,7 +520,7 @@ def main(number='58362', date='20200206'):
     
     # 处理站号与日期
     station_info, number = get_station_info(number)
-    if date =='':
+    if date =='' or date =='0':
         url = f'https://q-weather.info/weather/{number}/today/'
     else:
         date0 = date[0:4]+'-'+date[4:6]+'-'+date[6:8]
@@ -539,7 +540,7 @@ def main(number='58362', date='20200206'):
             print("请再次尝试输入站号。")
 
     # 历史日期倒序
-    if date != '':
+    if date != '' and date !='0':
         weather_data = [weather_data[0]] + list(reversed(weather_data[1:]))
     print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
     # 当前时间
@@ -552,9 +553,13 @@ def main(number='58362', date='20200206'):
         drawdata(weather_data,station_info)
 
 if __name__ == "__main__":
+    import sys
+    print(sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3])
     # 输入站号或站名
-    number = input("请输入站号或站名:(如:58362 或 无锡）(默认58362)\n")
+    number = sys.argv[1]
     # 输入日期
-    date = input('请输入要查询的日期：(如:20200206)(默认今日)\n')
+    date = sys.argv[2]
+    # 输入随机数
+    randomnum = sys.argv[3]
     # 运行主函数
     main(number, date)
