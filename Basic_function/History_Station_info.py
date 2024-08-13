@@ -6,7 +6,7 @@ from matplotlib import font_manager
 import matplotlib.gridspec as gridspec
 import numpy as np
 import os
-version = '1.2.5'
+version = '1.2.6'
 
 
 # 请求数据
@@ -518,6 +518,7 @@ def drawdata(weather_data,station_info):
 # 主函数
 def main(number='58362', date='20200206'):
     
+    global station_info
     # 处理站号与日期
     station_info, number = get_station_info(number)
     if date =='' or date =='0':
@@ -554,7 +555,6 @@ def main(number='58362', date='20200206'):
 
 if __name__ == "__main__":
     import sys
-    print(sys.argv[0],sys.argv[1],sys.argv[2],sys.argv[3])
     # 输入站号或站名
     number = sys.argv[1]
     # 输入日期
@@ -563,3 +563,5 @@ if __name__ == "__main__":
     randomnum = sys.argv[3]
     # 运行主函数
     main(number, date)
+    print(station_info[1])
+    
