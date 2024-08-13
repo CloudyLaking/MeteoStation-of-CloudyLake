@@ -101,8 +101,8 @@ def drawdata(weather_data,station_info):
         # 标题
         plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', pad=22)   
         # 绘制经纬度与查询时次
-        import datetime    
-        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {datetime.datetime.now()}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
+        import time
+        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
         plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:{version}''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
