@@ -2,7 +2,7 @@
 # 旨在依据能够查询的api搭建一个绘图，然后搭建一个网站，用于查询更加充分展示的实况与预报
 
 ### version 1.x 
-
+### 仍然在更新，作为ObsStation项目的更新
 ## 1.0.x
 搭建绘图
 # 1.0.1 
@@ -58,4 +58,60 @@
 查询动作放在了网站里而非程序里
 # 1.2.2
 增强了很多健壮性
+# 1.2.8
+
+
+
+### version 2.x  ERA5绘制的加入   在MeteoMap文件夹
+
+## 2.0 
+# 2.0.1 10m uv + MSLP √
+# 2.0.2 level uv + GP √
+# 2.0.3 作了不同气压层面的适配
+
+## 2.1 更多 并作结构调整,色阶跟着选项动
+# 2m Temp  (average/min/max/dew/surface/body/wetbulb) with Anomaly √
+# Gust + MSLP √
+# level wind + temp/Pot. temp + GP √
+# level wind + RH%/Q + GP √
+# Freezing Level √
+# level GP + MSLP with Anomaly
+# Precip. (Total/Snow/All Phase)(1h/2h/3h/6h/12h/24h) √
+# Wind Shear √
+# CAPE √
+# Level Water Transport √
+# Precipitable Water and 850mb wind √
+# Vort. and MSLP √
+# Div.  and MSLP √
+# K-I √
+# Cloud Level and Total Cover √ （but much to be improved）
+# Simalated IR/BD/Radar 
+# Temp Change 24h/36h/60h √
+
+# 完成组图改造
+
+# 完成程序与输出文件分离
+
+
+## 2.2 集合预报
+
+
+
+## 2.3 加入单点/小区域绘制
+# 探空  样式参考TT网站
+# Meteogram 样式参考windy
+
+## 2.4 加入非常规区域绘制
+# 极地绘制：
+# 500mb GP and Wind
+# 200mb GP and Wind and temp
+# 10mb GP and temp
+#
+
+## 2.5 加入长时间平均分析
+# precipitation anomaly
+# temp anomaly
+
+## 2.6 加入GridSat云图绘制与海温绘制
+
 

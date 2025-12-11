@@ -49,7 +49,7 @@ def main():
     )
         
     # 渲染地图到HTML文件
-    geo.render("station_map.html")
+    geo.render("Output/MeteoMap/station_map.html")
 
 if __name__ == '__main__':
     main()

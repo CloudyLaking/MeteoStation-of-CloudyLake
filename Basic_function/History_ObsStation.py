@@ -5,14 +5,12 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import matplotlib.gridspec as gridspec
 import numpy as np
-import datetime
-import pathlib
-import time
 import os
+import datetime
+version = '1.2.8'
 
-version = '1.2.2'
 
-# 请求气象数据
+# 请求数据
 def getdata(url):
     response = requests.get(url)
     if response.status_code == 200:
@@ -39,20 +37,18 @@ def getdata(url):
     else:
         return []
 
-# 得到站点信息
-def get_station_infos():
+#得到站点信息
+def get_station_info(number):
     # 从文本文件中提取站点信息
+    import pathlib
     folder = pathlib.Path(__file__).parent.resolve()
     with open(f'{folder}/station info.txt', 'r', encoding='utf-8') as file:
-        station_infos = file.read()
+        station_info = file.read()
     # 分割列
-    station_infos = station_infos.split('\n')
+    station_info = station_info.split('\n')
     #分割每一行
-    station_infos = [info.split(' ') for info in station_infos]
-    return station_infos
+    station_info = [info.split(' ') for info in station_info]
 
-# 寻找站点信息
-def find_station_info(number, station_info):
     #寻找
     for station in station_info[1:]:
         if number.isdigit() and len(number) == 5:
@@ -66,7 +62,7 @@ def find_station_info(number, station_info):
     return ['上海', '58362', '宝山', '3139', '12145', '4.5', '3.3'], '58362'
 
 # 绘制数据
-def drawdata(weather_data,station_info):
+def drawdata(weather_data,station_info,date):
     '''
     #####图像初始化
     '''
@@ -100,13 +96,25 @@ def drawdata(weather_data,station_info):
         # 设置中文显示
         import pathlib
         folder = pathlib.Path(__file__).parent.resolve()
-        font_manager.fontManager.addfont(f'{folder}/MiSans VF.ttf')
+        font_manager.fontManager.addfont(r'MeteoStation\MiSans VF.ttf')
         plt.rcParams['font.sans-serif'] = ['MiSans VF']
 
         # 标题
         plt.title(f'{station_info[0]}{station_info[2]}站(#{station_info[1]})24h实况序列', fontsize=25, fontweight='bold', pad=22)   
         # 绘制经纬度与查询时次
-        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n查询时次: {weather_data[1][0]}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
+        import time
+        # 处理日期显示
+        if 'today' in date:
+            display_date = datetime.datetime.now().strftime('%Y-%m-%d') + ' (今日)'
+        else:
+            # 从date字符串中提取日期部分，格式为YYYYMMDD
+            date_str = date[:8] if len(date) >= 8 else date
+            if len(date_str) == 8 and date_str.isdigit():
+                display_date = f'{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}'
+            else:
+                display_date = date
+        
+        plt.text(-0.15, 1.11, f'''{station_info[3][:2]}°{station_info[3][2:4]}'N   {station_info[4][:-2]}°{station_info[4][-2:]}\'E\n日期: {display_date}''', transform=ax1.transAxes, fontsize=12, ha='left', va='top')
         # 上水印
         plt.text( 1.15, 1.1,f'''By @CloudyLake\nVersion:{version}''', transform=ax1.transAxes, fontsize=12, ha='right', va='top')
     init_chart()
@@ -115,7 +123,7 @@ def drawdata(weather_data,station_info):
     #####提取数据
     '''
     def init_data():
-        global time_column, temperature_column, humidity_column, dewpoint_column, heat_index_column, precipitation_column,pressure_column,sealevel_pressure_column,wind_speed_column,wind_direction_column,max_wind_speed_column,visibility_column
+        global time_column, temperature_column, humidity_column, dewpoint_column, heat_index_column, precipitation_column,pressure_column,sealevel_pressure_column,wind_speed_column,wind_direction_column,max_wind_speed_column,visibility_column,randomnum
         #统一提取源数据
         for i1 in range(len(weather_data[0])):
             for key in ['时次','瞬时温度', '相对湿度', '地面气压', '瞬时风向','2分钟平均风向', '瞬时风速','2分钟平均风速', '1小时降水', '10分钟平均能见度', '1小时极大风速']:
@@ -133,7 +141,7 @@ def drawdata(weather_data,station_info):
                     precipitation_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取气压列
                 if weather_data[0][i1] == key and key == '地面气压':
-                    pressure_column = [float(row[i1]) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
+                    pressure_column = [float(row[i1].strip('()')) if row[i1] != '-' and row[i1] != '' else 0 for row in reversed(weather_data[1:])]
                 # 提取风向列
                 if weather_data[0][i1] == key and( key == '瞬时风向' or key == '2分钟平均风向'):
                     wind_direction_column = [row[i1] if row[i1] != '-' and row[i1] != '' else '0' for row in reversed(weather_data[1:])]
@@ -280,7 +288,7 @@ def drawdata(weather_data,station_info):
                 ax3.annotate(str(sealevel_pressure_column[i]), (time_column[i], value), ha='center', va='bottom', xytext=(0, -60), textcoords='offset pixels', fontsize=9)
         # 设置y轴的上下端点值
         diff = max(pressure_column) - min(pressure_column)
-        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 4.5]) 
+        ax3.set_ylim([min(pressure_column)-diff*3, max(pressure_column) + diff * 5.5]) 
     draw_pressure()
     print('气压数据绘制完成')
     '''
@@ -293,8 +301,8 @@ def drawdata(weather_data,station_info):
             w=temperature_column[0]
         except:
             temperature_column = [0]*24
-        #绘制体感温度关系图
-        ax1.plot(time_column, heat_index_column, color='orange', marker='o', label='Heat Index', zorder=2)
+        #绘制露点变化
+        ax1.plot(time_column, dewpoint_column, color='orange', marker='o', label='Heat Index', zorder=2)
 
         from matplotlib.colors import LinearSegmentedColormap
     
@@ -308,7 +316,7 @@ def drawdata(weather_data,station_info):
         normalized_humidity_column = [h/100 for h in humidity_column]
     
         # 使用获取的颜色绘制体感温度点
-        ax1.scatter(time_column, heat_index_column, c=[cmap(h) for h in normalized_humidity_column], s=150, label='Humidity', zorder=2)
+        ax1.scatter(time_column, dewpoint_column, c=[cmap(h) for h in normalized_humidity_column], s=150, label='Humidity', zorder=2)
 
         # 绘制温度关系图覆盖在上
         ax1.plot(time_column, temperature_column, color='red', marker='o', label='Temperature', zorder=3)
@@ -317,7 +325,7 @@ def drawdata(weather_data,station_info):
 
         # 设置y1温度轴的上下端点值
         diff=max(temperature_column+heat_index_column)-min(temperature_column+heat_index_column)
-        ax1.set_ylim([min(heat_index_column)-diff*1.8, max(heat_index_column)+diff*0.5])
+        ax1.set_ylim([min(heat_index_column)-diff*2.8, max(heat_index_column)+diff*0.5])
 
         # 绘制温度和露点温度、体感温度、湿度数据标签
         for i in range(len(time_column)):
@@ -326,12 +334,12 @@ def drawdata(weather_data,station_info):
             # 仅在第一个数据点旁添加说明
             if i == 0:
                 ax1.annotate('温度(°C) \n\n' + str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
-                ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], temperature_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
+                ax1.annotate( str(dewpoint_column[i])+'\n\n露点温度(°C) ', (time_column[i], dewpoint_column[i]), ha='center', va='top', xytext=(0, -10), textcoords='offset points')
                 ax1.annotate('湿度(%):                  ' + str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='right', va='bottom', xytext=(10, 0), textcoords='offset points')
                 ax1.annotate('体感温度(°C):                  ' + str(heat_index_column[i]), (time_column[i],max(heat_index_column)+diff*0.5), ha='right', va='bottom', xytext=(10, -15), textcoords='offset points')
             else:
                 ax1.annotate(str(temperature_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, 5), textcoords='offset points')
-                ax1.annotate(str(dewpoint_column[i]), (time_column[i], temperature_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
+                ax1.annotate(str(dewpoint_column[i]), (time_column[i], dewpoint_column[i]), ha='center', va='bottom', xytext=(0, -20), textcoords='offset points')
                 ax1.annotate(str(heat_index_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='center', va='bottom', xytext=(0, -15), textcoords='offset points')
                 ax1.annotate(str(humidity_column[i]), (time_column[i], max(heat_index_column)+diff*0.5), ha='center', va='bottom', xytext=(0, 0), textcoords='offset points')
 
@@ -342,6 +350,7 @@ def drawdata(weather_data,station_info):
         cbar_ax = fig.add_axes([0.02, 0.15, 0.02, 0.73])  # 这里的数字分别代表[左, 下, 宽, 高]
         cbar = fig.colorbar(sm, cax=cbar_ax)
         cbar.set_label('湿度映射(%)')
+
         # 右侧温度和体感温度图例/降雨等级
         from matplotlib.lines import Line2D
         legend_labels = ['温度', '体感温度']
@@ -356,27 +365,27 @@ def drawdata(weather_data,station_info):
     #做累计降水量
     def get_precipitation_color():
         # 初始化累计降水量列表
-        cumulative_precipitation_12h = []
+        cumulative_precipitation_24h = []
 
         # 遍历precipitation_column来计算每个小时的12小时累计降水量
         for i in range(len(precipitation_column)):
-            cumulative_precipitation_12h.append(sum(precipitation_column[:i+1]))
+            cumulative_precipitation_24h.append(sum(precipitation_column[:i+1]))
 
         # 根据新的降水量级别为每个12小时累计降水量分配颜色
         def get_precipitation_color(precipitation):
-            if precipitation <= 4.9:
+            if precipitation <= 9.9:
                 return '#ACEBBF'  # 小雨
-            elif precipitation <= 14.9:
+            elif precipitation <= 24.9:
                 return '#57D875'  # 中雨
-            elif precipitation <= 29.9:
+            elif precipitation <= 49.9:
                 return '#1A9E2D'  # 大雨
-            elif precipitation <= 69.9:
+            elif precipitation <= 99.9:
                 return '#097000'  # 暴雨
-            elif precipitation <= 139.9:
+            elif precipitation <= 249.9:
                 return '#740086'  # 大暴雨
             else:
                 return '#E700E0'  # 特大暴雨
-        colors_12h = [get_precipitation_color(p) for p in cumulative_precipitation_12h]
+        colors_12h = [get_precipitation_color(p) for p in cumulative_precipitation_24h]
 
         # 加上颜色的图例
         legend_labels = ['小雨', '中雨', '大雨', '暴雨', '大暴雨', '特大暴雨']
@@ -455,7 +464,7 @@ def drawdata(weather_data,station_info):
             ax4.axvline(x=time_column[i], color='lightblue', linestyle=':', linewidth=2)
 
         # 读取风向标图像
-        
+        import pathlib
         folder = pathlib.Path(__file__).parent.resolve()
         img = Image.open(f"{folder}/画板 1.png")
         img.format
@@ -509,10 +518,9 @@ def drawdata(weather_data,station_info):
     '''
 
     # 获取当前脚本文件的绝对路径
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-
+    script_dir = r'Output\ObsStation'
     # 生成图片的完整路径
-    image_path = os.path.join(script_dir, f'{station_info[1]}.png')
+    image_path = os.path.join(script_dir, f'Station-#{station_info[1]}-{date}.png')
 
     # 保存图片到指定路径
     plt.savefig(image_path, dpi=300)
@@ -520,45 +528,56 @@ def drawdata(weather_data,station_info):
     plt.close()
 
 # 主函数
-def main():
-
-    # 站点信息
-    station_infos = get_station_infos()
-    # 错误日志
-    error_log = []
-    # 遍历站点
-    for station_info in station_infos[1:500]:
-        number = station_info[1]
-        # 生成url
+def main(number='58362', date=''):
+    
+    global station_info
+    # 处理站号与日期
+    station_info, number = get_station_info(number)
+    
+    # 处理日期逻辑
+    if date == '' or date == '0' or date.lower() == 'today':
+        # 没有输入日期或输入today，使用今天
         url = f'https://q-weather.info/weather/{number}/today/'
-        print('该站点信息提取完成:\n',station_info,'\n开始获取站点数据...')
+        # 获取今天的日期并加上today标识
+        today_date = datetime.datetime.now().strftime('%Y%m%d')
+        date = f'{today_date}-today'
+    else:
+        # 输入了具体日期
+        date0 = date[0:4]+'-'+date[4:6]+'-'+date[6:8]
+        url = f'https://q-weather.info/weather/{number}/history/?date={date0}'
+        print(url)
 
-        # 获取站点数据
-        for _ in range(10):
-            try:    
-                # 获取数据
-                weather_data = getdata(url)
-                break
-            except Exception as e:
-                print("发生错误：", e)
-                print("正在再次尝试。")
-        else:
-            print("尝试次数超过限制，无法获取数据。")
-            return
-        print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
+    print('该站点信息提取完成:\n',station_info,'\n开始获取站点数据...')
 
-        # 当前时间
-        current_time = datetime.datetime.now()
-        print("获取时间：", current_time)
-
-        # 输出
-        if weather_data:
-            try:
-                drawdata(weather_data,station_info)
-            except Exception as e:
-                print("绘制数据时发生错误：", e)
-                error_log.append(station_info[1]+station_info[2])
-            
-if __name__ == "__main__":
+    # 获取站点数据
     while True:
-        main()
+        try:    
+            # 获取数据
+            weather_data = getdata(url)
+            break
+        except Exception as e:
+            print("发生错误：", e)
+            print("请再次尝试输入站号。")
+
+    # 历史日期倒序（今天的数据不需要倒序）
+    if 'today' not in date:
+        weather_data = [weather_data[0]] + list(reversed(weather_data[1:]))
+    print(f'日期: {date}')
+    print('站点数据获取完成\n第一组:',weather_data[0],'\n最近一组:',weather_data[1],'\n开始绘制数据...')
+    # 当前时间
+    
+    current_time = datetime.datetime.now()
+    print("获取时间：", current_time)
+
+    # 输出
+    if weather_data:
+        drawdata(weather_data,station_info,date)
+
+if __name__ == "__main__":
+    import sys
+    # 输入站号或站名
+    number = input('请输入站号或站名:')
+    # 输入日期
+    date = input('请输入日期(格式:20200206，留空为今天):')
+    # 运行主函数
+    main(number, date)
