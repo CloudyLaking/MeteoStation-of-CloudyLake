@@ -57,7 +57,8 @@ const CHART = {
   hodoTop: 78,
   hodoBottom: 390,
   diagnosticsTop: 404,
-  diagnosticsBottom: 760,
+  // Keep the diagnostic groups, favourability key and main plot on one baseline.
+  diagnosticsBottom: 704,
 };
 
 let selectedView = "skewt";
@@ -1506,8 +1507,26 @@ function drawHodograph(levels, diagnostics) {
         ...lowLevelPoints.map((point) => `${xForU(point.u)},${yForV(point.v)}`),
       ].join(" "),
       fill: turning < 0 ? "#f2c94c" : "#126e68",
-      opacity: "0.18",
-      stroke: "none",
+      opacity: "0.2",
+      stroke: turning < 0 ? "#d5aa18" : "#126e68",
+      "stroke-width": "1.1",
+      "stroke-linejoin": "round",
+    });
+    // Low-level spokes make the clockwise/counter-clockwise turning sector
+    // legible without obscuring the observed hodograph.
+    lowLevelPoints.forEach((point, index) => {
+      if (index % Math.max(1, Math.ceil(lowLevelPoints.length / 12)) !== 0) {
+        return;
+      }
+      appendSvg("line", {
+        x1: xForU(0),
+        y1: yForV(0),
+        x2: xForU(point.u),
+        y2: yForV(point.v),
+        stroke: turning < 0 ? "#d5aa18" : "#126e68",
+        "stroke-width": "0.7",
+        opacity: "0.32",
+      });
     });
   }
   appendSvg("line", {
@@ -1962,7 +1981,7 @@ function drawDiagnosticColumn(diagnostics) {
     "LEVELS / MOISTURE",
     [
       ["lclHeight", "LCL AGL", diagnostics.lcl_height_agl_m, `${formatNumber(diagnostics.lcl_height_agl_m, 0)} m`],
-      ["neutral", "LFC AGL", diagnostics.lfc_height_agl_m, `${formatNumber(diagnostics.lfc_height_agl_m, 0)} m`],
+      ["lfcHeight", "LFC AGL", diagnostics.lfc_height_agl_m, `${formatNumber(diagnostics.lfc_height_agl_m, 0)} m`],
       ["elHeight", "EL AGL", diagnostics.equilibrium_level_height_agl_m, `${formatNumber(diagnostics.equilibrium_level_height_agl_m, 0)} m`],
       ["freezing", "0 °C AMSL", diagnostics.freezing_level_height_m, `${formatNumber(diagnostics.freezing_level_height_m, 0)} m`],
       ["pwat", "PWAT", diagnostics.precipitable_water_mm, `${formatNumber(diagnostics.precipitable_water_mm, 1)} mm`],
@@ -2069,45 +2088,52 @@ function vectorMotionText(u, v) {
 }
 
 function convectiveTone(key, value) {
-  if (!Number.isFinite(value) || key === "freezing") {
-    return "neutral";
+  if (!Number.isFinite(value)) {
+    return "weak";
   }
   const thresholds = {
-    cape: value < 100 ? "negative" : value < 1000 ? "neutral" : value < 2500 ? "positive" : "strong",
-    cin: value <= -200 ? "negative" : value <= -50 ? "neutral" : value <= -10 ? "positive" : "strong",
-    lcl: value < 700 ? "negative" : value < 850 ? "neutral" : value < 950 ? "positive" : "strong",
-    lfc: value < 600 ? "negative" : value < 750 ? "neutral" : value < 900 ? "positive" : "strong",
-    el: value > 300 ? "negative" : value > 200 ? "neutral" : value > 120 ? "positive" : "strong",
-    pwat: value < 20 ? "negative" : value < 40 ? "neutral" : value < 55 ? "positive" : "strong",
-    li: value > 2 ? "negative" : value > 0 ? "neutral" : value > -3 ? "positive" : "strong",
-    k: value < 20 ? "negative" : value < 30 ? "neutral" : value < 35 ? "positive" : "strong",
-    tt: value < 44 ? "negative" : value < 48 ? "neutral" : value < 52 ? "positive" : "strong",
-    shear: value < 8 ? "negative" : value < 15 ? "neutral" : value < 25 ? "positive" : "strong",
-    lapse: value < 5.5 ? "negative" : value < 6.5 ? "neutral" : value < 7.5 ? "positive" : "strong",
-    dcape: value < 500 ? "negative" : value < 1000 ? "neutral" : value < 1500 ? "positive" : "strong",
-    lclHeight: value > 2000 ? "negative" : value > 1500 ? "neutral" : value > 750 ? "positive" : "strong",
-    elHeight: value < 7000 ? "negative" : value < 10000 ? "neutral" : value < 13000 ? "positive" : "strong",
-    srh: value < 50 ? "negative" : value < 100 ? "neutral" : value < 200 ? "positive" : "strong",
-    angle: value < 45 ? "negative" : value < 75 ? "neutral" : value < 110 ? "positive" : "strong",
-    sweat: value < 200 ? "negative" : value < 300 ? "neutral" : value < 400 ? "positive" : "strong",
-    stp: value < 0.5 ? "negative" : value < 1 ? "neutral" : value < 3 ? "positive" : "strong",
+    cape: [100, 1000, 2500, 4000],
+    cin: [-200, -50, -10, 0],
+    pwat: [20, 40, 55, 70],
+    k: [20, 30, 35, 40],
+    tt: [44, 48, 52, 56],
+    shear: [8, 15, 25, 32],
+    lapse: [5.5, 6.5, 7.5, 8.5],
+    dcape: [500, 1000, 1500, 2000],
+    elHeight: [7000, 10000, 13000, 16000],
+    srh: [50, 100, 200, 300],
+    angle: [45, 75, 110, 140],
+    sweat: [200, 300, 400, 500],
+    stp: [0.5, 1, 3, 5],
   };
-  return thresholds[key] ?? "neutral";
+  const reverseThresholds = {
+    li: [2, 0, -3, -6],
+    lclHeight: [2000, 1500, 750, 400],
+    lfcHeight: [3000, 2000, 1000, 500],
+  };
+  const tones = ["weak", "possible", "favourable", "veryFavourable", "extreme"];
+  if (thresholds[key]) {
+    const index = thresholds[key].findIndex((threshold) => value < threshold);
+    return tones[index === -1 ? 4 : index];
+  }
+  if (reverseThresholds[key]) {
+    const index = reverseThresholds[key].findIndex((threshold) => value > threshold);
+    return tones[index === -1 ? 4 : index];
+  }
+  // Directional vectors and reference levels are not independently
+  // interpretable as convective probability.
+  return "weak";
 }
 
 function convectiveToneColor(key, value) {
   const tone = convectiveTone(key, value);
-  if (tone === "negative") return "#557a9b";
-  if (tone === "neutral") return "#d5aa18";
-  if (tone === "positive") return "#e47722";
-  const extreme =
-    (key === "cape" && value >= 4000) ||
-    (key === "dcape" && value >= 2000) ||
-    (key === "shear" && value >= 32) ||
-    (key === "srh" && value >= 300) ||
-    (key === "stp" && value >= 5) ||
-    (key === "sweat" && value >= 500);
-  return extreme ? "#822c83" : "#c83b4d";
+  return {
+    weak: "#557a9b",
+    possible: "#d5aa18",
+    favourable: "#e47722",
+    veryFavourable: "#c83b4d",
+    extreme: "#a02c86",
+  }[tone];
 }
 
 function drawConvectiveToneLegend() {
@@ -2120,37 +2146,38 @@ function drawConvectiveToneLegend() {
   ];
   const left = CHART.hodoLeft;
   const right = CHART.hodoRight;
-  const gap = 3;
-  const segmentWidth = (right - left - gap * (entries.length - 1)) / entries.length;
+  const segmentWidth = (right - left) / entries.length;
   appendSvg(
     "text",
     {
       x: left,
-      y: 779,
+      y: 721,
       fill: "#59686d",
-      "font-size": "9.5",
+      "font-size": "10.5",
       "font-weight": "700",
       "letter-spacing": "0.35",
     },
     "CONVECTIVE FAVOURABILITY",
   );
   entries.forEach(([label, color], index) => {
-    const x = left + index * (segmentWidth + gap);
+    const x = left + index * segmentWidth;
     appendSvg("rect", {
       x,
-      y: 787,
+      y: 730,
       width: segmentWidth,
-      height: 7,
+      height: 28,
       fill: color,
+      stroke: "#ffffff",
+      "stroke-width": "1",
     });
     appendSvg(
       "text",
       {
         x: x + segmentWidth / 2,
-        y: 807,
-        fill: "#5f6b6e",
-        "font-size": "7.5",
-        "font-weight": "650",
+        y: 748,
+        fill: index === 1 ? "#263943" : "#ffffff",
+        "font-size": "8.2",
+        "font-weight": "700",
         "text-anchor": "middle",
       },
       label,
