@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="云海观象台、项目更新日志、留言板与气象友情链接。" />
+    <meta name="description" content="云海观象台、项目更新日志、私密信箱与气象友情链接。" />
     <title>关于 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802b" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802c" />
     <script src="/static/site.js?v=2.1.1-0801" defer></script>
-    <script src="/static/about.js?v=2.1.1-0801" defer></script>
+    <script src="/static/about.js?v=2.1.1-0802c" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -56,13 +56,12 @@
       </section>
 
       <section class="about-section guestbook-section" aria-labelledby="guestbook-heading">
-        <header><p class="eyebrow">GUESTBOOK</p><h2 id="guestbook-heading">留言板</h2><p>留言提交后经站长审核显示；请勿填写隐私信息。</p></header>
+        <header><p class="eyebrow">MAILBOX</p><h2 id="guestbook-heading">信箱</h2><p>来信不会公开展示，仅站长可在后台查看。</p></header>
         <form id="guestbook-form" class="guestbook-form">
-          <label><span>昵称</span><input id="guestbook-name" maxlength="30" required /></label>
-          <label><span>留言</span><textarea id="guestbook-message" minlength="2" maxlength="500" required></textarea></label>
-          <button type="submit">提交留言</button><p id="guestbook-status" role="status"></p>
+          <label><span>称呼</span><input id="guestbook-name" maxlength="30" required /></label>
+          <label><span>来信</span><textarea id="guestbook-message" minlength="2" maxlength="500" required></textarea></label>
+          <button type="submit">投递</button><p id="guestbook-status" role="status"></p>
         </form>
-        <div id="guestbook-list" class="guestbook-list"><p class="empty-state">正在读取已公开留言…</p></div>
       </section>
 
       <section class="about-section" aria-labelledby="links-heading">

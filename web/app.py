@@ -284,27 +284,8 @@ async def public_site_stats() -> dict[str, object]:
     return traffic.snapshot()
 
 
-@app.get("/api/v1/guestbook")
-async def public_guestbook() -> dict[str, object]:
-    state = read_json(GUESTBOOK_STATE_PATH, default={"entries": []})
-    entries = state.get("entries", [])
-    if not isinstance(entries, list):
-        entries = []
-    approved = [
-        {
-            "id": item.get("id"),
-            "name": item.get("name"),
-            "message": item.get("message"),
-            "created_at": item.get("created_at"),
-        }
-        for item in entries
-        if isinstance(item, dict) and item.get("status") == "approved"
-    ]
-    return {"entries": approved[-20:][::-1]}
-
-
-@app.post("/api/v1/guestbook", status_code=202)
-async def submit_guestbook_entry(
+@app.post("/api/v1/mailbox", status_code=202)
+async def submit_mailbox_entry(
     submission: GuestbookSubmission,
 ) -> dict[str, object]:
     async with guestbook_lock:
@@ -319,7 +300,8 @@ async def submit_guestbook_entry(
             "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "pending",
         }
-        # Keep a bounded moderation queue and preserve all approved entries.
+        # Keep a bounded private inbox and preserve archived entries. No
+        # unauthenticated read endpoint is intentionally provided.
         pending = [
             item
             for item in entries
@@ -334,7 +316,7 @@ async def submit_guestbook_entry(
             GUESTBOOK_STATE_PATH,
             {"entries": [*approved, *pending, entry]},
         )
-    return {"accepted": True, "detail": "留言已提交，审核后显示。"}
+    return {"accepted": True, "detail": "来信已投递，仅站长可见。"}
 
 
 @app.get("/api/v1/admin/status")
@@ -347,8 +329,8 @@ async def admin_status(_: str = Depends(require_admin)) -> dict[str, object]:
         **operations_snapshot(PROJECT_ROOT),
         "traffic": traffic.snapshot(),
         "site": load_site_config(SITE_CONFIG_PATH).model_dump(mode="json"),
-        "guestbook": {
-            "pending": [
+        "mailbox": {
+            "unread": [
                 item
                 for item in guestbook_entries
                 if isinstance(item, dict) and item.get("status") == "pending"
@@ -357,8 +339,8 @@ async def admin_status(_: str = Depends(require_admin)) -> dict[str, object]:
     }
 
 
-@app.post("/api/v1/admin/guestbook/{entry_id}/approve")
-async def approve_guestbook_entry(
+@app.post("/api/v1/admin/mailbox/{entry_id}/archive")
+async def archive_mailbox_entry(
     entry_id: str,
     _: str = Depends(require_admin),
     __: None = Depends(require_admin_confirmation),
@@ -366,8 +348,8 @@ async def approve_guestbook_entry(
     return await moderate_guestbook(entry_id, "approved")
 
 
-@app.delete("/api/v1/admin/guestbook/{entry_id}")
-async def delete_guestbook_entry(
+@app.delete("/api/v1/admin/mailbox/{entry_id}")
+async def delete_mailbox_entry(
     entry_id: str,
     _: str = Depends(require_admin),
     __: None = Depends(require_admin_confirmation),
@@ -870,7 +852,7 @@ async def moderate_guestbook(
     target_status: Literal["approved", "deleted"],
 ) -> dict[str, object]:
     if not re.fullmatch(r"[0-9a-f]{16}", entry_id):
-        raise HTTPException(status_code=422, detail="留言编号无效")
+        raise HTTPException(status_code=422, detail="来信编号无效")
     async with guestbook_lock:
         state = read_json(GUESTBOOK_STATE_PATH, default={"entries": []})
         entries = state.get("entries", [])
@@ -888,7 +870,7 @@ async def moderate_guestbook(
                 item = {**item, "status": "approved"}
             updated.append(item)
         if not found:
-            raise HTTPException(status_code=404, detail="留言不存在")
+            raise HTTPException(status_code=404, detail="来信不存在")
         write_json_atomic(GUESTBOOK_STATE_PATH, {"entries": updated})
     return {"updated": True, "id": entry_id, "status": target_status}
 

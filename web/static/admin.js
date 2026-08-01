@@ -86,21 +86,21 @@ async function loadStatus() {
       <div><span>${escapeHtml(storageLabels[key] || key)}</span><strong>${bytes(value)}</strong></div>
     `)
     .join("");
-  renderPendingGuestbook(data.guestbook?.pending || []);
+  renderPendingGuestbook(data.mailbox?.unread || []);
   fillSite(data.site);
   feedback.textContent = `状态更新于 ${new Date(data.checked_at).toLocaleString("zh-CN")}`;
 }
 
 function renderPendingGuestbook(entries) {
   if (!entries.length) {
-    adminGuestbook.innerHTML = '<p class="empty-state">目前没有待审核留言。</p>';
+    adminGuestbook.innerHTML = '<p class="empty-state">目前没有未归档来信。</p>';
     return;
   }
   adminGuestbook.innerHTML = entries.map((entry) => `
     <article>
       <header><strong>${escapeHtml(entry.name)}</strong><time>${new Date(entry.created_at).toLocaleString("zh-CN")}</time></header>
       <p>${escapeHtml(entry.message)}</p>
-      <div><button data-guestbook-approve="${entry.id}" type="button">公开</button><button data-guestbook-delete="${entry.id}" type="button">删除</button></div>
+      <div><button data-guestbook-approve="${entry.id}" type="button">归档</button><button data-guestbook-delete="${entry.id}" type="button">删除</button></div>
     </article>
   `).join("");
 }
@@ -111,10 +111,10 @@ adminGuestbook.addEventListener("click", async (event) => {
   if (!approve && !remove) return;
   const id = approve?.dataset.guestbookApprove || remove.dataset.guestbookDelete;
   const response = await fetch(
-    approve ? `/api/v1/admin/guestbook/${id}/approve` : `/api/v1/admin/guestbook/${id}`,
+    approve ? `/api/v1/admin/mailbox/${id}/archive` : `/api/v1/admin/mailbox/${id}`,
     { method: approve ? "POST" : "DELETE", headers: { "X-Admin-Action": "confirm" } },
   );
-  feedback.textContent = response.ok ? "留言状态已更新。" : `留言处理失败：HTTP ${response.status}`;
+  feedback.textContent = response.ok ? "来信状态已更新。" : `来信处理失败：HTTP ${response.status}`;
   if (response.ok) loadStatus().catch(() => {});
 });
 

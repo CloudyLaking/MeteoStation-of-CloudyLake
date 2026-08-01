@@ -68,7 +68,7 @@ python -m venv .venv
 - 气象站实况查询：<http://127.0.0.1:8765/observations>
 - IFS 24小时单点预报：<http://127.0.0.1:8765/forecast>
 - ECMWF 探空预报：<http://127.0.0.1:8765/sounding-forecast>
-- 关于：<http://127.0.0.1:8765/about>
+- 关于与私密信箱：<http://127.0.0.1:8765/about>（来信不提供公开读取接口，只在运维后台显示）
 - 宝山 58362 探空示例：<http://127.0.0.1:8765/api/v1/soundings/58362?date=2026-07-26&cycle=00>
 - 宝山交互式 Skew‑T：<http://127.0.0.1:8765/?station=58362&date=2026-07-26&cycle=00&view=skewt>
 - 宝山 58362 源 CSV：<http://127.0.0.1:8765/api/v1/soundings/58362/raw?date=2026-07-26&cycle=00>
@@ -179,7 +179,7 @@ Wyoming 探空按 `站号 + 日期 + 时次` 保存至本地原始资料缓存�
 - 生产域名：**https://meteostation.top**
 - 网站字体：**MiSans 系列**
 
-品牌素材位于 `assets/brand/`。网站“关于”页面将说明 MiSans 字体使用情况、地图与气象数据来源、资料时效及免责声明。
+品牌素材位于 `assets/brand/`。“关于”页面保持紧凑，只呈现账号、更新日志、私密信箱和气象友情链接；信箱来信不会在前台公开，站长可在私有运维监视器中归档或删除。
 
 ## 文档维护约定
 

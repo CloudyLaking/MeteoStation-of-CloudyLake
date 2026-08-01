@@ -2692,9 +2692,7 @@ a {
 }
 
 .guestbook-section {
-  display: grid;
-  grid-template-columns: minmax(300px, 0.42fr) 1fr;
-  gap: 0 32px;
+  display: block;
 }
 
 .guestbook-section > header {
@@ -2708,6 +2706,7 @@ a {
   padding: 14px;
   border: 1px solid var(--line);
   background: #fff;
+  width: min(100%, 560px);
 }
 
 .guestbook-form label {
