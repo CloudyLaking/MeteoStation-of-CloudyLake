@@ -1,0 +1,18 @@
+[Unit]
+Description=CloudyLake latest China weather-map analysis
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=meteostation
+Group=meteostation
+WorkingDirectory=/opt/meteostation
+EnvironmentFile=-/opt/meteostation/.env
+ExecStart=/opt/meteostation/.venv/bin/python /opt/meteostation/run_weather_map_cycle.py
+NoNewPrivileges=true
+PrivateTmp=true
+TimeoutStartSec=50min
+
+[Install]
+WantedBy=multi-user.target

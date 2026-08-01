@@ -1,0 +1,19 @@
+[Unit]
+Description=CloudyLake WIS2 real-time global TEMP collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meteostation
+Group=meteostation
+WorkingDirectory=/opt/meteostation
+EnvironmentFile=-/opt/meteostation/.env
+ExecStart=/opt/meteostation/.venv/bin/python run_wis2_sounding_collector.py
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

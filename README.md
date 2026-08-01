@@ -1,73 +1,202 @@
-# MeteoStation-of-CloudyLake 
+# 云海观象台
 
-本项目旨在基于公开的气象数据 API 搭建一套包含中国国家站地面观测查询与欧洲中期天气预报中心（ECMWF）ERA5 再分析数据可视化的综合气象制图系统。
+**CloudyLake's Observatory · meteostation.top**
 
-## 📖 项目简介
-MeteoStation 是一个模块化的气象数据下载与可视化工具集，支持：
-1. **实况与观测站点查询制图**：根据站号一键生成包含降水、温湿度等要素的精美实况图表，包含体感温度、露点分析及模糊查询。
-2. **ERA5 各气象要素可视化**：通过配置字典自动化下载目标区域和时间的 ERA5 气象要素，绘制极具出版级别的高质量组合气象图。支持填色图（Shaded）、等值线（Contour）和风场矢量（Wind Barbs）的任意灵活组合叠加。
-3. **历年气候平均态分析 (Climatology)**：基于 ERA5 月平均气候资料快速生成几十年维度的环境平均态或环流场。
+> Powered with Codex & Deepseek V4 Pro
 
----
+云海观象台正在由一个本地气象制图工具仓库，改造为面向公众的交互式气象网站。项目将围绕全球探空、地面实况订正、天气图分析和可导出图像展开，同时保留已有的 ERA5 与站点制图代码。
 
-## 📁 目录结构
+> 当前版本：**V2.1.1**。网站已部署至 `meteostation.top`，交互探空、查询式地面实况、中国天气自动分析、单点/探空预报、全球三日探空归档和私有运维监视器均已投入运行。
 
-本仓库代码主要集中在 `MeteoStation/` 目录下，运行时会在工作区的同级目录自动生成 `Output/` 文件夹用于存放外部数据和生图：
+## 计划中的核心能力
+
+- 从中国主页天气图选择探空站。
+- 绘制交互式 Skew‑T 与 Stüve 图，支持 PNG、SVG 等格式导出。
+- 用内置的物理意义色阶标注异常高值、异常低值和局地极值。
+- 自动识别逆温层、强湿层、强干层等重要垂直结构。
+- 输入本站气压、气温和露点，或选取附近地面站，对探空起始层进行实况订正。
+- 展示由探空、地面实况、热带气旋资料和模式背景共同支持的天气分析产品。
+- 按日期和 00/12 UTC 时次回溯已经生成并归档的历史分析产品。
+- 提供 ECMWF 单点预报与交互式探空预报。
+- 历史再分析和 AIFS ENS 预报保留为后续模块。
+
+## 技术结构
+
+第一阶段采用 **FastAPI + 原生 HTML/CSS/JavaScript**。这样可以复用现有 Python 气象代码，部署简单，也为后续引入更复杂的前端构建体系保留空间。
 
 ```text
-工作区根目录/
-├── MeteoStation/              # 本项目核心代码文件夹
-│   ├── Basic_function/        # (版本 1.x 遗留) 地面观测站点图表旧业务代码
-│   ├── MeteoMap/              # (主业务逻辑) ERA5 再分析数据绘图模块
-│   │   ├── main_plot.py       # ERA5 常规分析图主程序
-│   │   ├── main_plot_climate.py # ERA5 气候态平均绘图主程序
-│   │   ├── data_fetcher.py    # 负责对接 CDS API 下载文件的组件
-│   │   └── components/        # 重构后的核心绘图组件库（完全解耦）
-│   └── MeteoMap-ERA5average/  # 旧版与过渡期的平均气候文件存档
-└── Output/                    # (仓库外) 项目自动生成的数据与图片输出目录
-    ├── MeteoMap/              # 常规生图的输出目录及缓存
-    └── MeteoMap-Average/      # 气候态生图的输出目录及缓存
+MeteoStation/
+├── web/                       # 新网站
+│   ├── app.py                 # FastAPI 入口与基础 API
+│   └── static/                # 页面、样式和浏览器端脚本
+├── meteostation/              # 新的数据模型和资料源适配器
+│   ├── sounding/              # 探空模型、诊断、采集器与快速出图
+│   ├── observation/           # 原版逐小时查询与 q-weather 实时适配器
+│   └── weather_map/           # 天气图配置与已保存产品目录
+├── config/
+│   └── sounding_collector.json # 自动采集站点与周期配置
+├── assets/
+│   └── brand/                 # 云海观象台品牌图形
+├── docs/                      # 架构、数据源、路线图与项目状态
+├── Basic_function/            # 旧版地面站查询和制图代码
+├── MeteoMap/                  # ERA5 下载与制图代码
+├── MeteoMap-ERA5average/      # ERA5 气候态旧代码
+├── MiSans VF.ttf              # 网站与旧制图共用字体
+├── run_collector.py           # 持续探空采集与原始资料归档
+├── run_web.py                 # 网站开发服务
+├── requirements-web.txt       # 网站与探空产品依赖
+└── requirements-weather-map.txt # 可选的 ECMWF GRIB 解码依赖
 ```
 
----
+旧代码暂不移动，以免破坏已有工作流。待网站数据层稳定后，再逐步提取为可复用的 `src/meteostation/` Python 包。
 
-## 🚀 核心功能与使用说明 (MeteoMap)
+## 本地运行
 
-### 1. 绘制单次/当前 ERA5 分析图 (`main_plot.py`)
-在这份文件中，修改底部的 `config_example` 参数后直接运行即可。工具支持图层自由组合：
-- **`shaded_type / shaded_level`**：设置填色。针对 `WindSpeed`, `CAPE`, `Temperature` 工具已配好色彩；亦支持传入任意 CDS 变量 (如 `relative_humidity`, `vorticity`)，程序将采用推断自适应绘制。
-- **`contour_type / contour_level`**：设置等值线，比如 `SLP` (海压)、 `Geopotential` (位势高度) 或任意系统变量。
-- **`show_wind`**：若开启此项，自动覆盖底层风羽。
+Windows PowerShell：
 
-### 2. 绘制气候平均态对比图 (`main_plot_climate.py`)
-此模块的操作方式与常规版极像。除以上基本绘制参数外，只需控制时间线：
-- **`years_range`**: 比如 `(1991, 2020)` 指明气候态的算力跨度。
-- **`months`**: 比如 `[7]` 或 `[12,1,2]` 用来规定你想取哪些月份进行合成。这部分计算全自动在本地内存降维并生成高质量气象底图。
-
----
-
-## 📦 环境与依赖
-使用此工具前，请确保 Python 环境中已经安装如下依赖：
-```bash
-pip install xarray numpy scipy matplotlib cartopy cdsapi netCDF4
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-web.txt
+.\.venv\Scripts\python.exe run_web.py
 ```
-> **注意**：下载 ERA5 数据需已注册 [Copernicus CDS](https://cds.climate.copernicus.eu/api-how-to) 并成功配好您本地的 `.cdsapirc` 密钥文件。
 
----
+然后访问：
 
-## 📝 历史更新日志 (Changelog)
+- 网站首页：<http://127.0.0.1:8765>
+- 健康检查：<http://127.0.0.1:8765/api/v1/health>
+- 当前模块状态：<http://127.0.0.1:8765/api/v1/status>
+- 气象站实况查询：<http://127.0.0.1:8765/observations>
+- IFS 24小时单点预报：<http://127.0.0.1:8765/forecast>
+- ECMWF 探空预报：<http://127.0.0.1:8765/sounding-forecast>
+- 关于：<http://127.0.0.1:8765/about>
+- 宝山 58362 探空示例：<http://127.0.0.1:8765/api/v1/soundings/58362?date=2026-07-26&cycle=00>
+- 宝山交互式 Skew‑T：<http://127.0.0.1:8765/?station=58362&date=2026-07-26&cycle=00&view=skewt>
+- 宝山 58362 源 CSV：<http://127.0.0.1:8765/api/v1/soundings/58362/raw?date=2026-07-26&cycle=00>
+- 采集器状态：<http://127.0.0.1:8765/api/v1/collector/status>
+- 私有运维监视器：<http://127.0.0.1:8765/admin>（需环境变量中的 HTTP Basic 凭据）
+- 500 hPa 天气场开发预览：<http://127.0.0.1:8765/?date=2026-07-26&cycle=00&map=500>
 
-### Version 3.x (代码模块重构与气候场) 
-- **底层解耦重构**: 抛弃旧有臃肿杂糅单脚本制，将功能原子化拆分成 `base_map`, `layer_shaded`, `layer_contour`, `layer_wind`。图片配色格式彻底一统。
-- **自适应变量防呆(Fallback)**: 无论用户通过 API 输入什么奇葩新变量，如果没有设死颜色表，通通启动 `Spectral_r` 取间距通用配色+自适应等值线策略！自带高空气压未输入探测警告拦截。
-- **自动气候计算 `main_plot_climate.py`**: 零计算痛点！在字典中输入时间跨度即可自动完成月均量获取、压缩降维与精美气候图渲染。此工具库与常规绘图库共享渲染器。
+默认使用 `8765`，因为部分 Windows、Hyper-V 或容器环境会将包含 `8000` 的端口段保留。需要指定其他端口时：
 
-### Version 2.x (ERA5要素引入)
-- 逐步引入 10m风+MSLP、高空风+位势场 的下载与渲染。
-- 构建 CAPE，K-Index，相对湿度散度等多种要素的原始公式组合制图。
+```powershell
+.\.venv\Scripts\python.exe run_web.py --port 9000
+```
 
-### Version 1.x (单点实况)
-- 查询并画出指定观测站点历史信息的精良图标，并内置露点、体感计算模块。
-- 添加网站查询交互及静态地图底图渲染探索。
+若从 VS Code 使用全局 Python 直接运行 `run_web.py`，启动脚本会自动切换到项目的 `.venv`。如果虚拟环境尚未创建，则会显示依赖安装提示。
 
+## 服务器部署
 
+生产环境所需的 Nginx、systemd 模板和逐步部署说明见
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。模板默认使用
+`meteostation.top`、`/opt/meteostation` 和本机端口 `8765`，不包含真实令牌。
+
+## 自动采集与交互出图
+
+网站和探空采集器是两个独立进程。探空网页只读取本地归档，不在用户访问时连接 Wyoming；气象站实况则按用户查询即时读取来源并在内存中出图。
+
+持续运行采集器：
+
+```powershell
+.\.venv\Scripts\python.exe run_collector.py
+```
+
+只执行一轮，用于测试或手动补采：
+
+```powershell
+.\.venv\Scripts\python.exe run_collector.py --once
+```
+
+当前默认每 1 分钟检查一次 `config/sounding_collector.json` 中启用的站点。资料到达后自动：
+
+1. 保存 Wyoming 原始 CSV 和来源元数据；
+2. 转换为统一探空模型；
+3. 更新本地采集状态；
+4. 供网页立即读取并在浏览器中绘制。
+
+`generate_static_products` 默认关闭，采集器不再向 `data/products/soundings/` 写入示例 PNG 或 JSON；同一时次归档后也不会重复下载。缺测时采用 5、10、20、40、60 分钟的渐进退避，避免持续请求外部服务。
+
+网页端提供 Skew‑T、Stüve 和源数据表三种视图。图中可用鼠标或触屏读取气压、高度、温度、露点、湿球温度、虚温、气块温度、相对湿度以及带中文方位的风；鼠标离开图框后动态十字线会隐藏，导出时也不会进入图片。主图右侧保留风速色带并增加逐层黑色风羽，图内还包括 Ground-relative Hodograph、Bunkers RM/LM、0–6 km 平均风，以及 SB/ML/MU CAPE/CIN、DCAPE、LCL/LFC/EL、PWAT、LI、K、TT、SWEAT、分层风切变、SRH、临界角和固定层 STP。参数格为白底，数值文字按是否利于对流发展着色；SVG/PNG 导出内嵌 MiSans 子集字体，图内文字统一使用英文。
+
+地面订正可手工输入本站气压、温度和露点，也可选择北京时间整点，从 q-weather 逐小时表取得同一时刻的本站气压、温度和湿度并计算露点。默认整点跟随探空有效时次，例如 00 UTC 探空默认使用 08:00 北京时间。订正会重新计算气块廓线和全部热力诊断，只作用于当前交互会话与本次导出，不覆盖已归档探空。
+
+全球实时主链路已订阅 WMO WIS 2.0 Global Broker 的 TEMP/TEMP-SHIP 通知，收到消息后按 canonical 链接归档原始 BUFR，并滚动保留三天。Wyoming 回填器每小时读取最近 72 小时六个 00/12 UTC 时次的 `sounding_json` 实际站表，只请求各时次确实发布的五位 WMO 站；当前三天并集为 664 站、约 3301 个实际站次，包含 IGRA 活跃年份滞后但 Wyoming 仍有新报的怀化 `57749`。上海宝山 `58362` 具有最高回填优先级。
+
+`/observations` 直接复用原版 `Basic_function/History_ObsStation.py` 的 q-weather `today/history` 数据获取和静态绘图函数，文件本身只把版本号更新为 V2.1.1，数据流程与图形形式都没有重写。页面允许输入 WMO 站号、中文站名或“省份+站名”，提供“过去 24h”和“历史日期”两种查询，实测 58362 当天返回 24 条逐小时记录。
+
+天气图已建立 00/12 UTC 配置、综合/地面/850/500/200 hPa 五类环境场、分析配方、任务状态以及只读历史产品 API。热带气旋、低压和高压中心不是独立图层，而是叠加态势标记；地面中心来自海平面气压，850/500/200 hPa 中心分别由本层位势高度独立识别，并以粗体 `H/L` 和中心高度标注。地面层还以保守阈值标出温度极值、深厚湿区和 `FRONT CAND.` 客观锋区候选。ECMWF Open Data 的地面场、等压面场和可选热带气旋轨迹请求计划、原始归档路径、GRIB 统一字段解码和四类天气场渲染器均已接入。
+
+为避免等待同一时次 ECMWF 初始场发布，分析有效时次与模式起报时次分离：00 UTC 产品使用前一日 12 UTC 起报的 `+12 h` 场，12 UTC 产品使用当日 00 UTC 起报的 `+12 h` 场。网页和产品目录仍按有效时次归档，图底来源栏明确列出实际起报时刻和预报时效。
+
+安装可选依赖后，可从已经归档的地面与等压面 GRIB 生成地面、850、500、200 hPa 开发预览：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-weather-map.txt
+.\.venv\Scripts\python.exe run_weather_map.py --date 2026-07-26 --cycle 00 --download --download-climatology --render-preview
+```
+
+开发预览采用分层 NaN 感知高斯平滑，海平面气压、位势高度和填色场使用不同平滑尺度，风羽仍使用未平滑的原始模式分量；弱风矢进一步淡化，低于 2.5 m/s 的静风以无边框小灰点表示。500 hPa 填色为当前位势高度减去 ERA5 1991—2020 同月平均高度，等值线仍表示当前实际高度。地图按区域中纬度的经纬尺度比显示，右下角以同一份天地图边界数据绘制南海诸岛小图。等值线和填色已弱化为主页背景，气旋、高低压中心及探空站作为更高层级信息。
+
+中国探空站目录改用 University of Wyoming 新站点接口在指定时次实际返回的中国站集合，当前为 88 站，包含怀化 `57749`、南宁、海口和西沙等站；不再使用 IGRA 的最后记录年份过滤。所有站点均为可点击的小型无框圆点；绿色表示该时次本地已有归档，黄色表示尚未归档。已有资料时，圆点周围按当前层显示更紧凑的温度、露点、气压/高度和风羽。页面通过一个批量接口读取本地更新状态，不会因显示全部站点而逐站访问 Wyoming；自动采集任务仍只启用宝山 `58362`。
+
+预报模块拆分为 `/forecast` 单点预报和 `/sounding-forecast` 探空预报。两页均支持国家站号、站名或 `纬度,经度`。单点页显示未来三天：IFS 使用 `+3—+72 h` 共24个原生3小时时次，AIFS使用原生6小时时次；图内显示温度、露点、海平面气压、分时段降水、风和总云量。探空页可选择 IFS `0—144 h / 3 h` 或 AIFS `0—144 h / 6 h` 的任一廓线。
+
+当前账户没有 `services/mars` 权限，因此预报采用 ECMWF Open Data 全球消息缓存。独立监测器每 1 分钟检查 00/06/12/18 UTC 新起报，IFS 保存 `0—144 h / 3 h`，AIFS 保存 `0—144 h / 6 h`，每个模式滚动保留最近四个完整周期，约等于一天。生产端使用 ECMWF 的 Google Cloud 官方镜像，并支持按索引范围断点续传。网页查询只读取本地缓存，不会因用户点击再次下载全球 GRIB。按 2026-07-27 实际索引估算，一天四组 IFS+AIFS 配对周期约 10 GiB，40 GB 系统盘可用于前期运行，但必须持续监控剩余空间。
+
+开发预览现已叠加用户从天地图下载的本地 `中国_省.geojson`，显示国界、省界与南海范围内的境界线；城市、河流、湖泊及完整矢量底图仍待后续接入。2026-07-26 00 UTC 的真实地面与等压面 GRIB 已完成下载、归档、解码和四层渲染；当时的 `11W NOUL` 已作为热带气旋位置叠加，NRL 暂时不可访问时会从该分析时次的原始警报归档恢复。主页在没有正式产品时读取这些开发预览，专题地图发布状态仍由内部元数据单独管理。
+
+详细运行说明见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
+
+## 数据源策略
+
+| 资料 | 首选来源 | 补充或备用 |
+| --- | --- | --- |
+| 全球探空实况 | WMO WIS 2.0 实时 BUFR | University of Wyoming 三天回填 |
+| 地面逐小时实况 | 原版 q-weather 链路 | WMO WIS 2.0（后续正式主源） |
+| 机场实况 | Aviation Weather METAR | WMO WIS 2.0 |
+| 气象站静态查询 | 原版 q-weather today/history | 无 |
+| 模式背景与预报 | ECMWF | 按许可和服务条件接入 |
+| 热带气旋位置 | NRL ATCF active warnings | ECMWF HRES TC tracks |
+| 中国地图服务 | 国家地理信息公共服务平台（天地图） | 正式发布前完成专题地图送审 |
+
+程序将保留原始报文、统一字段并逐字段记录来源。地面订正优先使用本站气压；海平面气压不得在未说明的情况下直接作为探空起始气压。
+
+Wyoming 探空按 `站号 + 日期 + 时次` 保存至本地原始资料缓存。同一资料再次处理时优先读取缓存，不重复访问外部服务。公开探空 API 只读本地资料。
+
+更完整的来源、质量控制和回退规则见 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)。
+
+## 地图与合规
+
+中国主页已接入用户从国家地理信息公共服务平台（天地图）下载的 `中国_省.geojson`，用于开发预览中的国界、省界和境界线。文件采用 EPSG:4490，共 42 个要素，SHA-256 为 `3af8294f9ad61cc2bf84c1bb7e4bbf86a6336c68d754b699a0e6ddc33ef81486`。城市、河流和湖泊仍计划从官方地图服务补齐。
+
+完整在线服务仍需要在本地 `.env` 配置域名受限的 `TIANDITU_TOKEN`。后台已经实现 `vec_w` 矢量底图、`cva_w` 矢量注记和 `ibo_w` 全球境界瓦片的下载缓存、Web Mercator 重采样与天气场合成。在线地图服务标示的审图号为 `GS（2024）0568号`；它不能自动转移为本地 GeoJSON 或本站叠加气象专题信息后的成图审图号。本站专题地图尚未送审，`publication_allowed` 因此保持为 `false`。详细边界见 [docs/MAP_COMPLIANCE.md](docs/MAP_COMPLIANCE.md)。
+
+世界动态站点页计划使用普通矩形投影和 OpenStreetMap 数据，并按其许可要求保留署名。
+
+## 品牌与字体
+
+- 中文名：**云海观象台**
+- 英文名：**CloudyLake's Observatory**
+- 生产域名：**https://meteostation.top**
+- 网站字体：**MiSans 系列**
+
+品牌素材位于 `assets/brand/`。网站“关于”页面将说明 MiSans 字体使用情况、地图与气象数据来源、资料时效及免责声明。
+
+## 文档维护约定
+
+每完成一个大阶段，需要同时：
+
+1. 更新 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)；
+2. 更新 [docs/ROADMAP.md](docs/ROADMAP.md) 中的里程碑状态；
+3. 如涉及数据、架构或科学算法，更新对应专题文档；
+4. 在本 README 中更新当前阶段和可运行方式。
+
+## 历史能力
+
+仓库原有功能包括：
+
+- ERA5 单时次与气候态数据下载；
+- 位势高度、风场、温度、湿度、涡度、降水等组合制图；
+- 中国地面站历史观测查询与静态图表；
+- Cartopy/Matplotlib 出图组件。
+
+这些代码作为算法与视觉经验保留，但不能直接作为网站生产服务使用。网页化过程中会逐项增加输入校验、异常处理、缓存、质量控制和来源追踪。

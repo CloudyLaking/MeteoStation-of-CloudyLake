@@ -1,0 +1,16 @@
+{
+  "poll_interval_seconds": 60,
+  "lookback_hours": 24,
+  "request_spacing_seconds": 2,
+  "generate_static_products": false,
+  "cycles": ["00", "12"],
+  "stations": [
+    {
+      "wmo_id": "58362",
+      "name": "上海宝山",
+      "name_en": "Baoshan, Shanghai",
+      "enabled": true,
+      "priority": 10
+    }
+  ]
+}

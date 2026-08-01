@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 单点预报。" />
+    <title>单点预报 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0801" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span>
+            <strong>云海观象台</strong>
+            <small>CloudyLake's Observatory</small>
+          </span>
+        </a>
+        <div class="header-motto">
+          <strong>云海观天，解码天气</strong>
+          <span>Decoding Weather</span>
+        </div>
+      </div>
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <a href="/">中国天气</a>
+            <a href="/observations">实况查询</a>
+            <a class="is-active" href="/forecast">单点预报</a>
+            <a href="/sounding-forecast">探空预报</a>
+            <button type="button" disabled title="敬请期待">历史再分析</button>
+            <button type="button" disabled title="敬请期待">AIFS ENS预报</button>
+            <a href="/about">关于</a>
+          </div>
+          <div class="main-nav__status">
+            <i aria-hidden="true"></i>
+            <span>ECMWF IFS / AIFS</span>
+            <small>V2.1.1</small>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="forecast-page">
+      <section class="forecast-heading">
+        <p class="eyebrow">POINT FORECAST</p>
+        <h1>单点预报</h1>
+        <p>输入国家站号、站名或经纬度，读取未来三天的模式格点预报。</p>
+      </section>
+
+      <form class="forecast-form" id="forecast-form">
+        <div class="forecast-form__row">
+          <label class="forecast-form__field" for="forecast-location">
+            <span>站号 / 站名 / 经纬度</span>
+            <input
+              id="forecast-location"
+              name="location"
+              type="search"
+              autocomplete="off"
+              placeholder="58362、上海宝山或 31.65,121.75"
+              list="forecast-location-options"
+              value="58362"
+              required
+            />
+            <datalist id="forecast-location-options"></datalist>
+          </label>
+          <div class="forecast-form__field">
+            <span>模式</span>
+            <div class="forecast-form__switch">
+              <label><input type="radio" name="model" value="ifs" checked /> IFS · 3 h</label>
+              <label><input type="radio" name="model" value="aifs" /> AIFS · 6 h</label>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-form__row">
+          <label class="forecast-form__field" for="forecast-date">
+            <span>起报日期 (UTC)</span>
+            <input id="forecast-date" name="date" type="date" required />
+          </label>
+          <div class="forecast-form__field">
+            <span>起报时次 (UTC)</span>
+            <div class="forecast-form__switch">
+              <label><input type="radio" name="cycle" value="00" checked /> 00</label>
+              <label><input type="radio" name="cycle" value="06" /> 06</label>
+              <label><input type="radio" name="cycle" value="12" /> 12</label>
+              <label><input type="radio" name="cycle" value="18" /> 18</label>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-form__row forecast-form__row--single-action">
+          <div class="forecast-form__note">
+            IFS显示+3至+72小时共24个时次；AIFS按原生6小时间隔显示。
+          </div>
+          <div class="forecast-form__field forecast-form__field--action">
+            <span aria-hidden="true">读取</span>
+            <button class="forecast-form__submit" type="submit">加载预报</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="forecast-section" id="surface-forecast-section" hidden>
+        <header>
+          <p class="eyebrow">THREE-DAY POINT FORECAST</p>
+          <h2 id="surface-forecast-title">三天单点预报</h2>
+          <p id="surface-forecast-source">—</p>
+        </header>
+        <div class="point-forecast-chart-wrap">
+          <svg
+            id="point-forecast-chart"
+            class="point-forecast-chart"
+            viewBox="0 0 1000 650"
+            role="img"
+            aria-label="三天单点天气预报图"
+          ></svg>
+        </div>
+      </section>
+
+      <div class="forecast-status" id="forecast-status" aria-live="polite"></div>
+
+      <section class="product-notes" aria-labelledby="forecast-method-heading">
+        <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="forecast-method-heading">单点预报说明</h2></header>
+        <div>
+          <article><h3>处理方法</h3><p>从服务器预先归档的模式格点场提取离输入经纬度最近的格点。IFS 按 3 h、AIFS 按 6 h 原生间隔读取，不进行站点统计订正。</p></article>
+          <article><h3>资料来源</h3><p>资料来自 <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>。图内标注实际模式、起报时次、格点位置与有效时刻。</p></article>
+          <article><h3>阅读提示</h3><p>格点值不等于站点观测，复杂地形、海陆边界和局地对流中的代表性误差可能较大；请结合官方预报。</p></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>meteostation.top</span>
+      <span>预报数据来源：ECMWF Open Data</span>
+      <span>Powered with Codex &amp; Deepseek V4 Pro</span>
+    </footer>
+    <script src="/static/site.js?v=2.1.1-0801" defer></script>
+    <script src="/static/forecast.js?v=2.1.1-0801" defer></script>
+  </body>
+</html>

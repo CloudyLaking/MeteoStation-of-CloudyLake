@@ -1,0 +1,21 @@
+[Unit]
+Description=CloudyLake's Observatory web service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meteostation
+Group=meteostation
+WorkingDirectory=/opt/meteostation
+EnvironmentFile=-/opt/meteostation/.env
+ExecStart=/opt/meteostation/.venv/bin/python -m uvicorn web.app:app --host 127.0.0.1 --port 8765 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

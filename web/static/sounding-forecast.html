@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 交互式探空预报。" />
+    <title>探空预报 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0801" />
+    <script src="/static/site.js?v=2.1.1-0801" defer></script>
+    <script src="/static/app.js?v=2.1.1-0801" defer></script>
+    <script src="/static/sounding-forecast.js?v=2.1.1-0801" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span>
+            <strong>云海观象台</strong>
+            <small>CloudyLake's Observatory</small>
+          </span>
+        </a>
+        <div class="header-motto">
+          <strong>云海观天，解码天气</strong>
+          <span>Decoding Weather</span>
+        </div>
+      </div>
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <a href="/">中国天气</a>
+            <a href="/observations">实况查询</a>
+            <a href="/forecast">单点预报</a>
+            <a class="is-active" href="/sounding-forecast">探空预报</a>
+            <button type="button" disabled title="敬请期待">历史再分析</button>
+            <button type="button" disabled title="敬请期待">AIFS ENS预报</button>
+            <a href="/about">关于</a>
+          </div>
+          <div class="main-nav__status">
+            <i aria-hidden="true"></i>
+            <span>ECMWF IFS / AIFS</span>
+            <small>V2.1.1</small>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="forecast-page">
+      <section class="forecast-heading">
+        <p class="eyebrow">FORECAST SOUNDING</p>
+        <h1>探空预报</h1>
+        <p>输入国家站号、站名或经纬度，读取 0–144 小时任一模式层结并进入交互图。</p>
+      </section>
+
+      <form class="forecast-form" id="sounding-forecast-form">
+        <div class="forecast-form__row">
+          <label class="forecast-form__field" for="sounding-location">
+            <span>站号 / 站名 / 经纬度</span>
+            <input
+              id="sounding-location"
+              type="search"
+              placeholder="58362、上海宝山或 31.65,121.75"
+              list="sounding-location-options"
+              value="58362"
+              required
+            />
+            <datalist id="sounding-location-options"></datalist>
+          </label>
+          <div class="forecast-form__field">
+            <span>模式</span>
+            <div class="forecast-form__switch">
+              <label><input type="radio" name="model" value="ifs" checked /> IFS · 3 h</label>
+              <label><input type="radio" name="model" value="aifs" /> AIFS · 6 h</label>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-form__row">
+          <label class="forecast-form__field" for="sounding-date">
+            <span>起报日期 (UTC)</span>
+            <input id="sounding-date" type="date" required />
+          </label>
+          <div class="forecast-form__field">
+            <span>起报时次 (UTC)</span>
+            <div class="forecast-form__switch">
+              <label><input type="radio" name="cycle" value="00" checked /> 00</label>
+              <label><input type="radio" name="cycle" value="06" /> 06</label>
+              <label><input type="radio" name="cycle" value="12" /> 12</label>
+              <label><input type="radio" name="cycle" value="18" /> 18</label>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-form__row">
+          <label class="forecast-form__field" for="sounding-target-step">
+            <span>预报时效</span>
+            <select id="sounding-target-step"></select>
+          </label>
+          <div class="forecast-form__field forecast-form__field--action">
+            <span aria-hidden="true">读取</span>
+            <button class="forecast-form__submit" type="submit">加载探空预报</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="forecast-section forecast-sounding-entry" id="sounding-section" hidden>
+        <header>
+          <p class="eyebrow">INTERACTIVE FORECAST PROFILE</p>
+          <h2 id="sounding-title">探空廓线预报</h2>
+          <p id="sounding-source">—</p>
+        </header>
+        <div class="viewer-settings">
+          <span>探空显示</span>
+          <div class="viewer-switch" role="tablist" aria-label="预报探空显示方式">
+            <button class="is-active" type="button" role="tab" aria-selected="true" data-view="skewt">Skew‑T</button>
+            <button type="button" role="tab" aria-selected="false" data-view="stuve">Stüve</button>
+            <button type="button" role="tab" aria-selected="false" data-view="source">源数据</button>
+          </div>
+        </div>
+        <button class="forecast-open-profile" id="open-forecast-profile" type="button">
+          打开交互式探空图
+        </button>
+      </section>
+      <div class="forecast-status" id="sounding-status" aria-live="polite"></div>
+
+      <section class="product-notes" aria-labelledby="sounding-forecast-method-heading">
+        <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="sounding-forecast-method-heading">探空预报说明</h2></header>
+        <div>
+          <article><h3>处理方法</h3><p>从预先归档的 ECMWF 等压面场提取最近格点廓线，随后沿用实况 Skew-T / Stüve、Hodograph、风羽和强对流参数诊断的同一套交互绘图。</p></article>
+          <article><h3>资料来源</h3><p>IFS / AIFS 模式资料来自 <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>；页面显示起报时次、预报时效和有效时刻。</p></article>
+          <article><h3>阅读提示</h3><p>这是模式廓线而非实际升空探测；CAPE、CIN、LCL、风切变等会对近地面温湿条件和模式垂直分辨率敏感。</p></article>
+        </div>
+      </section>
+    </main>
+
+    <section class="profile-workspace" id="profile-workspace" aria-labelledby="profile-workspace-title" hidden>
+      <header class="profile-workspace__header">
+        <div>
+          <p class="eyebrow">INTERACTIVE FORECAST SOUNDING</p>
+          <h2 id="profile-workspace-title">交互式探空预报</h2>
+          <p id="profile-workspace-meta">选择模式、起报时次和预报时效后读取本地资料。</p>
+        </div>
+        <div class="profile-actions">
+          <button type="button" data-export="svg">导出 SVG</button>
+          <button type="button" data-export="png">导出 PNG</button>
+          <a id="raw-download" href="#" target="_blank" rel="noopener" hidden>下载源 CSV</a>
+          <button class="profile-close" id="profile-close" type="button">关闭</button>
+        </div>
+      </header>
+
+      <div class="profile-view" id="profile-view">
+        <div class="profile-chart-shell">
+          <svg
+            id="profile-chart"
+            viewBox="0 0 1400 820"
+            role="img"
+            aria-label="交互式探空预报廓线图"
+          ></svg>
+          <p class="chart-gesture">移动鼠标或在图中拖动，读取最近的模式层；点击可固定该层。</p>
+        </div>
+        <aside class="level-inspector" aria-live="polite">
+          <span class="level-inspector__eyebrow">SELECTED LEVEL</span>
+          <strong id="level-pressure">— hPa</strong>
+          <span id="level-height">Geopotential height —</span>
+          <dl id="level-values">
+            <div><dt>Temperature</dt><dd>—</dd></div>
+            <div><dt>Dew point</dt><dd>—</dd></div>
+            <div><dt>Wet-bulb temperature</dt><dd>—</dd></div>
+            <div><dt>Virtual temperature</dt><dd>—</dd></div>
+            <div><dt>Parcel temperature</dt><dd>—</dd></div>
+            <div><dt>Relative humidity</dt><dd>—</dd></div>
+            <div><dt>Wind</dt><dd>—</dd></div>
+          </dl>
+        </aside>
+      </div>
+
+      <div class="source-table-wrap" id="source-table-wrap" hidden>
+        <table class="source-table">
+          <thead>
+            <tr>
+              <th>Pressure</th>
+              <th>Height</th>
+              <th>Temperature</th>
+              <th>Dew point</th>
+              <th>RH</th>
+              <th>Wind direction</th>
+              <th>Wind speed</th>
+            </tr>
+          </thead>
+          <tbody id="source-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <span>meteostation.top</span>
+      <span>预报数据来源：ECMWF Open Data</span>
+      <span>资料时次与来源以页面标注为准</span>
+      <span>Powered with Codex &amp; Deepseek V4 Pro</span>
+    </footer>
+  </body>
+</html>

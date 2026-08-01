@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>运维监视器 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0801" />
+    <script src="/static/admin.js?v=2.1.1-0801" defer></script>
+  </head>
+  <body class="admin-body">
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span>
+            <strong>云海观象台</strong>
+            <small>Operations Monitor · V2.1.1</small>
+          </span>
+        </a>
+        <a class="admin-back" href="/">返回网站</a>
+      </div>
+    </header>
+
+    <main class="admin-page">
+      <header class="admin-heading">
+        <div>
+          <p class="eyebrow">PRIVATE OPERATIONS</p>
+          <h1>状况监视器</h1>
+          <p>运行状态、资料体积、流量统计与受控的人工更新入口。</p>
+        </div>
+        <button id="admin-reload" type="button">刷新状态</button>
+      </header>
+
+      <section class="admin-metrics" id="admin-metrics" aria-live="polite">
+        <article><span>服务器磁盘</span><strong>读取中…</strong></article>
+        <article><span>可用内存</span><strong>读取中…</strong></article>
+        <article><span>累计访问</span><strong>读取中…</strong></article>
+        <article><span>响应流量</span><strong>读取中…</strong></article>
+      </section>
+
+      <section class="admin-grid">
+        <article class="admin-card">
+          <header>
+            <div>
+              <p class="eyebrow">COLLECTORS</p>
+              <h2>资料采集状态</h2>
+            </div>
+          </header>
+          <div id="collector-status" class="collector-status"></div>
+          <div class="admin-actions">
+            <button data-refresh="forecast" type="button">检查 IFS / AIFS</button>
+            <button data-refresh="soundings" type="button">检查全球探空</button>
+            <button data-refresh="wis2" type="button">重连 WIS2</button>
+            <button data-refresh="weather-map" type="button">生成天气图</button>
+          </div>
+          <p class="admin-feedback" id="admin-feedback">
+            人工更新只会启动受控采集任务，不会删除归档资料。
+          </p>
+        </article>
+
+        <article class="admin-card">
+          <header>
+            <div>
+              <p class="eyebrow">SITE APPEARANCE</p>
+              <h2>主页与主题</h2>
+            </div>
+          </header>
+          <form id="site-config-form" class="site-config-form">
+            <div class="theme-fields">
+              <label>主青色<input id="theme-primary" type="color" /></label>
+              <label>强调黄色<input id="theme-accent" type="color" /></label>
+              <label>资料蓝色<input id="theme-blue" type="color" /></label>
+            </div>
+            <label>主页标题<input id="homepage-title" maxlength="40" required /></label>
+            <label>副标题<input id="homepage-subtitle" maxlength="120" required /></label>
+            <label>主页说明<textarea id="homepage-notice" maxlength="160" required></textarea></label>
+            <button type="submit">保存并发布</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="admin-card">
+        <header>
+          <div>
+            <p class="eyebrow">STORAGE</p>
+            <h2>资料占用</h2>
+          </div>
+        </header>
+        <div id="storage-status" class="storage-status"></div>
+      </section>
+
+      <section class="admin-card admin-guestbook">
+        <header>
+          <div><p class="eyebrow">GUESTBOOK MODERATION</p><h2>待审核留言</h2></div>
+        </header>
+        <div id="admin-guestbook" class="admin-guestbook-list">
+          <p class="empty-state">正在读取…</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

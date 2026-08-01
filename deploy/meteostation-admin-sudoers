@@ -1,0 +1,1 @@
+meteostation ALL=(root) NOPASSWD: /usr/local/sbin/meteostation-admin-action *

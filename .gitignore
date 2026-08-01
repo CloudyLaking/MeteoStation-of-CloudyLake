@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local settings and secrets
+.env
+.env.*
+!.env.example
+
+# Web/runtime caches
+.cache/
+data/cache/
+data/raw/
+data/products/
+data/previews/
+data/state/
+logs/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+render_output.txt
+meteostation-*-update-*.tar
+meteostation-*.tar
+weather-map-*.png

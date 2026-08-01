@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1:-}" in
+  forecast)
+    systemctl restart meteostation-forecast-collector.service
+    echo "IFS / AIFS 更新检查已启动"
+    ;;
+  soundings)
+    systemctl restart meteostation-global-sounding-collector.service
+    echo "全球探空更新检查已启动"
+    ;;
+  wis2)
+    systemctl restart meteostation-wis2-sounding-collector.service
+    echo "WIS2 实时连接已重新建立"
+    ;;
+  weather-map)
+    systemctl start --no-block meteostation-weather-map.service
+    echo "中国天气图生成任务已启动"
+    ;;
+  *)
+    echo "unsupported action" >&2
+    exit 2
+    ;;
+esac

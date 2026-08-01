@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="云海观象台气象站过去 24 小时与历史日期静态实况查询。"
+    />
+    <title>气象站实况查询 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0801" />
+    <script src="/static/site.js?v=2.1.1-0801" defer></script>
+    <script src="/static/observations.js?v=2.1.1-0801" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span>
+            <strong>云海观象台</strong>
+            <small>CloudyLake's Observatory</small>
+          </span>
+        </a>
+        <div class="header-motto">
+          <strong>云海观天，解码天气</strong>
+          <span>Decoding Weather</span>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <a href="/">中国天气</a>
+            <a class="is-active" href="/observations">实况查询</a>
+            <a href="/forecast">单点预报</a>
+            <a href="/sounding-forecast">探空预报</a>
+            <button type="button" disabled title="敬请期待">历史再分析</button>
+            <button type="button" disabled title="敬请期待">AIFS ENS预报</button>
+            <a href="/about">关于</a>
+          </div>
+          <div class="main-nav__status">
+            <i aria-hidden="true"></i>
+            <span>按需生成</span>
+            <small>V2.1.1</small>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="station-query-page">
+      <section class="station-query-heading">
+        <p class="eyebrow">SURFACE OBSERVATION QUERY</p>
+        <h1>气象站实况查询</h1>
+        <p>
+          使用原版 q-weather 逐小时资料与原版绘图函数。
+        </p>
+      </section>
+
+      <form class="station-query-form" id="station-query-form">
+        <div class="station-query-form__station">
+          <label for="surface-station">WMO 站号或中文站名</label>
+          <input
+            id="surface-station"
+            name="station"
+            type="search"
+            autocomplete="off"
+            placeholder="例如：58362、宝山或上海宝山"
+            list="surface-station-options"
+            required
+          />
+          <datalist id="surface-station-options"></datalist>
+        </div>
+
+        <fieldset class="station-query-mode">
+          <legend>查询范围</legend>
+          <label>
+            <input
+              type="radio"
+              name="mode"
+              value="past24h"
+              checked
+            />
+            <span>过去 24h</span>
+          </label>
+          <label>
+            <input type="radio" name="mode" value="history" />
+            <span>历史日期</span>
+          </label>
+        </fieldset>
+
+        <div class="station-query-form__date" id="history-date-wrap" hidden>
+          <label for="surface-date">UTC 日期</label>
+          <input id="surface-date" name="date" type="date" />
+        </div>
+
+        <button class="station-query-submit" type="submit">查询并绘图</button>
+      </form>
+
+      <section
+        class="realtime-panel"
+        id="realtime-panel"
+        aria-live="polite"
+        hidden
+      >
+        <header>
+          <div>
+            <p class="eyebrow">REALTIME STATUS</p>
+            <h2 id="realtime-station">实时状态</h2>
+          </div>
+          <span id="realtime-time">—</span>
+        </header>
+        <div class="realtime-values">
+          <article><span>温度</span><strong id="realtime-temperature">—</strong></article>
+          <article><span>相对湿度</span><strong id="realtime-humidity">—</strong></article>
+          <article><span>本站气压</span><strong id="realtime-pressure">—</strong></article>
+          <article><span>风向风速</span><strong id="realtime-wind">—</strong></article>
+          <article><span>一小时降水</span><strong id="realtime-rain">—</strong></article>
+          <article><span>能见度</span><strong id="realtime-visibility">—</strong></article>
+        </div>
+        <small id="realtime-note">实时状态来源：q-weather</small>
+      </section>
+
+      <section
+        class="station-image-result"
+        id="station-image-result"
+        aria-live="polite"
+        hidden
+      >
+        <header>
+          <div>
+            <p class="eyebrow">STATIC OBSERVATION PRODUCT</p>
+            <h2 id="station-image-title">实况静态图</h2>
+            <p id="station-image-source">数据来源：q-weather hourly</p>
+          </div>
+          <a id="station-image-download" href="#" download>下载 PNG</a>
+        </header>
+        <div class="station-image-state" id="station-image-state">
+          正在读取原版逐小时资料并生成静态图……
+        </div>
+        <img id="station-image" alt="" hidden />
+      </section>
+
+      <section class="product-notes" aria-labelledby="obs-method-heading">
+        <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="obs-method-heading">实况产品说明</h2></header>
+        <div>
+          <article><h3>处理方法</h3><p>按查询即时调用原 `History_ObsStation.py` 的逐小时流程，保持原有 24 h / 历史静态图形式；实时状态单独读取，不改变静态图的逐小时序列。</p></article>
+          <article><h3>资料来源</h3><p>逐小时与实时数据来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>。站号和中文站名由项目内国家站表解析。</p></article>
+          <article><h3>阅读提示</h3><p>历史日期按资料源可用范围查询；站点缺测、通信延迟和第三方页面变化都可能导致某些项目暂缺。</p></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>meteostation.top</span>
+      <span>资料时次与来源以页面标注为准</span>
+      <span>当前为开发预览，不用于业务决策</span>
+      <span>Powered with Codex &amp; Deepseek V4 Pro</span>
+    </footer>
+  </body>
+</html>

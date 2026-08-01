@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the latest China weather-map cycle hourly
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=3min
+Persistent=true
+Unit=meteostation-weather-map.service
+
+[Install]
+WantedBy=timers.target

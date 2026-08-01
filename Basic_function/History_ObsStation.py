@@ -7,7 +7,7 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import os
 import datetime
-version = '1.2.8'
+version = '2.1.1'
 
 
 # 请求数据

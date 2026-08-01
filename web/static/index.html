@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="云海观象台：面向公众的探空、地面实况订正与天气分析平台。"
+    />
+    <title>云海观象台 · CloudyLake's Observatory</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0801" />
+    <script src="/static/site.js?v=2.1.1-0801" defer></script>
+    <script src="/static/app.js?v=2.1.1-0801" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span>
+            <strong>云海观象台</strong>
+            <small>CloudyLake's Observatory</small>
+          </span>
+        </a>
+
+        <div class="header-motto">
+          <strong>云海观天，解码天气</strong>
+          <span>Decoding Weather</span>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <a class="is-active" href="/">中国天气</a>
+            <a href="/observations">实况查询</a>
+            <a href="/forecast">单点预报</a>
+            <a href="/sounding-forecast">探空预报</a>
+            <button type="button" disabled title="敬请期待">历史再分析</button>
+            <button type="button" disabled title="敬请期待">AIFS ENS预报</button>
+            <a href="/about">关于</a>
+          </div>
+          <div class="main-nav__status">
+            <i aria-hidden="true"></i>
+            <span>自动归档运行</span>
+            <small>V2.1.1</small>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="dashboard">
+      <section class="map-panel" aria-labelledby="map-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">CHINA WEATHER ANALYSIS</p>
+            <h1 id="map-title">中国天气自动分析</h1>
+            <p id="homepage-subtitle" class="panel-subtitle">
+              探空实况、天气形势与模式背景的统一工作台
+            </p>
+          </div>
+          <div class="archive-picker" aria-label="归档分析时次">
+            <span class="archive-picker__label">归档日期与时次</span>
+            <div class="archive-picker__controls">
+              <button id="previous-day" type="button" aria-label="前一天">‹</button>
+              <input id="archive-date" type="date" aria-label="归档日期" />
+              <button id="next-day" type="button" aria-label="后一天">›</button>
+              <span class="archive-picker__divider" aria-hidden="true"></span>
+              <div class="cycle-switch" aria-label="分析时次">
+                <button type="button" class="is-active" data-cycle="00">00</button>
+                <button type="button" data-cycle="12">12</button>
+              </div>
+            </div>
+            <small id="archive-note">读取已保存的分析产品</small>
+          </div>
+        </div>
+
+        <div class="map-stage">
+          <img
+            class="weather-map-image"
+            id="weather-map-image"
+            alt="中国天气分析图"
+            hidden
+          />
+          <div class="weather-map-badge" id="weather-map-badge" hidden>
+            ECMWF FIELD PREVIEW · NO BASE MAP · NOT FOR PUBLICATION
+          </div>
+          <div
+            class="map-sounding-stations"
+            id="map-sounding-stations"
+            aria-label="主要探空站"
+            hidden
+          ></div>
+          <div class="map-placeholder">
+            <div class="contour contour--one"></div>
+            <div class="contour contour--two"></div>
+            <div class="contour contour--three"></div>
+            <span class="station station--one"><i></i>北京</span>
+            <span class="station station--two"><i></i>上海</span>
+            <span class="station station--three"><i></i>广州</span>
+            <span class="station station--four"><i></i>成都</span>
+            <div class="map-notice">
+              <span id="weather-map-status">天气图产品管线</span>
+              <strong id="weather-map-layer-name">综合分析</strong>
+              <p id="weather-map-description">
+                已建立 00/12 UTC 产品目录；正式出图等待合规标准地图接入。
+              </p>
+            </div>
+          </div>
+
+          <div class="layer-dock" aria-label="地图图层">
+            <button type="button" class="is-active" data-map-layer="composite">综合分析</button>
+            <button type="button" data-map-layer="surface">地面</button>
+            <button type="button" data-map-layer="850">850 hPa</button>
+            <button type="button" data-map-layer="500">500 hPa</button>
+            <button type="button" data-map-layer="200">200 hPa</button>
+          </div>
+
+          <div class="map-legend">
+            <span><i class="legend-swatch legend-swatch--cold"></i>偏低</span>
+            <span><i class="legend-swatch legend-swatch--normal"></i>常见范围</span>
+            <span><i class="legend-swatch legend-swatch--warm"></i>偏高</span>
+            <span><i class="legend-symbol legend-symbol--high">H</i>高压中心</span>
+            <span><i class="legend-symbol legend-symbol--low">L</i>低压中心</span>
+            <span><i class="legend-symbol legend-symbol--tc">×</i>热带气旋</span>
+            <span><i class="legend-symbol legend-symbol--station-ready">●</i>探空已更新</span>
+            <span><i class="legend-symbol legend-symbol--station-pending">●</i>探空待更新</span>
+          </div>
+
+          <div class="map-attribution" id="map-attribution">
+            正在读取地图来源与审图状态
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-labelledby="sounding-title">
+        <div class="side-panel__top">
+          <p class="eyebrow">SOUNDING WORKSPACE</p>
+          <h2 id="sounding-title">探空工作台</h2>
+          <p>点击地图站点或输入站号，可选择时次、图形和地面订正方式。</p>
+        </div>
+
+        <form class="station-form">
+          <label for="station-search">WMO 站号</label>
+          <div class="search-control">
+            <input
+              id="station-search"
+              name="station"
+              type="search"
+              value="58362"
+              placeholder="宝山：58362"
+              autocomplete="off"
+              inputmode="numeric"
+              pattern="[0-9]{5}"
+            />
+            <button type="submit" aria-label="搜索站点">→</button>
+          </div>
+        </form>
+
+        <div class="viewer-settings">
+          <span>探空显示</span>
+          <div class="viewer-switch" role="tablist" aria-label="探空显示方式">
+            <button
+              class="is-active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              data-view="skewt"
+            >
+              Skew‑T
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-view="stuve"
+            >
+              Stüve
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-view="source"
+            >
+              源数据
+            </button>
+          </div>
+        </div>
+
+        <section
+          class="sounding-result"
+          id="sounding-result"
+          aria-live="polite"
+          hidden
+        ></section>
+
+        <div class="source-strip" id="source-strip" aria-live="polite">
+          <span class="source-strip__label">资料链路</span>
+          <span class="source-chip">正在读取…</span>
+        </div>
+      </aside>
+    </main>
+
+    <section
+      class="profile-workspace"
+      id="profile-workspace"
+      aria-labelledby="profile-workspace-title"
+      hidden
+    >
+      <header class="profile-workspace__header">
+        <div>
+          <p class="eyebrow">INTERACTIVE SOUNDING</p>
+          <h2 id="profile-workspace-title">交互式探空廓线</h2>
+          <p id="profile-workspace-meta">选择站点与归档时次后读取本地资料。</p>
+        </div>
+        <div class="profile-actions">
+          <button type="button" data-export="svg">导出 SVG</button>
+          <button type="button" data-export="png">导出 PNG</button>
+          <a id="raw-download" href="#" target="_blank" rel="noopener">
+            下载源 CSV
+          </a>
+          <button class="profile-close" id="profile-close" type="button">
+            关闭
+          </button>
+        </div>
+      </header>
+
+      <div class="profile-view" id="profile-view">
+        <div class="profile-chart-shell">
+          <svg
+            id="profile-chart"
+            viewBox="0 0 1400 820"
+            role="img"
+            aria-label="交互式探空廓线图"
+          ></svg>
+          <p class="chart-gesture">
+            移动鼠标或在图中拖动，读取最近的实测层；点击可固定该层。
+          </p>
+        </div>
+
+        <aside class="level-inspector" aria-live="polite">
+          <span class="level-inspector__eyebrow">SELECTED LEVEL</span>
+          <strong id="level-pressure">— hPa</strong>
+          <span id="level-height">Geopotential height —</span>
+          <dl id="level-values">
+            <div><dt>Temperature</dt><dd>—</dd></div>
+            <div><dt>Dew point</dt><dd>—</dd></div>
+            <div><dt>Wet-bulb temperature</dt><dd>—</dd></div>
+            <div><dt>Virtual temperature</dt><dd>—</dd></div>
+            <div><dt>Parcel temperature</dt><dd>—</dd></div>
+            <div><dt>Relative humidity</dt><dd>—</dd></div>
+            <div><dt>Wind</dt><dd>—</dd></div>
+          </dl>
+          <form class="sounding-correction" id="sounding-correction">
+            <header>
+              <span>SURFACE CORRECTION</span>
+              <button id="correction-reset" type="button">恢复原始</button>
+            </header>
+            <label class="sounding-correction__time">
+              <span>整点时刻 / 北京时间</span>
+              <input id="correction-time" type="datetime-local" step="3600" required />
+            </label>
+            <div class="sounding-correction__fields">
+              <label>
+                <span>P / hPa</span>
+                <input id="correction-pressure" type="number" min="100" max="1100" step="0.1" required />
+              </label>
+              <label>
+                <span>T / °C</span>
+                <input id="correction-temperature" type="number" min="-100" max="65" step="0.1" required />
+              </label>
+              <label>
+                <span>Td / °C</span>
+                <input id="correction-dewpoint" type="number" min="-120" max="65" step="0.1" required />
+              </label>
+            </div>
+            <div class="sounding-correction__actions">
+              <button type="submit">应用订正</button>
+              <button id="correction-realtime" type="button">读取整点数据</button>
+            </div>
+            <p id="correction-status">订正只作用于当前交互图与本次导出，不改写归档资料。</p>
+          </form>
+        </aside>
+      </div>
+
+      <div class="source-table-wrap" id="source-table-wrap" hidden>
+        <table class="source-table">
+          <thead>
+            <tr>
+              <th>Pressure</th>
+              <th>Height</th>
+              <th>Temperature</th>
+              <th>Dew point</th>
+              <th>RH</th>
+              <th>Wind direction</th>
+              <th>Wind speed</th>
+            </tr>
+          </thead>
+          <tbody id="source-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="product-notes" aria-labelledby="home-method-heading">
+      <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="home-method-heading">中国天气分析说明</h2></header>
+      <div>
+        <article><h3>处理方法</h3><p>以 ECMWF IFS 场为连续背景，对海平面气压和等高线作高斯平滑；客观识别高低压中心、温度极值、深厚湿区和高温度梯度锋面候选。探空点独立显示实测资料是否已经更新。</p></article>
+        <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>、<a href="https://weather.uwyo.edu/upperair/sounding.html" target="_blank" rel="noopener">University of Wyoming</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">WMO WIS 2.0</a> 与天地图标准地图服务。</p></article>
+        <article><h3>阅读提示</h3><p>“FRONT CAND.”表示客观锋区候选，不等同于预报员手工分析；模式高低压和温度极值不是预警结论。点击小型探空站模型可进入该站交互廓线。</p></article>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <span>meteostation.top</span>
+      <span>资料时次与来源以页面标注为准</span>
+      <span>当前为开发预览，不用于业务决策</span>
+      <span id="homepage-notice">资料持续自动更新；分析结论仅供学习与研究参考。</span>
+      <span>Powered with Codex &amp; Deepseek V4 Pro</span>
+    </footer>
+  </body>
+</html>

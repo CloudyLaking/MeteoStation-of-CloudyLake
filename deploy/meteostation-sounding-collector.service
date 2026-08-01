@@ -1,0 +1,19 @@
+[Unit]
+Description=CloudyLake sounding observation collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meteostation
+Group=meteostation
+WorkingDirectory=/opt/meteostation
+EnvironmentFile=-/opt/meteostation/.env
+ExecStart=/opt/meteostation/.venv/bin/python run_collector.py
+Restart=on-failure
+RestartSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

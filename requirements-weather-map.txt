@@ -1,0 +1,6 @@
+-r requirements-web.txt
+
+cdsapi>=0.7,<1
+netCDF4>=1.7,<2
+pillow>=11,<13
+scipy>=1.15,<2
