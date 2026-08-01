@@ -118,8 +118,12 @@ async function loadWeatherMapConfig() {
     }
     weatherMapConfig = await response.json();
     const baseMap = weatherMapConfig.base_map ?? {};
-    weatherMapAttribution.textContent =
-      `底图来源：${baseMap.source ?? "待确定"} · ${baseMap.service_review_number ?? "来源审图号待核对"}`;
+    const attribution = [baseMap.source, baseMap.service_review_number]
+      .filter(Boolean)
+      .join(" · ");
+    weatherMapAttribution.textContent = attribution
+      ? `底图：${attribution}`
+      : "";
     renderMapSoundingStations();
     await loadWeatherMapProduct();
   } catch (error) {

@@ -620,7 +620,7 @@ a {
 .map-legend {
   position: absolute;
   right: 16px;
-  bottom: 16px;
+  bottom: 32px;
   z-index: 3;
   display: flex;
   gap: 12px;
@@ -672,17 +672,18 @@ a {
 
 .map-attribution {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  right: 16px;
+  bottom: 10px;
   z-index: 3;
-  max-width: 48%;
-  padding: 7px 9px;
-  border: 1px solid rgba(154, 126, 103, 0.24);
-  border-radius: 4px;
+  max-width: 62%;
+  padding: 0;
+  border: 0;
   color: #675d56;
-  background: rgba(255, 255, 255, 0.92);
-  font-size: 9px;
-  line-height: 1.45;
+  background: transparent;
+  font-size: 8px;
+  line-height: 1.25;
+  text-align: right;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.96);
   pointer-events: none;
 }
 
@@ -1804,6 +1805,15 @@ a {
   font-size: 10px;
 }
 
+.site-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--teal);
+}
+
 @media (max-width: 980px) {
   .dashboard {
     grid-template-columns: 1fr;
@@ -1984,6 +1994,9 @@ a {
   }
 
   .map-attribution {
+    left: auto;
+    right: 16px;
+    bottom: 9px;
     max-width: calc(100% - 32px);
   }
 
@@ -2544,50 +2557,50 @@ a {
 }
 
 .about-page--expanded {
-  width: min(1320px, calc(100% - 40px));
+  width: min(1180px, calc(100% - 40px));
   padding-inline: 0;
 }
 
 .identity-panel {
   display: grid;
-  grid-template-columns: 132px minmax(260px, 1fr) minmax(320px, 0.8fr);
+  grid-template-columns: 72px minmax(240px, 1fr) auto;
   align-items: center;
-  gap: 32px;
-  padding: 34px 0 40px;
-  border-bottom: 2px solid var(--teal);
+  gap: 20px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .identity-panel > img {
-  width: 126px;
+  width: 68px;
   height: auto;
 }
 
 .identity-panel h1 {
-  margin: 5px 0 8px;
+  margin: 3px 0 5px;
   color: var(--ink);
-  font-size: clamp(36px, 5vw, 64px);
-  letter-spacing: -0.05em;
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 520;
+  letter-spacing: -0.03em;
 }
 
 .identity-panel__copy > p:last-child {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-size: 12px;
 }
 
 .social-links {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  display: flex;
+  gap: 8px;
 }
 
 .social-links a {
   display: grid;
-  gap: 5px;
-  min-height: 82px;
-  padding: 16px;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 11px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--ink);
   background: #fff;
   text-decoration: none;
@@ -2606,19 +2619,20 @@ a {
 }
 
 .social-links strong {
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 450;
 }
 
 .about-section {
-  padding: 34px 0 38px;
+  padding: 22px 0 24px;
   border-bottom: 1px solid var(--line);
 }
 
 .about-section > header {
   display: grid;
-  grid-template-columns: minmax(240px, 0.36fr) 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 6px 28px;
-  margin-bottom: 22px;
+  margin-bottom: 13px;
 }
 
 .about-section > header .eyebrow {
@@ -2628,7 +2642,8 @@ a {
 .about-section > header h2 {
   margin: 0;
   color: var(--ink);
-  font-size: 25px;
+  font-size: 20px;
+  font-weight: 520;
 }
 
 .about-section > header > p:last-child {
@@ -2651,28 +2666,29 @@ a {
 }
 
 .changelog-list article {
-  padding: 22px;
-  border-left: 4px solid var(--sand-solid);
-  background: #fffbee;
+  padding: 13px 15px;
+  border-left: 2px solid var(--sand-solid);
+  background: #fff;
 }
 
 .changelog-list time {
   color: var(--teal);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .changelog-list h3 {
-  margin: 9px 0 7px;
+  margin: 5px 0 4px;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .changelog-list p {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 13px;
-  line-height: 1.75;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .guestbook-section {
@@ -2689,7 +2705,7 @@ a {
   display: grid;
   align-content: start;
   gap: 12px;
-  padding: 20px;
+  padding: 14px;
   border: 1px solid var(--line);
   background: #fff;
 }
@@ -2712,7 +2728,7 @@ a {
 }
 
 .guestbook-form textarea {
-  min-height: 112px;
+  min-height: 76px;
   resize: vertical;
 }
 
@@ -2766,7 +2782,7 @@ a {
 .friend-link-groups {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 28px 34px;
+  gap: 20px 28px;
 }
 
 .friend-link-groups h3 {
@@ -2783,17 +2799,23 @@ a {
 
 .friend-links a {
   display: grid;
-  gap: 5px;
-  padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  gap: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   color: var(--ink);
   background: #fff;
   text-decoration: none;
 }
 
 .friend-links strong {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.friend-links span {
+  display: none;
 }
 
 .method-note > p {
