@@ -61,7 +61,7 @@
         <p class="eyebrow">SURFACE OBSERVATION QUERY</p>
         <h1>气象站实况查询</h1>
         <p>
-          输入站号或站名，或从地区地图点击站点，读取逐小时资料并即时绘图。
+          输入站号或站名，或从地区地图点击站点，查询逐小时实况并绘图。
         </p>
       </section>
 
@@ -108,7 +108,7 @@
       <section class="station-region-browser" aria-labelledby="station-region-title">
         <header>
           <div><p class="eyebrow">REGIONAL STATION MAP</p><h2 id="station-region-title">按地区选择站点</h2></div>
-          <p>点击地图中的站点即可查询；地图使用内置国家站表与天地图省界资料。</p>
+          <p>点击地图中的站点即可查询；站点与行政区边界分别依据全国气象站目录和天地图资料显示。</p>
         </header>
         <div class="station-region-tabs" id="station-region-tabs" aria-label="站点地区"></div>
         <div class="station-region-map-shell">
@@ -151,7 +151,7 @@
           <div>
             <p class="eyebrow">INTERACTIVE OBSERVATION PRODUCT</p>
             <h2 id="station-image-title">24h 实况序列</h2>
-            <p id="station-image-source">数据来源：q-weather hourly</p>
+            <p id="station-image-source">资料来源：q-weather 逐小时观测</p>
           </div>
           <button id="station-image-download" type="button" hidden>导出 PNG</button>
         </header>
@@ -167,9 +167,9 @@
       <section class="product-notes" aria-labelledby="obs-method-heading">
         <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="obs-method-heading">实况产品说明</h2></header>
         <div>
-          <article><h3>处理方法</h3><p>服务器仅解析 q-weather 的逐小时表并返回结构化数据，浏览器使用 SVG 即时绘图；避免服务器高分辨率 Matplotlib 渲染，并保留 PNG 导出。</p></article>
-          <article><h3>资料来源</h3><p>逐小时与实时数据来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>。站号和中文站名由项目内国家站表解析。</p></article>
-          <article><h3>阅读提示</h3><p>历史日期按资料源可用范围查询；站点缺测、通信延迟和第三方页面变化都可能导致某些项目暂缺。</p></article>
+          <article><h3>处理方法</h3><p>按观测时刻排列温度、露点、体感温度、相对湿度、气压、降水和风。缺测项保持空缺，不作人为填补；图面可交互查读并导出 PNG。</p></article>
+          <article><h3>资料来源</h3><p>逐小时与实时观测来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>；站号、站名和所属地区依据全国气象站目录匹配。</p></article>
+          <article><h3>阅读提示</h3><p>历史日期的可查范围以资料源实际收录为准。站点缺测或资料延迟时，相应时刻和要素可能暂缺。</p></article>
         </div>
       </section>
     </main>

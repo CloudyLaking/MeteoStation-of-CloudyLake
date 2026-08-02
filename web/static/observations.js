@@ -125,7 +125,7 @@ async function loadRealtime(stationId) {
     document.querySelector("#realtime-time").textContent = data.observed_at
       ? `${new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(data.observed_at))} 北京时间`
       : "各要素更新时间不同";
-    document.querySelector("#realtime-note").textContent = "实时状态来源：q-weather realtime API";
+    document.querySelector("#realtime-note").textContent = "实时状态来源：q-weather 实时观测";
   } catch (error) {
     document.querySelector("#realtime-time").textContent = "读取失败";
     document.querySelector("#realtime-note").textContent = `实时状态暂不可用：${error.message}`;
@@ -296,21 +296,26 @@ async function loadObservationSeries(station, mode) {
   resultSection.hidden = false;
   resultState.hidden = false;
   resultState.className = "station-image-state";
-  resultState.textContent = "正在读取结构化逐小时资料……";
+  resultState.textContent = "正在读取逐小时观测……";
   chartWrap.hidden = true;
   downloadButton.hidden = true;
   const query = new URLSearchParams({ mode });
   if (mode === "history") query.set("date", dateInput.value);
   resultTitle.textContent = mode === "past24h" ? `${station.display_name} · WMO ${station.wmo_id} · 过去 24h` : `${station.display_name} · WMO ${station.wmo_id} · ${dateInput.value}`;
   try {
-    const started = performance.now();
     const response = await fetch(`/api/v1/observations/series/${station.wmo_id}?${query}`);
     const series = await response.json();
     if (!response.ok) throw new Error(series.detail ?? `HTTP ${response.status}`);
     latestSeries = series;
-    const renderMs = renderObservationChart(series);
-    const totalMs = performance.now() - started;
-    resultSource.innerHTML = `数据来源：<a href="${series.source_url}" target="_blank" rel="noopener">q-weather hourly</a> · ${series.observations.length} 条 · 查询与绘图 ${totalMs.toFixed(0)} ms（绘图 ${renderMs.toFixed(1)} ms）`;
+    renderObservationChart(series);
+    const firstTime = series.observations[0]?.observed_at
+      ? timeLabelForHeader(series.observations[0].observed_at)
+      : "—";
+    const lastObservation = series.observations[series.observations.length - 1];
+    const lastTime = lastObservation?.observed_at
+      ? timeLabelForHeader(lastObservation.observed_at)
+      : "—";
+    resultSource.innerHTML = `资料来源：<a href="${series.source_url}" target="_blank" rel="noopener">q-weather 逐小时观测</a> · ${series.observations.length} 个时次 · ${firstTime}—${lastTime}`;
     resultState.hidden = true;
     chartWrap.hidden = false;
     downloadButton.hidden = false;

@@ -236,7 +236,7 @@ async function loadWeatherMapProduct() {
       .map((item) => inputLabels[item] ?? item)
       .join("、");
     weatherMapDescription.textContent =
-      `${layer?.description ?? ""} 等待：${missingInputs || blockers || "后台产品任务"}。`;
+      `${layer?.description ?? ""} 当前尚缺：${missingInputs || blockers || "本时次分析产品"}。`;
   } catch (error) {
     weatherMapImage.hidden = true;
     mapSoundingStations.hidden = true;
@@ -359,7 +359,7 @@ function updateMapStationLabels() {
         `${station?.name ?? ""} ${station?.wmo_id ?? button.dataset.stationId}` +
         " · 尚未更新";
       button.title = detail;
-      button.setAttribute("aria-label", `${detail}；点击查询本地探空`);
+      button.setAttribute("aria-label", `${detail}；点击查看探空`);
       continue;
     }
     const windBarb = weatherStationBarbSvg(
@@ -516,9 +516,9 @@ stationForm?.addEventListener("submit", async (event) => {
   soundingResult.hidden = false;
   soundingResult.classList.remove("sounding-result--error");
   soundingResult.innerHTML = `
-    <span class="sounding-result__label">正在读取本地归档</span>
+    <span class="sounding-result__label">正在读取探空资料</span>
     <strong>${stationId}</strong>
-    <p>网页不会连接外部资料源；缺少资料时等待后台采集器更新。</p>
+    <p>正在查询 ${archiveDate.value} ${cycle} UTC 的廓线。</p>
   `;
 
   try {
@@ -530,7 +530,7 @@ stationForm?.addEventListener("submit", async (event) => {
     if (!response.ok) {
       throw new Error(
         response.status === 404
-          ? "本地尚未归档该站同时次，后台采集器会在资料到达后自动补充。"
+          ? "该站本时次资料尚未到达，更新后将自动开放查看。"
           : (data.detail ?? `HTTP ${response.status}`),
       );
     }
@@ -577,7 +577,7 @@ function renderSoundingSummary() {
   const data = activeProfile();
   const cacheLabel = data.cache_status === "corrected"
     ? "当前会话订正"
-    : (data.cache_status === "hit" ? "本地归档" : "新资料");
+    : (data.cache_status === "hit" ? "已收录" : "最新资料");
   const viewNames = {
     skewt: "交互式 Skew‑T",
     stuve: "交互式 Stüve",

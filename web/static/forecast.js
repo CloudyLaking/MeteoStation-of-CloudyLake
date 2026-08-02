@@ -360,7 +360,7 @@ form.addEventListener("submit", async (event) => {
       throw new Error(payload.detail || `HTTP ${response.status}`);
     }
     if (!renderForecast(payload, model)) {
-      throw new Error("缓存中没有未来三天的可用预报时次");
+      throw new Error("所选起报时次尚无完整的未来三天预报");
     }
     title.textContent =
       `${payload.station_name} · ${model.toUpperCase()} 三天预报`;

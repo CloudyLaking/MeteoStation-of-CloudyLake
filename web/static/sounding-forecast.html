@@ -131,7 +131,7 @@
       <section class="product-notes" aria-labelledby="sounding-forecast-method-heading">
         <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="sounding-forecast-method-heading">探空预报说明</h2></header>
         <div>
-          <article><h3>处理方法</h3><p>从预先归档的 ECMWF 等压面场提取最近格点廓线，随后沿用实况 Skew-T / Stüve、Hodograph、风羽和强对流参数诊断的同一套交互绘图。</p></article>
+          <article><h3>处理方法</h3><p>按输入位置匹配最近的模式格点，由各等压面的温度、湿度、位势高度和风构成垂直廓线，并计算气块路径、不稳定能量、对流层结及风暴运动诊断。</p></article>
           <article><h3>资料来源</h3><p>IFS / AIFS 模式资料来自 <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>；页面显示起报时次、预报时效和有效时刻。</p></article>
           <article><h3>阅读提示</h3><p>这是模式廓线而非实际升空探测；CAPE、CIN、LCL、风切变等会对近地面温湿条件和模式垂直分辨率敏感。</p></article>
         </div>
@@ -143,7 +143,7 @@
         <div>
           <p class="eyebrow">INTERACTIVE FORECAST SOUNDING</p>
           <h2 id="profile-workspace-title">交互式探空预报</h2>
-          <p id="profile-workspace-meta">选择模式、起报时次和预报时效后读取本地资料。</p>
+          <p id="profile-workspace-meta">选择模式、起报时次和预报时效后查看垂直廓线。</p>
         </div>
         <div class="profile-actions">
           <button type="button" data-export="svg">导出 SVG</button>

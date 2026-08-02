@@ -642,7 +642,7 @@ async def station_region_map(region: str) -> dict[str, object]:
 @app.get(
     "/api/v1/observations/realtime/{station_id}",
     response_model=RealtimeObservation,
-    summary="读取 q-weather 气象站实时状态",
+    summary="查询气象站实时观测",
 )
 async def realtime_observation(station_id: str) -> RealtimeObservation:
     validate_station_id(station_id)
@@ -658,7 +658,7 @@ async def realtime_observation(station_id: str) -> RealtimeObservation:
 @app.get(
     "/api/v1/observations/hourly/{station_id}",
     response_model=RealtimeObservation,
-    summary="读取指定整点的 q-weather 逐小时地面资料",
+    summary="查询指定整点的地面观测",
 )
 async def hourly_observation(
     station_id: str,
@@ -683,7 +683,7 @@ async def hourly_observation(
 @app.get(
     "/api/v1/observations/series/{station_id}",
     response_model=SurfaceObservationSeries,
-    summary="读取适合浏览器快速绘图的24小时结构化实况序列",
+    summary="查询24小时地面观测序列",
 )
 async def observation_series(
     station_id: str,
@@ -733,7 +733,7 @@ async def observation_series(
 
 @app.get(
     "/api/v1/observations/plot",
-    summary="调用原 q-weather 逐小时数据源生成地面实况静态图",
+    summary="生成24小时地面观测序列 PNG",
 )
 async def surface_observation_plot(
     station_query: str = Query(alias="station", min_length=1, max_length=40),
