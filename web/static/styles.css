@@ -1646,6 +1646,7 @@ a {
 .profile-chart-shell {
   min-width: 0;
   padding: 8px 8px 5px;
+  overflow: auto;
   border: 1px solid rgba(111, 83, 64, 0.14);
   border-radius: 5px;
   background: #fff;
@@ -1659,7 +1660,7 @@ a {
   max-height: none;
   aspect-ratio: 1400 / 820;
   background: #fff;
-  touch-action: none;
+  touch-action: pan-x pan-y pinch-zoom;
   user-select: none;
 }
 
@@ -2100,7 +2101,20 @@ a {
   }
 
   #profile-chart {
-    min-height: 420px;
+    width: 980px;
+    max-width: none;
+    min-height: 0;
+  }
+
+  .profile-chart-shell {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .chart-gesture {
+    position: sticky;
+    left: 0;
+    width: min(88vw, 420px);
   }
 
   .level-inspector {

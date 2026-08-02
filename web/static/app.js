@@ -57,8 +57,8 @@ const CHART = {
   hodoTop: 78,
   hodoBottom: 390,
   diagnosticsTop: 404,
-  // Keep the diagnostic groups, favourability key and main plot on one baseline.
-  diagnosticsBottom: 704,
+  // The diagnostic groups and their favourability key share one framed column.
+  diagnosticsBottom: 760,
 };
 
 let selectedView = "skewt";
@@ -763,7 +763,6 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
   drawWindBarbs(profile.levels, yForPressure, pressureTop, pressureBottom);
   drawHodograph(profile.levels, diagnostics);
   drawDiagnosticColumn(diagnostics);
-  drawConvectiveToneLegend();
   const diagnosticLevels = joinDiagnosticLevels(profile.levels, diagnostics);
   if (diagnostics && diagnosticLevels.length) {
     drawEnergyAreas(
@@ -1956,11 +1955,14 @@ function drawDiagnosticColumn(diagnostics) {
       },
       "Unavailable",
     );
+    drawConvectiveToneLegend();
     return;
   }
   const gap = 10;
+  const legendHeight = 56;
+  const groupsBottom = bottom - legendHeight;
   const groupWidth = (right - left - gap * 3) / 2;
-  const groupHeight = (bottom - top - 51 - gap) / 2;
+  const groupHeight = (groupsBottom - top - 51 - gap) / 2;
   const firstX = left + gap;
   const secondX = firstX + groupWidth + gap;
   const firstY = top + 44;
@@ -2027,6 +2029,7 @@ function drawDiagnosticColumn(diagnostics) {
     groupWidth,
     groupHeight,
   );
+  drawConvectiveToneLegend();
 }
 
 function drawDiagnosticGroup(title, entries, x, y, width, height) {
@@ -2150,12 +2153,23 @@ function drawConvectiveToneLegend() {
   ];
   const left = CHART.hodoLeft;
   const right = CHART.hodoRight;
-  const segmentWidth = (right - left) / entries.length;
+  const bottom = CHART.diagnosticsBottom;
+  const legendLeft = left + 10;
+  const legendRight = right - 10;
+  const segmentWidth = (legendRight - legendLeft) / entries.length;
+  appendSvg("line", {
+    x1: left,
+    x2: right,
+    y1: bottom - 48,
+    y2: bottom - 48,
+    stroke: "#ded5cc",
+    "stroke-width": "1",
+  });
   appendSvg(
     "text",
     {
-      x: left,
-      y: 721,
+      x: legendLeft,
+      y: bottom - 37,
       fill: "#59686d",
       "font-size": "10.5",
       "font-weight": "700",
@@ -2164,10 +2178,10 @@ function drawConvectiveToneLegend() {
     "CONVECTIVE FAVOURABILITY",
   );
   entries.forEach(([label, color], index) => {
-    const x = left + index * segmentWidth;
+    const x = legendLeft + index * segmentWidth;
     appendSvg("rect", {
       x,
-      y: 730,
+      y: bottom - 30,
       width: segmentWidth,
       height: 28,
       fill: color,
@@ -2178,7 +2192,7 @@ function drawConvectiveToneLegend() {
       "text",
       {
         x: x + segmentWidth / 2,
-        y: 748,
+        y: bottom - 12,
         fill: index === 1 ? "#263943" : "#ffffff",
         "font-size": "8.2",
         "font-weight": "700",
