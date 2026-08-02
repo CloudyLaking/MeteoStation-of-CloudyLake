@@ -372,3 +372,20 @@ form.addEventListener("submit", async (event) => {
     status.textContent = `单点预报读取失败：${error.message}`;
   }
 });
+
+const initialForecastQuery = new URLSearchParams(window.location.search);
+if (initialForecastQuery.get("station")) {
+  locationInput.value = initialForecastQuery.get("station");
+  if (initialForecastQuery.get("date")) dateInput.value = initialForecastQuery.get("date");
+  if (initialForecastQuery.get("cycle")) {
+    const cycleInput = [...form.querySelectorAll('input[name="cycle"]')]
+      .find((input) => input.value === initialForecastQuery.get("cycle"));
+    if (cycleInput) cycleInput.checked = true;
+  }
+  if (initialForecastQuery.get("model")) {
+    const modelInput = [...form.querySelectorAll('input[name="model"]')]
+      .find((input) => input.value === initialForecastQuery.get("model"));
+    if (modelInput) modelInput.checked = true;
+  }
+  window.setTimeout(() => form.requestSubmit(), 0);
+}

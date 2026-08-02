@@ -447,6 +447,16 @@ dateInput.max = localIsoDate(new Date());
 dateInput.value = dateInput.max;
 updateMode();
 loadRegion("华东");
+const initialQuery = new URLSearchParams(window.location.search);
+if (initialQuery.get("station")) {
+  stationInput.value = initialQuery.get("station");
+  if (initialQuery.get("mode") === "history" && initialQuery.get("date")) {
+    queryForm.elements.mode.value = "history";
+    dateInput.value = initialQuery.get("date");
+    updateMode();
+  }
+  window.setTimeout(() => queryForm.requestSubmit(), 0);
+}
 const initialParameters = new URLSearchParams(window.location.search);
 const initialStation = initialParameters.get("station");
 if (initialStation) {
