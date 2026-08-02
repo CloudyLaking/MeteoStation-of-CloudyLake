@@ -8,6 +8,12 @@
   "homepage": {
     "title": "中国天气自动分析",
     "subtitle": "探空实况、天气形势与模式背景的统一工作台",
-    "notice": "资料持续自动更新；分析结论仅供学习与研究参考。"
+    "station_title": "探空工作台",
+    "station_subtitle": "点击地图站点或输入站号，可选择时次、图形和地面订正方式。"
+  },
+  "footer": {
+    "copyright": "Copyright © 2026- CloudyLake. All Rights Reserved.",
+    "contact": "cloudylaking@outlook.com",
+    "powered_with": "Powered with Codex & Deepseek V4 Pro"
   }
 }

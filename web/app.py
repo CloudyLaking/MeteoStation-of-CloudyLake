@@ -22,6 +22,7 @@ from meteostation.operations import (
     operations_snapshot,
     request_admin_action,
     save_site_config,
+    server_congestion_snapshot,
 )
 from meteostation.observation import (
     QWeatherError,
@@ -281,7 +282,10 @@ async def public_site_config() -> dict[str, object]:
 
 @app.get("/api/v1/site/stats")
 async def public_site_stats() -> dict[str, object]:
-    return traffic.snapshot()
+    return {
+        **traffic.snapshot(),
+        "congestion": server_congestion_snapshot(PROJECT_ROOT),
+    }
 
 
 @app.post("/api/v1/mailbox", status_code=202)

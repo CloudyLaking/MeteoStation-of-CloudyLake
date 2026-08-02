@@ -26,7 +26,13 @@ DEFAULT_SITE_CONFIG = {
     "homepage": {
         "title": "中国天气自动分析",
         "subtitle": "探空实况、天气形势与模式背景的统一工作台",
-        "notice": "资料持续自动更新；分析结论仅供学习与研究参考。",
+        "station_title": "探空工作台",
+        "station_subtitle": "点击地图站点或输入站号，可选择时次、图形和地面订正方式。",
+    },
+    "footer": {
+        "copyright": "Copyright © 2026- CloudyLake. All Rights Reserved.",
+        "contact": "cloudylaking@outlook.com",
+        "powered_with": "Powered with Codex & Deepseek V4 Pro",
     },
 }
 
@@ -52,7 +58,23 @@ class ThemeConfig(BaseModel):
 class HomepageConfig(BaseModel):
     title: str = Field(min_length=2, max_length=40)
     subtitle: str = Field(min_length=2, max_length=120)
-    notice: str = Field(min_length=2, max_length=160)
+    station_title: str = Field(default="探空工作台", min_length=2, max_length=40)
+    station_subtitle: str = Field(
+        default="点击地图站点或输入站号，可选择时次、图形和地面订正方式。",
+        min_length=2,
+        max_length=160,
+    )
+
+
+class FooterConfig(BaseModel):
+    copyright: str = Field(min_length=2, max_length=120)
+    contact: str = Field(min_length=3, max_length=120)
+    powered_with: str = Field(min_length=2, max_length=120)
+
+    @field_validator("copyright", "contact", "powered_with")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        return " ".join(value.strip().split())
 
 
 class SiteConfig(BaseModel):
@@ -62,6 +84,9 @@ class SiteConfig(BaseModel):
         default_factory=lambda: HomepageConfig(
             **DEFAULT_SITE_CONFIG["homepage"],
         )
+    )
+    footer: FooterConfig = Field(
+        default_factory=lambda: FooterConfig(**DEFAULT_SITE_CONFIG["footer"])
     )
 
 
@@ -175,21 +200,23 @@ def operations_snapshot(project_root: Path) -> dict[str, object]:
                 path.stat().st_mtime,
                 tz=timezone.utc,
             )
+            age_seconds = max(
+                0,
+                round(
+                    (
+                        datetime.now(timezone.utc) - modified_at
+                    ).total_seconds()
+                ),
+            )
             states[name] = {
                 "available": True,
+                "healthy": _collector_healthy(name, payload, age_seconds),
                 "modified_at": modified_at.isoformat(),
-                "age_seconds": max(
-                    0,
-                    round(
-                        (
-                            datetime.now(timezone.utc) - modified_at
-                        ).total_seconds()
-                    ),
-                ),
+                "age_seconds": age_seconds,
                 "summary": _state_summary(name, payload),
             }
         except (OSError, ValueError, TypeError):
-            states[name] = {"available": False}
+            states[name] = {"available": False, "healthy": False}
     data_usage = {}
     for name in (
         "ecmwf_forecast",
@@ -208,9 +235,47 @@ def operations_snapshot(project_root: Path) -> dict[str, object]:
             "used_percent": round(disk.used / disk.total * 100, 1),
         },
         "memory": _memory_snapshot(),
+        "system": _system_snapshot(),
+        "congestion": server_congestion_snapshot(root),
         "collectors": states,
         "data_usage_bytes": data_usage,
     }
+
+
+def server_congestion_snapshot(project_root: Path) -> dict[str, object]:
+    """Return a lightweight three-level server-capacity indicator."""
+
+    root = Path(project_root)
+    disk = shutil.disk_usage(root)
+    memory = _memory_snapshot()
+    system = _system_snapshot()
+    load_ratio = system["load_ratio"]
+    memory_percent = memory["used_percent"]
+    disk_percent = round(disk.used / disk.total * 100, 1)
+    level = _congestion_level(load_ratio, memory_percent, disk_percent)
+    labels = {1: "拥挤", 2: "较忙", 3: "通畅"}
+    return {
+        "level": level,
+        "label": labels[level],
+        "load_ratio": load_ratio,
+        "memory_used_percent": memory_percent,
+        "disk_used_percent": disk_percent,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _congestion_level(
+    load_ratio: float | None,
+    memory_percent: float | None,
+    disk_percent: float,
+) -> int:
+    load = load_ratio or 0.0
+    memory = memory_percent or 0.0
+    if load >= 1.2 or memory >= 90 or disk_percent >= 95:
+        return 1
+    if load >= 0.7 or memory >= 75 or disk_percent >= 85:
+        return 2
+    return 3
 
 
 AdminAction = Literal[
@@ -274,6 +339,24 @@ def _state_summary(name: str, payload: object) -> dict[str, object]:
     }
 
 
+def _collector_healthy(
+    name: str,
+    payload: object,
+    age_seconds: int,
+) -> bool:
+    maximum_age = {
+        "forecast_collector": 600,
+        "global_sounding_collector": 600,
+        "wis2_sounding_collector": 300,
+        "weather_map_collector": 5400,
+    }.get(name, 600)
+    if age_seconds > maximum_age or not isinstance(payload, dict):
+        return False
+    if name == "wis2_sounding_collector":
+        return payload.get("connected") is True
+    return True
+
+
 def _directory_size(path: Path) -> int:
     if not path.exists():
         return 0
@@ -308,5 +391,27 @@ def _memory_snapshot() -> dict[str, int | float | None]:
             round((total - available) / total * 100, 1)
             if total
             else None
+        ),
+    }
+
+
+def _system_snapshot() -> dict[str, int | float | None]:
+    cpu_count = max(1, os.cpu_count() or 1)
+    try:
+        load_1m, load_5m, load_15m = os.getloadavg()
+    except (AttributeError, OSError):
+        load_1m = load_5m = load_15m = 0.0
+    try:
+        uptime_seconds = float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        uptime_seconds = None
+    return {
+        "cpu_count": cpu_count,
+        "load_1m": round(load_1m, 2),
+        "load_5m": round(load_5m, 2),
+        "load_15m": round(load_15m, 2),
+        "load_ratio": round(load_1m / cpu_count, 2),
+        "uptime_seconds": (
+            round(uptime_seconds) if uptime_seconds is not None else None
         ),
     }

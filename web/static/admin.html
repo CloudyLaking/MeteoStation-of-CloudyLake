@@ -6,8 +6,8 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>运维监视器 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802c" />
-    <script src="/static/admin.js?v=2.1.1-0802c" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802d" />
+    <script src="/static/admin.js?v=2.1.1-0802d" defer></script>
   </head>
   <body class="admin-body">
     <header class="site-header">
@@ -30,12 +30,17 @@
           <h1>状况监视器</h1>
           <p>运行状态、资料体积、流量统计与受控的人工更新入口。</p>
         </div>
-        <button id="admin-reload" type="button">刷新状态</button>
+        <div class="admin-heading__actions">
+          <span class="admin-congestion" id="admin-congestion">服务器状态读取中</span>
+          <button id="admin-reload" type="button">刷新状态</button>
+        </div>
       </header>
 
       <section class="admin-metrics" id="admin-metrics" aria-live="polite">
         <article><span>服务器磁盘</span><strong>读取中…</strong></article>
-        <article><span>可用内存</span><strong>读取中…</strong></article>
+        <article><span>内存占用</span><strong>读取中…</strong></article>
+        <article><span>CPU 归一化负载</span><strong>读取中…</strong></article>
+        <article><span>连续运行</span><strong>读取中…</strong></article>
         <article><span>累计访问</span><strong>读取中…</strong></article>
         <article><span>响应流量</span><strong>读取中…</strong></article>
       </section>
@@ -68,14 +73,21 @@
             </div>
           </header>
           <form id="site-config-form" class="site-config-form">
+            <p class="site-config-section">主题颜色</p>
             <div class="theme-fields">
               <label>主青色<input id="theme-primary" type="color" /></label>
               <label>强调黄色<input id="theme-accent" type="color" /></label>
               <label>资料蓝色<input id="theme-blue" type="color" /></label>
             </div>
+            <p class="site-config-section">主页文字</p>
             <label>主页标题<input id="homepage-title" maxlength="40" required /></label>
             <label>副标题<input id="homepage-subtitle" maxlength="120" required /></label>
-            <label>主页说明<textarea id="homepage-notice" maxlength="160" required></textarea></label>
+            <label>探空区标题<input id="station-panel-title" maxlength="40" required /></label>
+            <label>探空区说明<textarea id="station-panel-subtitle" maxlength="160" required></textarea></label>
+            <p class="site-config-section">全站页脚</p>
+            <label>版权文字<input id="footer-copyright" maxlength="120" required /></label>
+            <label>联系邮箱<input id="footer-contact" type="email" maxlength="120" required /></label>
+            <label>Powered with<input id="footer-powered" maxlength="120" required /></label>
             <button type="submit">保存并发布</button>
           </form>
         </article>

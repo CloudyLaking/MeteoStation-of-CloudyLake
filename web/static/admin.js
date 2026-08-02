@@ -4,6 +4,7 @@ const storageStatus = document.querySelector("#storage-status");
 const feedback = document.querySelector("#admin-feedback");
 const form = document.querySelector("#site-config-form");
 const adminGuestbook = document.querySelector("#admin-guestbook");
+const adminCongestion = document.querySelector("#admin-congestion");
 
 function bytes(value) {
   if (!Number.isFinite(Number(value))) return "—";
@@ -24,6 +25,13 @@ function age(seconds) {
   return `${(seconds / 3600).toFixed(1)} 小时前`;
 }
 
+function duration(seconds) {
+  if (!Number.isFinite(Number(seconds))) return "—";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  return days ? `${days} 天 ${hours} 小时` : `${hours} 小时`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -38,7 +46,11 @@ function fillSite(site) {
   document.querySelector("#theme-blue").value = site.theme.blue;
   document.querySelector("#homepage-title").value = site.homepage.title;
   document.querySelector("#homepage-subtitle").value = site.homepage.subtitle;
-  document.querySelector("#homepage-notice").value = site.homepage.notice;
+  document.querySelector("#station-panel-title").value = site.homepage.station_title;
+  document.querySelector("#station-panel-subtitle").value = site.homepage.station_subtitle;
+  document.querySelector("#footer-copyright").value = site.footer.copyright;
+  document.querySelector("#footer-contact").value = site.footer.contact;
+  document.querySelector("#footer-powered").value = site.footer.powered_with;
 }
 
 async function loadStatus() {
@@ -52,12 +64,21 @@ async function loadStatus() {
   metricCards[0].textContent =
     `${data.disk.used_percent}% · 剩余 ${bytes(data.disk.free_bytes)}`;
   metricCards[1].textContent =
-    data.memory.available_bytes === null
+    data.memory.used_percent === null
       ? "当前平台不支持"
-      : bytes(data.memory.available_bytes);
-  metricCards[2].textContent =
+      : `${data.memory.used_percent}% · 可用 ${bytes(data.memory.available_bytes)}`;
+  metricCards[2].textContent = Number.isFinite(Number(data.system.load_ratio))
+    ? `${Number(data.system.load_ratio).toFixed(2)} · ${data.system.cpu_count} 核`
+    : "当前平台不支持";
+  metricCards[3].textContent = duration(data.system.uptime_seconds);
+  metricCards[4].textContent =
     Number(data.traffic.requests || 0).toLocaleString("zh-CN");
-  metricCards[3].textContent = bytes(data.traffic.response_bytes);
+  metricCards[5].textContent = bytes(data.traffic.response_bytes);
+
+  const congestionLevel = Number(data.congestion?.level || 1);
+  adminCongestion.textContent =
+    `服务器${data.congestion?.label || "状态未知"} · ${congestionLevel}/3`;
+  adminCongestion.dataset.level = String(congestionLevel);
 
   const labels = {
     forecast_collector: "IFS / AIFS",
@@ -68,9 +89,9 @@ async function loadStatus() {
   collectorStatus.innerHTML = Object.entries(data.collectors)
     .map(([key, item]) => `
       <div>
-        <span class="status-dot ${item.available ? "is-ready" : "is-missing"}"></span>
+        <span class="status-dot ${item.healthy ? "is-ready" : item.available ? "is-stale" : "is-missing"}"></span>
         <strong>${escapeHtml(labels[key] || key)}</strong>
-        <small>${item.available ? age(item.age_seconds) : "尚未运行"}</small>
+        <small>${item.available ? `${item.healthy ? "正常" : "需检查"} · ${age(item.age_seconds)}` : "尚未运行"}</small>
       </div>
     `)
     .join("");
@@ -158,7 +179,13 @@ form.addEventListener("submit", async (event) => {
     homepage: {
       title: document.querySelector("#homepage-title").value.trim(),
       subtitle: document.querySelector("#homepage-subtitle").value.trim(),
-      notice: document.querySelector("#homepage-notice").value.trim(),
+      station_title: document.querySelector("#station-panel-title").value.trim(),
+      station_subtitle: document.querySelector("#station-panel-subtitle").value.trim(),
+    },
+    footer: {
+      copyright: document.querySelector("#footer-copyright").value.trim(),
+      contact: document.querySelector("#footer-contact").value.trim(),
+      powered_with: document.querySelector("#footer-powered").value.trim(),
     },
   };
   feedback.textContent = "正在保存主页设置…";

@@ -13,7 +13,9 @@ ExecStart=/opt/meteostation/.venv/bin/python -m uvicorn web.app:app --host 127.0
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
-NoNewPrivileges=true
+# The web process may only elevate through the exact sudoers-whitelisted
+# meteostation-admin-action helper, which validates four fixed actions.
+NoNewPrivileges=false
 PrivateTmp=true
 LimitNOFILE=65536
 
