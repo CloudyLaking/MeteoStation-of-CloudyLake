@@ -4,10 +4,14 @@ from datetime import datetime, timedelta, timezone
 from meteostation.observation import (
     parse_ogimet_csv,
     parse_qweather_hourly_html,
+    parse_qweather_series_html,
     parse_qweather_realtime,
     to_legacy_weather_table,
 )
-from meteostation.observation.station_registry import resolve_station
+from meteostation.observation.station_registry import (
+    resolve_station,
+    stations_in_region,
+)
 
 
 SAMPLE_CSV = """WMO_ID,ANO,MES,DIA,HORA,MINUTO,PARTE
@@ -45,9 +49,36 @@ class ObservationParserTests(unittest.TestCase):
         self.assertEqual(observation.relative_humidity_pct, 74)
         self.assertEqual(observation.wind_direction_deg, 180)
 
+    def test_qweather_series_is_sorted_and_normalized(self) -> None:
+        html = """
+        <table class="border">
+          <tr><th>时次</th><th>瞬时温度</th><th>地面气压</th><th>相对湿度</th>
+          <th>瞬时风向</th><th>瞬时风速</th><th>1小时降水</th><th>10分钟平均能见度</th></tr>
+          <tr><td>2026-07-26 09:00 +0800</td><td>31.0</td><td>1007.0</td><td>70</td>
+          <td>190/S</td><td>4.0</td><td>0.1</td><td>25.0</td></tr>
+          <tr><td>2026-07-26 08:00 +0800</td><td>30.0</td><td>1008.0</td><td>75</td>
+          <td>180/S</td><td>3.0</td><td>0.0</td><td>30.0</td></tr>
+        </table>
+        """
+        series = parse_qweather_series_html(
+            html,
+            station=resolve_station("58362"),
+            source_url="https://example.test/hourly/",
+            observation_date=datetime(2026, 7, 26).date(),
+        )
+
+        self.assertEqual(len(series.observations), 2)
+        self.assertEqual(series.observations[0].observed_at.hour, 8)
+        self.assertEqual(series.observations[1].wind_speed_ms, 4.0)
+        self.assertIsNotNone(series.observations[0].dewpoint_c)
+
     def test_station_can_be_resolved_by_number_or_chinese_name(self) -> None:
         self.assertEqual(resolve_station("58362").wmo_id, "58362")
         self.assertEqual(resolve_station("\u5b9d\u5c71").wmo_id, "58362")
+
+    def test_east_china_region_contains_baoshan(self) -> None:
+        station_ids = {station.wmo_id for station in stations_in_region("华东")}
+        self.assertIn("58362", station_ids)
 
     def test_synop_groups_are_decoded(self) -> None:
         observations = parse_ogimet_csv(SAMPLE_CSV, station_id="58362")

@@ -74,7 +74,7 @@ function compass(degrees) {
   return directions[Math.round(Number(degrees) / 22.5) % 16];
 }
 
-function renderForecast(data, model) {
+function renderForecastDeprecated(data, model) {
   const points = (data.points || [])
     .filter((point) => point.step_hours > 0 && point.step_hours <= 72)
     .sort((left, right) => left.step_hours - right.step_hours);
@@ -287,6 +287,46 @@ function renderForecast(data, model) {
     chart.appendChild(svg("text", {
       x: legendX + 22, y: 34, "font-size": 9.5, fill: "#4f5c62",
     }, label));
+  });
+  return true;
+}
+
+function renderForecast(data, model) {
+  const rawPoints = (data.points || [])
+    .filter((point) => point.step_hours > 0 && point.step_hours <= 72)
+    .sort((left, right) => left.step_hours - right.step_hours);
+  if (!rawPoints.length) return false;
+  const points = rawPoints.map((point) => ({
+    time: point.valid_at,
+    temperature: point.temperature_2m_c,
+    dewpoint: point.dewpoint_2m_c,
+    apparent: window.CloudyLakeWeatherSeriesRenderer.apparentTemperature(
+      point.temperature_2m_c,
+      point.relative_humidity_2m_pct,
+    ),
+    humidity: point.relative_humidity_2m_pct,
+    pressure: point.surface_pressure_hpa,
+    seaLevelPressure: point.mslp_hpa,
+    precipitation: point.total_precipitation_mm,
+    windSpeed: point.wind_speed_10m_ms,
+    windDirection: point.wind_direction_10m_deg,
+  }));
+  const cadence = model === "aifs" ? 6 : 3;
+  const accumulated = (count) => points.slice(0, count).reduce(
+    (sum, point) => sum + Math.max(0, Number(point.precipitation) || 0),
+    0,
+  );
+  window.CloudyLakeWeatherSeriesRenderer.render(chart, {
+    title: `${data.station_name} · ${model.toUpperCase()} 72h单点预报`,
+    locationLine: `${Number(data.latitude).toFixed(2)}°N  ${Number(data.longitude).toFixed(2)}°E`,
+    timeLine: `起报时次: ${new Date(data.initialized_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}`,
+    points,
+    includeDateLabels: true,
+    accumulationLines: [
+      `未来24h累计降水量: ${accumulated(Math.round(24 / cadence)).toFixed(1)} mm`,
+      `未来48h累计降水量: ${accumulated(Math.round(48 / cadence)).toFixed(1)} mm`,
+      `未来72h累计降水量: ${accumulated(points.length).toFixed(1)} mm`,
+    ],
   });
   return true;
 }

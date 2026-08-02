@@ -27,6 +27,7 @@ from .models import (
     SurfaceForecast,
     SurfaceForecastPoint,
 )
+from .fast_store import fast_store_path, is_fast_store, read_fast_point_fields
 
 _log = logging.getLogger(__name__)
 
@@ -164,6 +165,9 @@ def retrieve_ecmwf_forecast(
         cache_dir
         / f"{stem}_forecast_surface_144h_{cadence}hourly.grib2"
     )
+    surface_store = fast_store_path(surf_path)
+    if include_surface and surface_store.exists():
+        surf_path = surface_store
     if include_surface and not allow_download and not surf_path.exists():
         partial = _find_partial_step_cache(
             cache_dir,
@@ -200,6 +204,9 @@ def retrieve_ecmwf_forecast(
         cache_dir
         / f"{stem}_forecast_pressure_144h_{cadence}hourly.grib2"
     )
+    pressure_store = fast_store_path(pres_path)
+    if include_pressure and pressure_store.exists():
+        pres_path = pressure_store
     if include_pressure and not allow_download and not pres_path.exists():
         partial = _find_partial_step_cache(
             cache_dir,
@@ -579,17 +586,22 @@ def extract_surface_forecast(
 ) -> SurfaceForecast | None:
     """Extract surface forecast time series at a single station."""
     source_name = _forecast_source_name(surface_grib_path)
-    try:
-        import cfgrib
-    except ImportError:
-        _log.warning("cfgrib not available — cannot decode surface forecast")
-        return None
-
-    datasets = cfgrib.open_datasets(str(surface_grib_path))
-    if not datasets:
-        return None
-
-    fields = _point_fields(datasets, latitude=latitude, longitude=longitude)
+    if is_fast_store(surface_grib_path):
+        fields = read_fast_point_fields(
+            surface_grib_path,
+            latitude=latitude,
+            longitude=longitude,
+        )
+    else:
+        try:
+            import cfgrib
+        except ImportError:
+            _log.warning("cfgrib not available — cannot decode surface forecast")
+            return None
+        datasets = cfgrib.open_datasets(str(surface_grib_path))
+        if not datasets:
+            return None
+        fields = _point_fields(datasets, latitude=latitude, longitude=longitude)
     wanted = ("10u", "10v", "2t", "2d", "sp", "msl", "tp", "tcc")
     series = {
         name: _surface_series(fields[name])
@@ -702,22 +714,28 @@ def extract_sounding_forecast(
     even though only one grid point is returned.
     """
     source_name = _forecast_source_name(pressure_grib_path)
-    try:
-        import cfgrib
-    except ImportError:
-        _log.warning("cfgrib not available — cannot decode pressure-level forecast")
-        return None
-
-    datasets = cfgrib.open_datasets(str(pressure_grib_path))
-    if not datasets:
-        return None
-
-    fields = _point_fields(
-        datasets,
-        latitude=latitude,
-        longitude=longitude,
-        step_hours=step_hours,
-    )
+    if is_fast_store(pressure_grib_path):
+        fields = read_fast_point_fields(
+            pressure_grib_path,
+            latitude=latitude,
+            longitude=longitude,
+            step_hours=step_hours,
+        )
+    else:
+        try:
+            import cfgrib
+        except ImportError:
+            _log.warning("cfgrib not available — cannot decode pressure-level forecast")
+            return None
+        datasets = cfgrib.open_datasets(str(pressure_grib_path))
+        if not datasets:
+            return None
+        fields = _point_fields(
+            datasets,
+            latitude=latitude,
+            longitude=longitude,
+            step_hours=step_hours,
+        )
     profiles = {
         name: _pressure_series(fields[name])
         for name in ("gh", "t", "r", "q", "u", "v")

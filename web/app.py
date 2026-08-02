@@ -5,7 +5,9 @@ import os
 import re
 import secrets
 from datetime import date, datetime, timezone
+from functools import lru_cache
 from pathlib import Path
+from time import monotonic
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -27,12 +29,16 @@ from meteostation.operations import (
 from meteostation.observation import (
     QWeatherError,
     RealtimeObservation,
+    STATION_REGIONS,
     StationLookupError,
+    SurfaceObservationSeries,
     fetch_qweather_hourly,
     fetch_qweather_realtime,
+    fetch_qweather_series,
     render_legacy_observation_png,
     resolve_station,
     search_stations,
+    stations_in_region,
 )
 from meteostation.sounding import (
     CorrectedSounding,
@@ -91,6 +97,10 @@ weather_map_catalog = WeatherMapCatalog(
     catalog_path=WEATHER_MAP_CATALOG_PATH,
 )
 observation_plot_lock = asyncio.Lock()
+observation_series_lock = asyncio.Lock()
+observation_series_cache: dict[
+    tuple[str, str, str], tuple[float, SurfaceObservationSeries]
+] = {}
 guestbook_lock = asyncio.Lock()
 traffic = RuntimeTraffic(TRAFFIC_STATE_PATH)
 admin_security = HTTPBasic(auto_error=False)
@@ -592,6 +602,17 @@ async def station_resolve(
 
 
 @app.get(
+    "/api/v1/stations/region/{region}",
+    summary="读取分区国家站与省级边界，供可点击站点地图使用",
+)
+async def station_region_map(region: str) -> dict[str, object]:
+    try:
+        return _station_region_payload(region)
+    except StationLookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get(
     "/api/v1/observations/realtime/{station_id}",
     response_model=RealtimeObservation,
     summary="读取 q-weather 气象站实时状态",
@@ -630,6 +651,52 @@ async def hourly_observation(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QWeatherError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get(
+    "/api/v1/observations/series/{station_id}",
+    response_model=SurfaceObservationSeries,
+    summary="读取适合浏览器快速绘图的24小时结构化实况序列",
+)
+async def observation_series(
+    station_id: str,
+    mode: Literal["past24h", "history"] = Query(default="past24h"),
+    historical_date: date | None = Query(default=None, alias="date"),
+) -> SurfaceObservationSeries:
+    validate_station_id(station_id)
+    if mode == "history" and historical_date is None:
+        raise HTTPException(status_code=422, detail="history mode requires date")
+    if historical_date is not None and historical_date > datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=422, detail="date cannot be in the future")
+    try:
+        station = resolve_station(station_id)
+    except StationLookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    date_key = historical_date.isoformat() if historical_date else "today"
+    key = (station_id, mode, date_key)
+    now = monotonic()
+    cached = observation_series_cache.get(key)
+    if cached and cached[0] > now:
+        return cached[1].model_copy(update={"cache_status": "memory-hit"})
+    async with observation_series_lock:
+        cached = observation_series_cache.get(key)
+        if cached and cached[0] > monotonic():
+            return cached[1].model_copy(update={"cache_status": "memory-hit"})
+        try:
+            series = await fetch_qweather_series(
+                station,
+                mode=mode,
+                historical_date=historical_date,
+            )
+        except QWeatherError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        ttl = 300 if mode == "past24h" else 3600
+        observation_series_cache[key] = (monotonic() + ttl, series)
+        if len(observation_series_cache) > 256:
+            expired = [item for item, value in observation_series_cache.items() if value[0] <= monotonic()]
+            for item in expired:
+                observation_series_cache.pop(item, None)
+        return series
 
 
 @app.get(
@@ -1155,6 +1222,79 @@ def _build_initialized_at(
         int(cycle),
         tzinfo=timezone.utc,
     )
+
+
+@lru_cache(maxsize=8)
+def _station_region_payload(region: str) -> dict[str, object]:
+    provinces = STATION_REGIONS.get(region)
+    if provinces is None:
+        raise StationLookupError(f"未知地区：{region}")
+    stations = stations_in_region(region)
+    geojson_path = PROJECT_ROOT / "中国_省.geojson"
+    features: list[dict[str, object]] = []
+    if geojson_path.exists():
+        payload = json.loads(geojson_path.read_text(encoding="utf-8"))
+        wanted_names = {_province_geojson_name(name) for name in provinces}
+        features = [
+            feature
+            for feature in payload.get("features", [])
+            if feature.get("properties", {}).get("name") in wanted_names
+        ]
+    coordinates: list[tuple[float, float]] = [
+        (station.longitude, station.latitude) for station in stations
+    ]
+    for feature in features:
+        _collect_geojson_coordinates(
+            feature.get("geometry", {}).get("coordinates", []),
+            coordinates,
+        )
+    longitudes = [item[0] for item in coordinates] or [73.0, 135.0]
+    latitudes = [item[1] for item in coordinates] or [18.0, 54.0]
+    return {
+        "region": region,
+        "regions": list(STATION_REGIONS),
+        "provinces": list(provinces),
+        "bounds": {
+            "west": min(longitudes) - 0.35,
+            "east": max(longitudes) + 0.35,
+            "south": min(latitudes) - 0.25,
+            "north": max(latitudes) + 0.25,
+        },
+        "boundaries": {"type": "FeatureCollection", "features": features},
+        "stations": [station.as_dict() for station in stations],
+    }
+
+
+def _province_geojson_name(name: str) -> str:
+    special = {
+        "北京": "北京市",
+        "天津": "天津市",
+        "上海": "上海市",
+        "重庆": "重庆市",
+        "内蒙古": "内蒙古自治区",
+        "广西": "广西壮族自治区",
+        "西藏": "西藏自治区",
+        "宁夏": "宁夏回族自治区",
+        "新疆": "新疆维吾尔自治区",
+    }
+    return special.get(name, f"{name}省")
+
+
+def _collect_geojson_coordinates(
+    value: object,
+    output: list[tuple[float, float]],
+) -> None:
+    if (
+        isinstance(value, list)
+        and len(value) >= 2
+        and isinstance(value[0], (int, float))
+        and isinstance(value[1], (int, float))
+    ):
+        output.append((float(value[0]), float(value[1])))
+        return
+    if isinstance(value, list):
+        for item in value:
+            _collect_geojson_coordinates(item, output)
 
 
 def resolve_forecast_location(query: str) -> dict[str, object]:

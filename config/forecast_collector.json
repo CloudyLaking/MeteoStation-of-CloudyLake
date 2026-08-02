@@ -3,9 +3,11 @@
   "retry_interval_minutes": 1,
   "request_spacing_seconds": 5,
   "retain_complete_cycles": 4,
-  "minimum_free_disk_gb": 8,
+  "minimum_free_disk_gb": 3,
   "download_reserve_gb": 3,
   "source": "google",
   "cycles": ["00", "06", "12", "18"],
-  "models": ["aifs", "ifs"]
+  "models": ["aifs", "ifs"],
+  "convert_to_fast_store": true,
+  "discard_grib_after_conversion": true
 }

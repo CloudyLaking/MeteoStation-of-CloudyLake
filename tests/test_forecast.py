@@ -15,6 +15,7 @@ from meteostation.forecast.collector import (
     prune_forecast_cycles,
     recent_forecast_cycles,
 )
+from meteostation.forecast.fast_store import convert_forecast_grib
 from meteostation.ecmwf_mars import mars_model_keywords, mars_point_area
 from meteostation.observation.station_registry import resolve_station
 from web.app import resolve_forecast_location
@@ -266,8 +267,9 @@ def test_collector_interleaves_models_for_latest_cycle(
             request_spacing_seconds=0,
             minimum_free_disk_gb=2,
             download_reserve_gb=1,
-            models=["ifs", "aifs"],
-        ),
+                models=["ifs", "aifs"],
+                convert_to_fast_store=False,
+            ),
         cache_root=tmp_path,
         state_path=tmp_path / "state.json",
     )
@@ -327,6 +329,54 @@ def test_extract_surface_forecast_from_cfgrib_datasets(monkeypatch) -> None:
     assert forecast.points[0].temperature_2m_c == 30.0
     assert forecast.points[0].total_precipitation_mm == 2.0
     assert forecast.points[0].wind_direction_10m_deg == 270
+
+
+def test_fast_store_round_trip_matches_surface_decoder(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr("cfgrib.open_datasets", lambda _: _surface_datasets())
+    source = tmp_path / "ifs_test_surface.grib2"
+    source.write_bytes(b"test")
+    store = convert_forecast_grib(source, kind="surface")
+
+    forecast = retriever.extract_surface_forecast(
+        store,
+        station_id="58362",
+        station_name="宝山",
+        latitude=31.65,
+        longitude=121.75,
+        initialized_at=datetime(2026, 7, 26, tzinfo=timezone.utc),
+    )
+
+    assert forecast is not None
+    assert len(forecast.points) == 2
+    assert forecast.points[0].temperature_2m_c == 30.0
+    assert forecast.points[0].mslp_hpa == 1008.0
+
+
+def test_fast_store_round_trip_selects_one_sounding_step(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr("cfgrib.open_datasets", lambda _: _pressure_datasets())
+    source = tmp_path / "ifs_test_pressure.grib2"
+    source.write_bytes(b"test")
+    store = convert_forecast_grib(source, kind="pressure")
+
+    soundings = retriever.extract_sounding_forecast(
+        store,
+        station_id="58362",
+        station_name="宝山",
+        latitude=31.65,
+        longitude=121.75,
+        initialized_at=datetime(2026, 7, 26, tzinfo=timezone.utc),
+        step_hours=3,
+    )
+
+    assert soundings is not None
+    assert len(soundings) == 1
+    assert soundings[0].step_hours == 3
 
 
 def test_extract_sounding_keeps_geopotential_height_in_gpm(monkeypatch) -> None:

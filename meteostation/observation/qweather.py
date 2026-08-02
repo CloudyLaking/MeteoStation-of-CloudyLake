@@ -1,14 +1,110 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
 
-from .models import RealtimeObservation
+from .models import RealtimeObservation, SurfaceObservation, SurfaceObservationSeries
+from .station_registry import StationRecord
 
 
 class QWeatherError(RuntimeError):
     pass
+
+
+async def fetch_qweather_series(
+    station: StationRecord,
+    *,
+    mode: str,
+    historical_date: date | None = None,
+) -> SurfaceObservationSeries:
+    """Fetch and normalize one 24-hour q-weather table without plotting."""
+
+    china_time = ZoneInfo("Asia/Shanghai")
+    if mode == "past24h":
+        observation_date = datetime.now(china_time).date()
+        source_url = f"https://q-weather.info/weather/{station.wmo_id}/today/"
+    elif mode == "history" and historical_date is not None:
+        observation_date = historical_date
+        source_url = (
+            f"https://q-weather.info/weather/{station.wmo_id}/history/"
+            f"?date={historical_date:%Y-%m-%d}"
+        )
+    else:
+        raise QWeatherError("history mode requires a date")
+    html = await _fetch_qweather_html(source_url)
+    return parse_qweather_series_html(
+        html,
+        station=station,
+        source_url=source_url,
+        observation_date=observation_date,
+    )
+
+
+def parse_qweather_series_html(
+    html: str,
+    *,
+    station: StationRecord,
+    source_url: str,
+    observation_date: date,
+) -> SurfaceObservationSeries:
+    table = BeautifulSoup(html, "html.parser").find("table", class_="border")
+    if table is None:
+        raise QWeatherError("q-weather 没有返回逐小时资料表")
+    rows = [
+        [cell.get_text(strip=True) for cell in row.find_all(["th", "td"])]
+        for row in table.find_all("tr")
+    ]
+    if len(rows) < 2:
+        raise QWeatherError("q-weather 逐小时资料表为空")
+    header = rows[0]
+    observations: list[SurfaceObservation] = []
+    for values in rows[1:]:
+        record = dict(zip(header, values))
+        try:
+            observed = datetime.strptime(record.get("时次", ""), "%Y-%m-%d %H:%M %z")
+        except ValueError:
+            continue
+        temperature = _number(record.get("瞬时温度"))
+        humidity = _number(record.get("相对湿度"))
+        observations.append(
+            SurfaceObservation(
+                observed_at=observed,
+                temperature_c=temperature,
+                dewpoint_c=_dewpoint(temperature, humidity),
+                relative_humidity_pct=humidity,
+                station_pressure_hpa=_number(
+                    str(record.get("地面气压", "")).strip("()")
+                ),
+                wind_direction_deg=_leading_number(
+                    _first_present(record, "瞬时风向", "2分钟平均风向")
+                ),
+                wind_speed_ms=_number(
+                    _first_present(record, "瞬时风速", "2分钟平均风速")
+                ),
+                gust_speed_ms=_number(record.get("1小时极大风速")),
+                precipitation_1h_mm=_number(record.get("1小时降水")),
+                visibility_km=_number(record.get("10分钟平均能见度")),
+            )
+        )
+    observations.sort(key=lambda item: item.observed_at)
+    observations = observations[-24:]
+    if not observations:
+        raise QWeatherError("q-weather 逐小时资料表没有可解析记录")
+    return SurfaceObservationSeries(
+        station_id=station.wmo_id,
+        station_name=station.display_name,
+        station_name_en=station.name,
+        latitude=station.latitude,
+        longitude=station.longitude,
+        elevation_m=station.observation_elevation_m,
+        observation_date=observation_date,
+        source="q-weather hourly",
+        source_url=source_url,
+        fetched_at=datetime.now(timezone.utc),
+        cache_status="upstream",
+        observations=observations,
+    )
 
 
 async def fetch_qweather_hourly(
@@ -30,24 +126,9 @@ async def fetch_qweather_hourly(
             f"https://q-weather.info/weather/{station_id}/history/"
             f"?date={target:%Y-%m-%d}"
         )
-    try:
-        async with httpx.AsyncClient(
-            timeout=30,
-            follow_redirects=True,
-            trust_env=False,
-            headers={
-                "User-Agent": (
-                    "CloudyLake-Observatory/2.1.1 "
-                    "(https://meteostation.top)"
-                )
-            },
-        ) as client:
-            response = await client.get(source_url)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise QWeatherError(f"逐小时资料暂时无法读取：{exc}") from exc
+    html = await _fetch_qweather_html(source_url)
     return parse_qweather_hourly_html(
-        response.content.decode("utf-8", errors="replace"),
+        html,
         station_id=station_id,
         source_url=source_url,
         target=target,
@@ -191,3 +272,41 @@ def _leading_number(value: object) -> float | None:
     if not isinstance(value, str):
         return _number(value)
     return _number(value.split("/", 1)[0])
+
+
+async def _fetch_qweather_html(source_url: str) -> str:
+    try:
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            trust_env=False,
+            headers={
+                "User-Agent": (
+                    "CloudyLake-Observatory/2.1.1 "
+                    "(https://meteostation.top)"
+                )
+            },
+        ) as client:
+            response = await client.get(source_url)
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise QWeatherError(f"逐小时资料暂时无法读取：{exc}") from exc
+    return response.content.decode("utf-8", errors="replace")
+
+
+def _first_present(record: dict[str, str], *keys: str) -> str | None:
+    for key in keys:
+        value = record.get(key)
+        if value not in (None, "", "-"):
+            return value
+    return None
+
+
+def _dewpoint(temperature_c: float | None, humidity_pct: float | None) -> float | None:
+    if temperature_c is None or humidity_pct is None or humidity_pct <= 0:
+        return None
+    import math
+
+    humidity = min(100.0, humidity_pct)
+    gamma = math.log(humidity / 100.0) + 17.625 * temperature_c / (243.04 + temperature_c)
+    return round(243.04 * gamma / (17.625 - gamma), 2)

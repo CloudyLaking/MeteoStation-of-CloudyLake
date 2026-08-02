@@ -3,6 +3,17 @@ from functools import lru_cache
 from pathlib import Path
 
 
+STATION_REGIONS: dict[str, tuple[str, ...]] = {
+    "华北": ("北京", "天津", "河北", "山西", "内蒙古"),
+    "东北": ("辽宁", "吉林", "黑龙江"),
+    "华东": ("上海", "江苏", "浙江", "安徽", "福建", "江西", "山东"),
+    "华中": ("河南", "湖北", "湖南"),
+    "华南": ("广东", "广西", "海南"),
+    "西南": ("重庆", "四川", "贵州", "云南", "西藏"),
+    "西北": ("陕西", "甘肃", "青海", "宁夏", "新疆"),
+}
+
+
 class StationLookupError(ValueError):
     pass
 
@@ -100,6 +111,13 @@ def search_stations(query: str, *, limit: int = 10) -> list[StationRecord]:
         elif any(normalized in key for key in keys):
             partial.append(record)
     return (exact + partial)[:limit]
+
+
+def stations_in_region(region: str) -> list[StationRecord]:
+    provinces = STATION_REGIONS.get(region)
+    if provinces is None:
+        raise StationLookupError(f"未知地区：{region}")
+    return [record for record in station_records() if record.province in provinces]
 
 
 def resolve_station(query: str) -> StationRecord:

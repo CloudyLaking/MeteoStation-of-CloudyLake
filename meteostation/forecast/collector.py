@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .retriever import retrieve_ecmwf_forecast
+from .fast_store import convert_forecast_grib, is_fast_store
 
 
 ForecastModel = Literal["ifs", "aifs"]
@@ -29,11 +30,13 @@ class ForecastCollectorConfig(BaseModel):
     retry_interval_minutes: int = Field(default=1, ge=1, le=180)
     request_spacing_seconds: float = Field(default=5, ge=0, le=60)
     retain_complete_cycles: int = Field(default=8, ge=1, le=32)
-    minimum_free_disk_gb: float = Field(default=8, ge=2, le=1000)
+    minimum_free_disk_gb: float = Field(default=3, ge=2, le=1000)
     download_reserve_gb: float = Field(default=3, ge=1, le=100)
     source: Literal["ecmwf", "aws", "azure", "google"] = "aws"
     cycles: list[ForecastCycle] = ["00", "06", "12", "18"]
     models: list[ForecastModel] = ["ifs", "aifs"]
+    convert_to_fast_store: bool = True
+    discard_grib_after_conversion: bool = True
 
 
 class ForecastCollector:
@@ -111,7 +114,10 @@ class ForecastCollector:
                 key = f"{model}|{initialized_at.isoformat()}"
                 item = items.get(key, {})
                 before = _cycle_is_complete(
-                    self.cache_root, model, initialized_at
+                    self.cache_root,
+                    model,
+                    initialized_at,
+                    require_fast=self.config.convert_to_fast_store,
                 )
                 if before:
                     complete_for_model[model] += 1
@@ -152,6 +158,19 @@ class ForecastCollector:
                     )
                     if not surface.exists() or not pressure.exists():
                         raise RuntimeError("forecast cycle cache is incomplete")
+                    if self.config.convert_to_fast_store:
+                        surface = await asyncio.to_thread(
+                            _convert_and_optionally_discard,
+                            surface,
+                            kind="surface",
+                            discard_grib=self.config.discard_grib_after_conversion,
+                        )
+                        pressure = await asyncio.to_thread(
+                            _convert_and_optionally_discard,
+                            pressure,
+                            kind="pressure",
+                            discard_grib=self.config.discard_grib_after_conversion,
+                        )
                     completed_at = datetime.now(timezone.utc)
                     items[key] = {
                         "status": "complete",
@@ -243,9 +262,11 @@ def prune_forecast_cycles(model_root: Path, *, keep: int) -> list[str]:
         return []
 
     grouped: dict[datetime, list[Path]] = {}
-    for surface in model_root.rglob(
-        "*_forecast_surface_144h_*hourly.grib2"
-    ):
+    surfaces = [
+        *model_root.rglob("*_forecast_surface_144h_*hourly.grib2"),
+        *model_root.rglob("*_forecast_surface_144h_*hourly.fast.nc"),
+    ]
+    for surface in surfaces:
         match = _CYCLE_PATTERN.match(surface.name)
         if match is None:
             continue
@@ -257,11 +278,14 @@ def prune_forecast_cycles(model_root: Path, *, keep: int) -> list[str]:
             f"{match.group('model')}_{match.group('date')}_"
             f"{match.group('hour')}z_"
         )
-        pressure = list(
-            surface.parent.glob(
+        pressure = [
+            *surface.parent.glob(
                 f"{prefix}forecast_pressure_144h_*hourly.grib2"
-            )
-        )
+            ),
+            *surface.parent.glob(
+                f"{prefix}forecast_pressure_144h_*hourly.fast.nc"
+            ),
+        ]
         if not pressure:
             continue
         grouped[cycle] = list(surface.parent.glob(f"{prefix}*"))
@@ -316,6 +340,8 @@ def _cycle_is_complete(
     cache_root: Path,
     model: str,
     initialized_at: datetime,
+    *,
+    require_fast: bool = False,
 ) -> bool:
     directory = (
         Path(cache_root)
@@ -326,14 +352,37 @@ def _cycle_is_complete(
         / f"{initialized_at:%d}"
     )
     prefix = f"{model}_{initialized_at:%Y%m%d}_{initialized_at:%H}z_"
-    return bool(
-        list(directory.glob(f"{prefix}forecast_surface_144h_*hourly.grib2"))
-        and list(
-            directory.glob(
-                f"{prefix}forecast_pressure_144h_*hourly.grib2"
-            )
+    suffixes = ("fast.nc",) if require_fast else ("grib2", "fast.nc")
+    surface = [
+        item
+        for suffix in suffixes
+        for item in directory.glob(
+            f"{prefix}forecast_surface_144h_*hourly.{suffix}"
         )
-    )
+    ]
+    pressure = [
+        item
+        for suffix in suffixes
+        for item in directory.glob(
+            f"{prefix}forecast_pressure_144h_*hourly.{suffix}"
+        )
+    ]
+    return bool(surface and pressure)
+
+
+def _convert_and_optionally_discard(
+    path: Path,
+    *,
+    kind: Literal["surface", "pressure"],
+    discard_grib: bool,
+) -> Path:
+    source = Path(path)
+    converted = convert_forecast_grib(source, kind=kind)
+    if discard_grib and not is_fast_store(source):
+        source.unlink(missing_ok=True)
+        for index_path in source.parent.glob(f"{source.name}.*.idx"):
+            index_path.unlink(missing_ok=True)
+    return converted
 
 
 def _normalize_utc(value: datetime) -> datetime:

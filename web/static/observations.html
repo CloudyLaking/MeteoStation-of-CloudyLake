@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="云海观象台气象站过去 24 小时与历史日期静态实况查询。"
+      content="云海观象台气象站过去 24 小时与历史日期交互式实况查询。"
     />
     <title>气象站实况查询 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802f" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802i" />
     <script src="/static/site.js?v=2.1.1-0802f" defer></script>
-    <script src="/static/observations.js?v=2.1.1-0801" defer></script>
+    <script src="/static/weather-series-chart.js?v=2.1.1-0802i" defer></script>
+    <script src="/static/observations.js?v=2.1.1-0802i" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -60,7 +61,7 @@
         <p class="eyebrow">SURFACE OBSERVATION QUERY</p>
         <h1>气象站实况查询</h1>
         <p>
-          使用原版 q-weather 逐小时资料与原版绘图函数。
+          输入站号或站名，或从地区地图点击站点，读取逐小时资料并即时绘图。
         </p>
       </section>
 
@@ -104,6 +105,18 @@
         <button class="station-query-submit" type="submit">查询并绘图</button>
       </form>
 
+      <section class="station-region-browser" aria-labelledby="station-region-title">
+        <header>
+          <div><p class="eyebrow">REGIONAL STATION MAP</p><h2 id="station-region-title">按地区选择站点</h2></div>
+          <p>点击地图中的站点即可查询；地图使用内置国家站表与天地图省界资料。</p>
+        </header>
+        <div class="station-region-tabs" id="station-region-tabs" aria-label="站点地区"></div>
+        <div class="station-region-map-shell">
+          <svg id="station-region-map" viewBox="0 0 960 560" role="img" aria-label="分地区气象站点地图"></svg>
+          <p id="station-region-status">正在读取华东站点……</p>
+        </div>
+      </section>
+
       <section
         class="realtime-panel"
         id="realtime-panel"
@@ -136,22 +149,25 @@
       >
         <header>
           <div>
-            <p class="eyebrow">STATIC OBSERVATION PRODUCT</p>
-            <h2 id="station-image-title">实况静态图</h2>
+            <p class="eyebrow">INTERACTIVE OBSERVATION PRODUCT</p>
+            <h2 id="station-image-title">24h 实况序列</h2>
             <p id="station-image-source">数据来源：q-weather hourly</p>
           </div>
-          <a id="station-image-download" href="#" download>下载 PNG</a>
+          <button id="station-image-download" type="button" hidden>导出 PNG</button>
         </header>
         <div class="station-image-state" id="station-image-state">
-          正在读取原版逐小时资料并生成静态图……
+          正在读取逐小时资料……
         </div>
-        <img id="station-image" alt="" hidden />
+        <div class="observation-dynamic-chart" id="observation-dynamic-chart" hidden>
+          <svg id="station-observation-chart" viewBox="0 0 1600 930" role="img" aria-label="交互式24小时气象站实况序列"></svg>
+          <p>移动鼠标或触摸图面可读取对应整点；手机端可横向滑动或双指缩放。</p>
+        </div>
       </section>
 
       <section class="product-notes" aria-labelledby="obs-method-heading">
         <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="obs-method-heading">实况产品说明</h2></header>
         <div>
-          <article><h3>处理方法</h3><p>按查询即时调用原 `History_ObsStation.py` 的逐小时流程，保持原有 24 h / 历史静态图形式；实时状态单独读取，不改变静态图的逐小时序列。</p></article>
+          <article><h3>处理方法</h3><p>服务器仅解析 q-weather 的逐小时表并返回结构化数据，浏览器使用 SVG 即时绘图；避免服务器高分辨率 Matplotlib 渲染，并保留 PNG 导出。</p></article>
           <article><h3>资料来源</h3><p>逐小时与实时数据来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>。站号和中文站名由项目内国家站表解析。</p></article>
           <article><h3>阅读提示</h3><p>历史日期按资料源可用范围查询；站点缺测、通信延迟和第三方页面变化都可能导致某些项目暂缺。</p></article>
         </div>
