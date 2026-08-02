@@ -6,8 +6,8 @@
     <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 交互式探空预报。" />
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802e" />
-    <script src="/static/site.js?v=2.1.1-0802d" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0802f" />
+    <script src="/static/site.js?v=2.1.1-0802f" defer></script>
     <script src="/static/app.js?v=2.1.1-0802e" defer></script>
     <script src="/static/sounding-forecast.js?v=2.1.1-0801" defer></script>
   </head>
@@ -29,13 +29,19 @@
       <nav class="main-nav" aria-label="主导航">
         <div class="main-nav__inner">
           <div class="main-nav__links">
-            <a href="/">中国天气</a>
-            <a href="/observations">实况查询</a>
-            <a href="/forecast">单点预报</a>
-            <a class="is-active" href="/sounding-forecast">探空预报</a>
-            <button type="button" disabled title="敬请期待">历史再分析</button>
-            <button type="button" disabled title="敬请期待">AIFS ENS预报</button>
-            <a href="/about">关于</a>
+            <details class="nav-menu">
+              <summary class="nav-menu__trigger">实况分析</summary>
+              <div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div>
+            </details>
+            <details class="nav-menu is-active">
+              <summary class="nav-menu__trigger">模式预报</summary>
+              <div class="nav-menu__panel"><a href="/forecast">单点预报</a><a class="is-current" href="/sounding-forecast">探空预报</a></div>
+            </details>
+            <details class="nav-menu">
+              <summary class="nav-menu__trigger">实验性功能</summary>
+              <div class="nav-menu__panel"><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+            </details>
+            <a class="main-nav__direct" href="/about">关于</a>
           </div>
           <div class="main-nav__status">
             <i aria-hidden="true"></i>

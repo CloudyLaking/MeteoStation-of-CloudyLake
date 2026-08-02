@@ -87,3 +87,18 @@ async function applyServerSummary() {
 applySiteConfiguration();
 applyServerSummary();
 window.setInterval(applyServerSummary, 60_000);
+
+const navigationMenus = [...document.querySelectorAll(".nav-menu")];
+navigationMenus.forEach((menu) => {
+  menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    navigationMenus.forEach((other) => {
+      if (other !== menu) other.open = false;
+    });
+  });
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (event.target.closest(".nav-menu")) return;
+  navigationMenus.forEach((menu) => { menu.open = false; });
+});
