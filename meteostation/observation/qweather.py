@@ -12,6 +12,35 @@ class QWeatherError(RuntimeError):
     pass
 
 
+_QWEATHER_HEADERS = {
+    "User-Agent": "CloudyLake-Observatory/2.1.1 (https://meteostation.top)"
+}
+_qweather_client = httpx.AsyncClient(
+    timeout=30,
+    follow_redirects=True,
+    trust_env=False,
+    headers=_QWEATHER_HEADERS,
+    limits=httpx.Limits(
+        max_connections=8,
+        max_keepalive_connections=4,
+        keepalive_expiry=300,
+    ),
+)
+
+
+async def warm_qweather_connection() -> None:
+    """Open the shared upstream connection without delaying web startup."""
+    try:
+        response = await _qweather_client.get("https://q-weather.info/")
+        response.raise_for_status()
+    except httpx.HTTPError:
+        return
+
+
+async def close_qweather_client() -> None:
+    await _qweather_client.aclose()
+
+
 async def fetch_qweather_series(
     station: StationRecord,
     *,
@@ -186,20 +215,9 @@ async def fetch_qweather_realtime(
 ) -> RealtimeObservation:
     source_url = f"https://q-weather.info/api/weather/{station_id}/realtime/"
     try:
-        async with httpx.AsyncClient(
-            timeout=20,
-            follow_redirects=True,
-            trust_env=False,
-            headers={
-                "User-Agent": (
-                    "CloudyLake-Observatory/2.1.1 "
-                    "(https://meteostation.top)"
-                )
-            },
-        ) as client:
-            response = await client.get(source_url)
-            response.raise_for_status()
-            payload = response.json()
+        response = await _qweather_client.get(source_url, timeout=20)
+        response.raise_for_status()
+        payload = response.json()
     except (httpx.HTTPError, ValueError) as exc:
         detail = str(exc) or exc.__class__.__name__
         raise QWeatherError(f"实时状态暂时无法读取：{detail}") from exc
@@ -276,19 +294,8 @@ def _leading_number(value: object) -> float | None:
 
 async def _fetch_qweather_html(source_url: str) -> str:
     try:
-        async with httpx.AsyncClient(
-            timeout=30,
-            follow_redirects=True,
-            trust_env=False,
-            headers={
-                "User-Agent": (
-                    "CloudyLake-Observatory/2.1.1 "
-                    "(https://meteostation.top)"
-                )
-            },
-        ) as client:
-            response = await client.get(source_url)
-            response.raise_for_status()
+        response = await _qweather_client.get(source_url)
+        response.raise_for_status()
     except httpx.HTTPError as exc:
         raise QWeatherError(f"逐小时资料暂时无法读取：{exc}") from exc
     return response.content.decode("utf-8", errors="replace")

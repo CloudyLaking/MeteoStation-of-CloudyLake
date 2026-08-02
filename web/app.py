@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -32,6 +33,7 @@ from meteostation.observation import (
     STATION_REGIONS,
     StationLookupError,
     SurfaceObservationSeries,
+    close_qweather_client,
     fetch_qweather_hourly,
     fetch_qweather_realtime,
     fetch_qweather_series,
@@ -97,10 +99,10 @@ weather_map_catalog = WeatherMapCatalog(
     catalog_path=WEATHER_MAP_CATALOG_PATH,
 )
 observation_plot_lock = asyncio.Lock()
-observation_series_lock = asyncio.Lock()
 observation_series_cache: dict[
     tuple[str, str, str], tuple[float, SurfaceObservationSeries]
 ] = {}
+observation_series_locks: dict[tuple[str, str, str], asyncio.Lock] = {}
 guestbook_lock = asyncio.Lock()
 traffic = RuntimeTraffic(TRAFFIC_STATE_PATH)
 admin_security = HTTPBasic(auto_error=False)
@@ -108,10 +110,35 @@ PRODUCT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+@asynccontextmanager
+async def application_lifespan(_app: FastAPI):
+    warm_task = asyncio.create_task(_warm_primary_observation())
+    yield
+    if not warm_task.done():
+        warm_task.cancel()
+    await close_qweather_client()
+
+
+async def _warm_primary_observation() -> None:
+    """Warm the shared upstream connection and the primary-station series."""
+    try:
+        series = await fetch_qweather_series(
+            resolve_station("58362"),
+            mode="past24h",
+        )
+    except (QWeatherError, StationLookupError):
+        return
+    observation_series_cache[("58362", "past24h", "today")] = (
+        monotonic() + 3600,
+        series,
+    )
+
+
 app = FastAPI(
     title="云海观象台 API",
     description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek V4 Pro.",
     version="2.1.1",
+    lifespan=application_lifespan,
 )
 
 
@@ -678,7 +705,8 @@ async def observation_series(
     cached = observation_series_cache.get(key)
     if cached and cached[0] > now:
         return cached[1].model_copy(update={"cache_status": "memory-hit"})
-    async with observation_series_lock:
+    key_lock = observation_series_locks.setdefault(key, asyncio.Lock())
+    async with key_lock:
         cached = observation_series_cache.get(key)
         if cached and cached[0] > monotonic():
             return cached[1].model_copy(update={"cache_status": "memory-hit"})
@@ -690,12 +718,16 @@ async def observation_series(
             )
         except QWeatherError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        ttl = 300 if mode == "past24h" else 3600
+        # The upstream table updates hourly. Reusing the normalized response
+        # through the current hour avoids repeatedly waiting on a variable-
+        # latency third-party page; real-time status remains a separate API.
+        ttl = 3600 if mode == "past24h" else 21600
         observation_series_cache[key] = (monotonic() + ttl, series)
         if len(observation_series_cache) > 256:
             expired = [item for item, value in observation_series_cache.items() if value[0] <= monotonic()]
             for item in expired:
                 observation_series_cache.pop(item, None)
+                observation_series_locks.pop(item, None)
         return series
 
 

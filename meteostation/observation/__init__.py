@@ -9,12 +9,14 @@ from .ogimet import (
 )
 from .qweather import (
     QWeatherError,
+    close_qweather_client,
     fetch_qweather_hourly,
     fetch_qweather_realtime,
     fetch_qweather_series,
     parse_qweather_hourly_html,
     parse_qweather_realtime,
     parse_qweather_series_html,
+    warm_qweather_connection,
 )
 from .station_registry import (
     StationLookupError,
@@ -35,6 +37,7 @@ __all__ = [
     "LegacyPlotResult",
     "SurfaceObservation",
     "SurfaceObservationSeries",
+    "close_qweather_client",
     "fetch_ogimet_series",
     "fetch_qweather_realtime",
     "fetch_qweather_hourly",
@@ -49,4 +52,5 @@ __all__ = [
     "stations_in_region",
     "station_information",
     "to_legacy_weather_table",
+    "warm_qweather_connection",
 ]
