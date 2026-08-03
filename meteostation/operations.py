@@ -11,6 +11,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -105,10 +106,13 @@ class RuntimeTraffic:
         self._state = self._load()
 
     def _load(self) -> dict[str, object]:
+        month_key = _current_month_key()
         default = {
             "started_at": datetime.now(timezone.utc).isoformat(),
             "requests": 0,
             "response_bytes": 0,
+            "month_key": month_key,
+            "monthly_page_views": 0,
             "status_counts": {},
             "path_counts": {},
             "last_request_at": None,
@@ -117,7 +121,29 @@ class RuntimeTraffic:
             loaded = json.loads(self.state_path.read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):
             return default
-        return {**default, **loaded}
+        merged = {**default, **loaded}
+        if "monthly_page_views" not in loaded:
+            started_at = _parse_datetime(merged.get("started_at"))
+            started_month = (
+                started_at.astimezone(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m")
+                if started_at is not None
+                else None
+            )
+            merged["monthly_page_views"] = (
+                int(dict(merged.get("path_counts", {})).get("page", 0))
+                if started_month == month_key
+                else 0
+            )
+            merged["month_key"] = month_key
+        return merged
+
+    def _roll_month_locked(self) -> None:
+        current = _current_month_key()
+        if self._state.get("month_key") == current:
+            return
+        self._state["month_key"] = current
+        self._state["monthly_page_views"] = 0
+        self._dirty_requests += 1
 
     def record(self, path: str, status_code: int, response_bytes: int) -> None:
         if path.startswith("/static/") or path.startswith("/brand/"):
@@ -127,6 +153,7 @@ class RuntimeTraffic:
         else:
             category = "page"
         with self._lock:
+            self._roll_month_locked()
             self._state["requests"] = int(self._state["requests"]) + 1
             self._state["response_bytes"] = (
                 int(self._state["response_bytes"]) + max(0, response_bytes)
@@ -138,6 +165,10 @@ class RuntimeTraffic:
             path_counts = dict(self._state.get("path_counts", {}))
             path_counts[category] = int(path_counts.get(category, 0)) + 1
             self._state["path_counts"] = path_counts
+            if category == "page":
+                self._state["monthly_page_views"] = (
+                    int(self._state.get("monthly_page_views", 0)) + 1
+                )
             self._state["last_request_at"] = datetime.now(timezone.utc).isoformat()
             self._dirty_requests += 1
             if self._dirty_requests >= 10 or time.monotonic() - self._last_flush >= 30:
@@ -145,6 +176,7 @@ class RuntimeTraffic:
 
     def snapshot(self) -> dict[str, object]:
         with self._lock:
+            self._roll_month_locked()
             return dict(self._state)
 
     def _flush_locked(self) -> None:
@@ -157,6 +189,20 @@ class RuntimeTraffic:
         os.replace(temporary, self.state_path)
         self._dirty_requests = 0
         self._last_flush = time.monotonic()
+
+
+def _current_month_key() -> str:
+    return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m")
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
 def load_site_config(path: Path) -> SiteConfig:

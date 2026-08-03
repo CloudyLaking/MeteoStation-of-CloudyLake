@@ -305,37 +305,60 @@ a {
   opacity: 1;
 }
 
-.server-congestion__bars {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 25px;
+.header-server-summary {
+  display: flex;
+  align-items: center;
+  gap: 18px;
   opacity: 1 !important;
 }
 
-.server-congestion__bars i {
+.monthly-visits {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  padding-right: 18px;
+  border-right: 1px solid var(--line);
+  opacity: 1 !important;
+}
+
+.monthly-visits small {
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+
+.monthly-visits strong {
+  color: var(--blue-deep);
+  letter-spacing: 0.02em;
+  font-size: 15px;
+}
+
+.server-congestion__blocks {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 1 !important;
+}
+
+.server-congestion__blocks i {
   display: block;
-  width: 7px;
+  width: 10px;
+  height: 10px;
   border: 1px solid rgba(37, 55, 68, 0.16);
-  border-radius: 2px 2px 1px 1px;
+  border-radius: 1px;
   background: #e8eceb;
 }
 
-.server-congestion__bars i:nth-child(1) { height: 9px; }
-.server-congestion__bars i:nth-child(2) { height: 16px; }
-.server-congestion__bars i:nth-child(3) { height: 23px; }
-
-.server-congestion--1 .server-congestion__bars i:nth-child(1) {
+.server-congestion--1 .server-congestion__blocks i:nth-child(1) {
   border-color: #cf4e49;
   background: #cf4e49;
 }
 
-.server-congestion--2 .server-congestion__bars i:nth-child(-n + 2) {
+.server-congestion--2 .server-congestion__blocks i:nth-child(-n + 2) {
   border-color: #d5aa18;
   background: #e4bc2f;
 }
 
-.server-congestion--3 .server-congestion__bars i {
+.server-congestion--3 .server-congestion__blocks i {
   border-color: #36875b;
   background: #47a66e;
 }
@@ -2229,7 +2252,7 @@ a {
     font-size: 11px;
   }
 
-  .server-congestion__bars {
+  .server-congestion__blocks {
     transform: scale(0.86);
     transform-origin: right center;
   }
@@ -4887,6 +4910,31 @@ summary:focus-visible {
 }
 
 @media (max-width: 420px) {
+  .header-server-summary {
+    gap: 8px;
+  }
+
+  .monthly-visits {
+    padding-right: 8px;
+  }
+
+  .monthly-visits small {
+    font-size: 8px;
+  }
+
+  .monthly-visits strong {
+    font-size: 12px;
+  }
+
+  .server-congestion__blocks {
+    gap: 2px;
+  }
+
+  .server-congestion__blocks i {
+    width: 8px;
+    height: 8px;
+  }
+
   .header-motto .server-congestion__copy {
     display: none;
   }

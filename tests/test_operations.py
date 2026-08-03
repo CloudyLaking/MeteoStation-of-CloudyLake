@@ -1,6 +1,6 @@
 import json
 
-from meteostation.operations import _congestion_level, load_site_config
+from meteostation.operations import RuntimeTraffic, _congestion_level, load_site_config
 
 
 def test_congestion_indicator_levels() -> None:
@@ -35,3 +35,17 @@ def test_legacy_site_config_receives_new_defaults(tmp_path) -> None:
 
     assert config.homepage.station_title == "探空工作台"
     assert config.footer.contact == "cloudylaking@outlook.com"
+
+
+def test_monthly_traffic_counts_page_visits_only(tmp_path) -> None:
+    traffic = RuntimeTraffic(tmp_path / "traffic.json")
+
+    traffic.record("/", 200, 1200)
+    traffic.record("/observations", 200, 800)
+    traffic.record("/api/v1/site/stats", 200, 400)
+    traffic.record("/static/site.js", 200, 300)
+    snapshot = traffic.snapshot()
+
+    assert snapshot["monthly_page_views"] == 2
+    assert snapshot["requests"] == 4
+    assert snapshot["month_key"]
