@@ -66,13 +66,23 @@
         "200_height": 1.5
       },
       "wind_barbs": "unsmoothed observations/model vectors"
+    },
+    "surface_fronts": {
+      "method": "thermal-front parameter with Petterssen frontogenesis, deformation, convergence, thermal advection, terrain, continuity and minimum-length filters",
+      "classification": ["cold-front", "warm-front", "stationary-front"],
+      "confidence": ["medium", "high"]
+    },
+    "500_height_axes": {
+      "method": "geopotential-contour curvature along zero meridional geostrophic wind with persistence and minimum-length filters",
+      "classification": ["trough-axis", "ridge-axis"],
+      "confidence": ["medium", "high"]
     }
   },
   "layers": [
     {
       "id": "composite",
       "label": "综合分析",
-      "description": "海平面气压、高低压中心、温度极值、湿区、锋面候选与热带气旋综合分析",
+      "description": "海平面气压、高低压中心、温度极值、湿区、客观锋面与热带气旋综合分析",
       "status": "pipeline-ready",
       "recipe": {
         "background": ["mean_sea_level_pressure", "10m_wind", "total_column_water_vapour"],
@@ -82,7 +92,7 @@
     {
       "id": "surface",
       "label": "地面",
-      "description": "海平面气压、近地面风温湿、温度极值、湿区与客观锋面候选",
+      "description": "海平面气压、近地面风温湿、温度极值、湿区与客观锋面分析",
       "status": "pipeline-ready",
       "recipe": {
         "fields": ["mean_sea_level_pressure", "2m_temperature", "10m_wind", "total_column_water_vapour"],
@@ -144,6 +154,22 @@
       "status": "development-ready",
       "source": "ECMWF Open Data MSLP",
       "method": "smoothed local maxima with prominence and separation filters"
+    },
+    {
+      "id": "surface-fronts",
+      "label": "地面锋面",
+      "description": "用热力锋参数定位锋区轴线，并由锋生、形变、辐合、温度平流、地形和连续性联合筛选",
+      "status": "pipeline-ready",
+      "source": "ECMWF 2 m temperature and 10 m wind",
+      "method": "objective TFP and Petterssen-frontogenesis analysis"
+    },
+    {
+      "id": "500-trough-ridge-axes",
+      "label": "500 hPa 槽脊轴",
+      "description": "依据位势高度等值线曲率和零经向地转风线识别连续槽轴与脊轴",
+      "status": "pipeline-ready",
+      "source": "ECMWF 500 hPa geopotential height",
+      "method": "curvature, persistence and minimum-length analysis"
     }
   ],
   "sounding_stations_file": "china_sounding_stations.json",

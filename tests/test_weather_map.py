@@ -17,9 +17,11 @@ from meteostation.weather_map import (
     WeatherMapCatalog,
     build_tianditu_wmts_url,
     build_weather_map_plan,
+    detect_height_axes,
     detect_low_pressure_centres,
     detect_high_pressure_centres,
     detect_pressure_level_centres,
+    detect_surface_fronts,
     fetch_nrl_tropical_cyclones,
     load_tianditu_basemap,
     load_geojson_boundary,
@@ -528,6 +530,77 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
             all(marker.central_height_dam is not None for marker in markers)
         )
 
+    def test_coherent_surface_front_is_detected_and_classified(self) -> None:
+        longitude = np.linspace(80, 130, 201)
+        latitude = np.linspace(20, 50, 121)
+        lon_grid, lat_grid = np.meshgrid(longitude, latitude)
+        frontal_axis = 104 + 0.28 * (lat_grid - 35)
+        normal_distance = lon_grid - frontal_axis
+        temperature = 15 + 9 * np.tanh(normal_distance / 1.5)
+        u_wind = 8 - 3 * np.tanh(normal_distance / 2.0)
+        v_wind = np.full_like(u_wind, 1.5)
+        grid = WeatherGrid(
+            valid_at=datetime(2026, 7, 26, tzinfo=timezone.utc),
+            source="synthetic baroclinic zone",
+            longitude=longitude,
+            latitude=latitude,
+            fields={
+                "temperature_2m_c": temperature,
+                "wind_u_10m_ms": u_wind,
+                "wind_v_10m_ms": v_wind,
+                "surface_pressure_hpa": np.full_like(temperature, 1000),
+            },
+        )
+        configuration = WeatherMapCatalog(
+            config_path=Path("config/weather_map.json"),
+            catalog_path=Path("unused.json"),
+        ).configuration()
+        fronts = detect_surface_fronts(
+            grid,
+            domain=configuration.domain,
+        )
+        self.assertTrue(fronts)
+        self.assertIn("cold-front", {feature.kind for feature in fronts})
+        self.assertTrue(
+            all(len(feature.coordinates) >= 2 for feature in fronts)
+        )
+
+    def test_500_hpa_trough_and_ridge_axes_are_detected(self) -> None:
+        longitude = np.linspace(70, 145, 301)
+        latitude = np.linspace(15, 60, 181)
+        lon_grid, lat_grid = np.meshgrid(longitude, latitude)
+        height = (
+            5_760
+            + 8 * (lat_grid - 35)
+            + 105 * np.cos(np.radians((lon_grid - 100) * 12))
+        )
+        grid = WeatherGrid(
+            valid_at=datetime(2026, 7, 26, tzinfo=timezone.utc),
+            source="synthetic Rossby wave",
+            longitude=longitude,
+            latitude=latitude,
+            fields={
+                "geopotential_height_500_gpm": height,
+                "surface_pressure_hpa": np.full_like(height, 1000),
+            },
+        )
+        configuration = WeatherMapCatalog(
+            config_path=Path("config/weather_map.json"),
+            catalog_path=Path("unused.json"),
+        ).configuration()
+        axes = detect_height_axes(
+            grid,
+            domain=configuration.domain,
+            pressure_hpa=500,
+        )
+        self.assertEqual(
+            {feature.kind for feature in axes},
+            {"trough-axis", "ridge-axis"},
+        )
+        self.assertTrue(
+            all(feature.pressure_hpa == 500 for feature in axes)
+        )
+
     def test_four_field_only_previews_render_to_temporary_directory(
         self,
     ) -> None:
@@ -589,6 +662,14 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
                     "development-preview",
                 )
                 self.assertEqual(preview.base_map_status, "not-included")
+                metadata_path = root / preview.metadata_url.removeprefix(
+                    "/previews/"
+                )
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                self.assertIn(
+                    "synoptic_features",
+                    metadata["rendering"],
+                )
             catalog_path = root / "weather_maps" / "catalog.json"
             update_preview_catalog(catalog_path, previews)
             update_preview_catalog(catalog_path, previews)

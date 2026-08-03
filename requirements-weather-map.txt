@@ -1,6 +1,7 @@
 -r requirements-web.txt
 
 cdsapi>=0.7,<1
+contourpy>=1.3,<2
 netCDF4>=1.7,<2
 pillow>=11,<13
 scipy>=1.15,<2

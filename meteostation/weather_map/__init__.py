@@ -1,9 +1,11 @@
 """Weather-map configuration and saved-product catalog."""
 
 from .analysis import (
+    detect_height_axes,
     detect_low_pressure_centres,
     detect_high_pressure_centres,
     detect_pressure_level_centres,
+    detect_surface_fronts,
     merge_cyclone_markers,
     smooth_field,
 )
@@ -37,6 +39,7 @@ from .ecmwf import (
 from .fields import WeatherGrid
 from .models import (
     CycloneMarker,
+    SynopticFeature,
     WeatherMapConfig,
     WeatherMapDomain,
     WeatherMapInputRequest,
@@ -54,6 +57,7 @@ from .render import render_weather_map_preview
 __all__ = [
     "WeatherMapCatalog",
     "CycloneMarker",
+    "SynopticFeature",
     "HeightClimatology",
     "HeightClimatologyUnavailable",
     "LocalBoundaryLayer",
@@ -79,9 +83,11 @@ __all__ = [
     "load_era5_height_climatology",
     "load_tianditu_basemap",
     "decode_ecmwf_background",
+    "detect_height_axes",
     "detect_low_pressure_centres",
     "detect_high_pressure_centres",
     "detect_pressure_level_centres",
+    "detect_surface_fronts",
     "fetch_nrl_tropical_cyclones",
     "load_archived_nrl_tropical_cyclones",
     "merge_cyclone_markers",

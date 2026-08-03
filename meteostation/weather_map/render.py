@@ -13,10 +13,19 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.collections import LineCollection
 from scipy.ndimage import maximum_filter, minimum_filter
 
-from .analysis import smooth_field
+from .analysis import (
+    detect_height_axes,
+    detect_surface_fronts,
+    smooth_field,
+)
 from .basemap import LocalBoundaryLayer, TiandituBasemap
 from .fields import WeatherGrid
-from .models import CycloneMarker, WeatherMapDomain, WeatherMapPreview
+from .models import (
+    CycloneMarker,
+    SynopticFeature,
+    WeatherMapDomain,
+    WeatherMapPreview,
+)
 
 
 WIND_COLORS = LinearSegmentedColormap.from_list(
@@ -67,6 +76,7 @@ def render_weather_map_preview(
     preview_root: Path,
     font_path: Path | None = None,
     cyclone_markers: list[CycloneMarker] | None = None,
+    synoptic_features: list[SynopticFeature] | None = None,
     base_map: TiandituBasemap | None = None,
     boundary_layer: LocalBoundaryLayer | None = None,
 ) -> WeatherMapPreview:
@@ -138,6 +148,27 @@ def render_weather_map_preview(
     else:
         plt.close(figure)
         raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
+
+    diagnosed_features = synoptic_features
+    if diagnosed_features is None:
+        if layer_id in {"surface", "composite"}:
+            diagnosed_features = detect_surface_fronts(
+                subset,
+                domain=domain,
+            )
+        elif layer_id == "500":
+            diagnosed_features = detect_height_axes(
+                subset,
+                domain=domain,
+                pressure_hpa=500,
+            )
+        else:
+            diagnosed_features = []
+    draw_synoptic_features(
+        axis,
+        diagnosed_features,
+        font=font,
+    )
 
     if base_map is not None:
         axis.imshow(
@@ -313,6 +344,10 @@ def render_weather_map_preview(
                 marker.model_dump(mode="json")
                 for marker in (cyclone_markers or [])
             ],
+            "synoptic_features": [
+                feature.model_dump(mode="json")
+                for feature in diagnosed_features
+            ],
         },
     }
     temporary_metadata = metadata_path.with_suffix(".json.tmp")
@@ -332,6 +367,148 @@ def render_weather_map_preview(
         metadata_url=f"/previews/{relative_metadata}",
         base_map_status=metadata["base_map_status"],
     )
+
+
+def draw_synoptic_features(
+    axis: object,
+    features: list[SynopticFeature],
+    *,
+    font: FontProperties | None,
+) -> None:
+    """Draw objective fronts and upper-air axes with restrained symbology."""
+    styles = {
+        "cold-front": ("#1769aa", "-", "COLD FRONT"),
+        "warm-front": ("#d6a313", "-", "WARM FRONT"),
+        "stationary-front": ("#147f78", "-", "STNRY FRONT"),
+        "trough-axis": ("#1769aa", "--", "TROUGH"),
+        "ridge-axis": ("#d6a313", "--", "RIDGE"),
+    }
+    for feature in features:
+        coordinates = np.asarray(feature.coordinates, dtype=float)
+        if coordinates.ndim != 2 or len(coordinates) < 2:
+            continue
+        color, linestyle, label = styles[feature.kind]
+        alpha = 0.95 if feature.confidence == "high" else 0.78
+        linewidth = 1.65 if feature.confidence == "high" else 1.25
+        longitude = coordinates[:, 0]
+        latitude = coordinates[:, 1]
+        if feature.kind == "stationary-front":
+            for index in range(len(coordinates) - 1):
+                axis.plot(
+                    longitude[index:index + 2],
+                    latitude[index:index + 2],
+                    color=("#1769aa" if index % 2 == 0 else "#d6a313"),
+                    linewidth=linewidth,
+                    alpha=alpha,
+                    solid_capstyle="round",
+                    zorder=7.0,
+                )
+        else:
+            line = axis.plot(
+                longitude,
+                latitude,
+                color=color,
+                linestyle=linestyle,
+                linewidth=linewidth,
+                alpha=alpha,
+                solid_capstyle="round",
+                zorder=7.0,
+            )[0]
+            line.set_path_effects(
+                [
+                    path_effects.Stroke(
+                        linewidth=linewidth + 1.15,
+                        foreground="white",
+                        alpha=0.72,
+                    ),
+                    path_effects.Normal(),
+                ]
+            )
+
+        if feature.kind == "cold-front":
+            _draw_front_symbols(
+                axis,
+                coordinates,
+                marker="triangle",
+                color=color,
+                alpha=alpha,
+            )
+        elif feature.kind == "warm-front":
+            _draw_front_symbols(
+                axis,
+                coordinates,
+                marker="circle",
+                color=color,
+                alpha=alpha,
+            )
+
+        midpoint_index = len(coordinates) // 2
+        text = axis.text(
+            longitude[midpoint_index],
+            latitude[midpoint_index],
+            label,
+            ha="center",
+            va="bottom",
+            fontsize=6.2,
+            fontweight="bold",
+            color=color,
+            fontproperties=font,
+            zorder=7.5,
+        )
+        text.set_path_effects(
+            [
+                path_effects.Stroke(linewidth=2.2, foreground="white"),
+                path_effects.Normal(),
+            ]
+        )
+
+
+def _draw_front_symbols(
+    axis: object,
+    coordinates: np.ndarray,
+    *,
+    marker: str,
+    color: str,
+    alpha: float,
+) -> None:
+    if len(coordinates) < 5:
+        return
+    stride = max(4, len(coordinates) // 7)
+    indices = range(2, len(coordinates) - 1, stride)
+    for index in indices:
+        longitude, latitude = coordinates[index]
+        if marker == "circle":
+            axis.scatter(
+                [longitude],
+                [latitude],
+                s=12,
+                marker="o",
+                facecolor=color,
+                edgecolor="white",
+                linewidth=0.35,
+                alpha=alpha,
+                zorder=7.3,
+            )
+            continue
+        previous = coordinates[index - 1]
+        following = coordinates[index + 1]
+        tangent_angle = np.degrees(
+            np.arctan2(
+                following[1] - previous[1],
+                following[0] - previous[0],
+            )
+        )
+        axis.scatter(
+            [longitude],
+            [latitude],
+            s=19,
+            marker=(3, 0, tangent_angle - 90),
+            facecolor=color,
+            edgecolor="white",
+            linewidth=0.35,
+            alpha=alpha,
+            zorder=7.3,
+        )
 
 
 def draw_local_boundaries(
@@ -458,8 +635,6 @@ def draw_surface(
         longitude,
         latitude,
         grid,
-        u_wind=u_wind,
-        v_wind=v_wind,
     )
     add_weather_colorbar(
         figure,
@@ -473,16 +648,8 @@ def draw_surface_objective_features(
     longitude: np.ndarray,
     latitude: np.ndarray,
     grid: WeatherGrid,
-    *,
-    u_wind: np.ndarray,
-    v_wind: np.ndarray,
 ) -> None:
-    """Overlay conservative temperature, moist-zone and frontal guidance.
-
-    The marks are deliberately labelled as objective candidates. They are
-    guidance derived from the same ECMWF background, not manually analysed
-    fronts or official warnings.
-    """
+    """Overlay temperature extrema and objectively diagnosed moist zones."""
     temperature = smooth_field(
         require_field(grid, "temperature_2m_c"),
         sigma_gridpoints=2.0,
@@ -518,35 +685,6 @@ def draw_surface_objective_features(
             zorder=4.8,
         )
         axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=6.5)
-
-    latitude_spacing = max(0.1, float(np.nanmedian(np.abs(np.diff(grid.latitude)))))
-    longitude_spacing = max(0.1, float(np.nanmedian(np.abs(np.diff(grid.longitude)))))
-    gradient_y, gradient_x = np.gradient(
-        temperature,
-        latitude_spacing,
-        longitude_spacing,
-    )
-    gradient = np.hypot(gradient_x, gradient_y)
-    moisture_mask = water_vapour >= float(np.nanpercentile(water_vapour, 55))
-    frontal_threshold = max(1.2, float(np.nanpercentile(gradient[moisture_mask], 90)))
-    frontal_signal = np.where(moisture_mask, gradient, np.nan)
-    if np.nanmax(frontal_signal) > frontal_threshold:
-        front = axis.contour(
-            longitude,
-            latitude,
-            frontal_signal,
-            levels=[frontal_threshold],
-            colors="#2563a9",
-            linewidths=1.15,
-            alpha=0.82,
-            zorder=5.0,
-        )
-        axis.clabel(
-            front,
-            fmt={frontal_threshold: "FRONT CAND."},
-            fontsize=6.3,
-            inline=True,
-        )
 
     _draw_temperature_extrema(axis, longitude, latitude, temperature)
 

@@ -95,6 +95,25 @@ class CycloneMarker(BaseModel):
     confidence: Literal["low", "medium", "high"] = "medium"
 
 
+class SynopticFeature(BaseModel):
+    """One objectively diagnosed front, trough axis, or ridge axis."""
+
+    id: str
+    kind: Literal[
+        "cold-front",
+        "warm-front",
+        "stationary-front",
+        "trough-axis",
+        "ridge-axis",
+    ]
+    valid_at: datetime
+    coordinates: list[tuple[float, float]] = Field(min_length=2)
+    pressure_hpa: int | None = None
+    confidence: Literal["medium", "high"] = "medium"
+    score: float = Field(ge=0)
+    source: str
+
+
 class WeatherMapJob(BaseModel):
     layer_id: str
     label: str

@@ -4,10 +4,15 @@ import logging
 from collections.abc import Iterable
 
 import numpy as np
+from contourpy import contour_generator
 from scipy.ndimage import gaussian_filter, maximum_filter, minimum_filter
 
 from .fields import WeatherGrid
-from .models import CycloneMarker, WeatherMapDomain
+from .models import (
+    CycloneMarker,
+    SynopticFeature,
+    WeatherMapDomain,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -627,6 +632,573 @@ def _detect_high_ridge(
         )
     )
     return markers
+
+
+def detect_surface_fronts(
+    grid: WeatherGrid,
+    *,
+    domain: WeatherMapDomain,
+    maximum_features: int = 8,
+) -> list[SynopticFeature]:
+    """Diagnose coherent surface fronts from thermodynamic and wind fields.
+
+    The axis starts from the zero contour of the thermal-front parameter
+    (TFP). Weak or noisy pieces are removed with temperature-gradient,
+    deformation/convergence, terrain, length, and continuity tests. The
+    sign of low-level temperature advection separates cold and warm fronts;
+    weak cross-front advection is retained as stationary.
+
+    This is objective guidance from one model background. It is intentionally
+    conservative and is not a replacement for a forecaster's hand analysis.
+    """
+    subset = grid.subset(domain)
+    required = {
+        "temperature_2m_c",
+        "wind_u_10m_ms",
+        "wind_v_10m_ms",
+    }
+    if not required.issubset(subset.fields):
+        return []
+
+    temperature = smooth_field(
+        subset.fields["temperature_2m_c"],
+        sigma_gridpoints=2.4,
+    )
+    u_wind = smooth_field(
+        subset.fields["wind_u_10m_ms"],
+        sigma_gridpoints=1.5,
+    )
+    v_wind = smooth_field(
+        subset.fields["wind_v_10m_ms"],
+        sigma_gridpoints=1.5,
+    )
+    dtdx, dtdy = _geospatial_gradient(
+        temperature,
+        subset.longitude,
+        subset.latitude,
+    )
+    thermal_gradient = np.hypot(dtdx, dtdy)
+    gradient_x, gradient_y = _geospatial_gradient(
+        thermal_gradient,
+        subset.longitude,
+        subset.latitude,
+    )
+    tfp = smooth_field(
+        -np.divide(
+            gradient_x * dtdx + gradient_y * dtdy,
+            thermal_gradient,
+            out=np.zeros_like(thermal_gradient),
+            where=thermal_gradient > 1e-12,
+        ),
+        sigma_gridpoints=1.25,
+    )
+
+    dudx, dudy = _geospatial_gradient(
+        u_wind,
+        subset.longitude,
+        subset.latitude,
+    )
+    dvdx, dvdy = _geospatial_gradient(
+        v_wind,
+        subset.longitude,
+        subset.latitude,
+    )
+    divergence = dudx + dvdy
+    stretching = dudx - dvdy
+    shearing = dvdx + dudy
+    deformation = np.hypot(stretching, shearing)
+    deformation_axis = 0.5 * np.arctan2(shearing, stretching)
+    sin_beta = np.divide(
+        dtdx * np.cos(deformation_axis)
+        + dtdy * np.sin(deformation_axis),
+        thermal_gradient,
+        out=np.zeros_like(thermal_gradient),
+        where=thermal_gradient > 1e-12,
+    )
+    # Petterssen frontogenesis, expressed as K / (100 km) / 3 h.
+    frontogenesis = (
+        0.5
+        * thermal_gradient
+        * (deformation * (1 - 2 * sin_beta**2) - divergence)
+        * 1.08e9
+    )
+    thermal_gradient_scaled = thermal_gradient * 100_000.0
+    deformation_scaled = deformation * 100_000.0
+    temperature_advection = (
+        u_wind * dtdx + v_wind * dtdy
+    ) * 10_800.0
+
+    finite = (
+        np.isfinite(tfp)
+        & np.isfinite(thermal_gradient_scaled)
+        & np.isfinite(frontogenesis)
+        & np.isfinite(deformation_scaled)
+    )
+    latitude_grid = np.broadcast_to(
+        subset.latitude[:, None],
+        temperature.shape,
+    )
+    finite &= latitude_grid >= max(18.0, domain.south + 1.0)
+    surface_pressure = subset.fields.get("surface_pressure_hpa")
+    if surface_pressure is not None:
+        finite &= surface_pressure >= 850.0
+    if finite.sum() < 16:
+        return []
+
+    gradient_threshold = max(
+        0.65,
+        min(
+            1.8,
+            float(np.nanpercentile(thermal_gradient_scaled[finite], 78)),
+        ),
+    )
+    deformation_threshold = max(
+        0.45,
+        float(np.nanpercentile(deformation_scaled[finite], 58)),
+    )
+    candidate = (
+        finite
+        & (thermal_gradient_scaled >= gradient_threshold)
+        & (
+            (frontogenesis >= 0.0)
+            | (-divergence * 100_000.0 >= 0.25)
+            | (deformation_scaled >= deformation_threshold)
+        )
+    )
+    # TFP zero lines sit on the warm edge of the baroclinic zone. A small
+    # dilation keeps the screening mask collocated after finite differencing.
+    candidate = maximum_filter(
+        candidate.astype(np.uint8),
+        size=5,
+        mode="nearest",
+    ).astype(bool)
+
+    features: list[SynopticFeature] = []
+    contour_tfp = np.where(
+        finite & (thermal_gradient_scaled >= gradient_threshold * 0.35),
+        tfp,
+        np.nan,
+    )
+    for line in _zero_contours(
+        subset.longitude,
+        subset.latitude,
+        contour_tfp,
+    ):
+        indices = _line_grid_indices(
+            line,
+            subset.longitude,
+            subset.latitude,
+        )
+        qualifying = candidate[indices]
+        for segment in _split_masked_polyline(line, qualifying):
+            if _polyline_length_km(segment) < 450.0:
+                continue
+            segment_indices = _line_grid_indices(
+                segment,
+                subset.longitude,
+                subset.latitude,
+            )
+            gradient_value = float(
+                np.nanmedian(thermal_gradient_scaled[segment_indices])
+            )
+            if gradient_value < gradient_threshold:
+                continue
+            advection_value = float(
+                np.nanmedian(temperature_advection[segment_indices])
+            )
+            frontogenesis_value = float(
+                np.nanmedian(frontogenesis[segment_indices])
+            )
+            if advection_value >= 0.30:
+                kind = "cold-front"
+            elif advection_value <= -0.30:
+                kind = "warm-front"
+            else:
+                kind = "stationary-front"
+            length_km = _polyline_length_km(segment)
+            score = (
+                gradient_value / gradient_threshold
+                + max(0.0, frontogenesis_value) / 0.8
+                + min(1.5, length_km / 1_000.0)
+            )
+            coordinates = _prepare_feature_coordinates(segment)
+            if len(coordinates) < 2:
+                continue
+            features.append(
+                SynopticFeature(
+                    id=f"surface-front-{len(features) + 1}",
+                    kind=kind,
+                    valid_at=subset.valid_at,
+                    coordinates=coordinates,
+                    confidence=(
+                        "high"
+                        if gradient_value >= gradient_threshold * 1.35
+                        and length_km >= 700.0
+                        and frontogenesis_value >= 0.05
+                        else "medium"
+                    ),
+                    score=round(max(0.0, score), 3),
+                    source=(
+                        "ECMWF objective TFP, Petterssen frontogenesis, "
+                        "low-level deformation and thermal-advection analysis"
+                    ),
+                )
+            )
+
+    return _rank_and_deduplicate_features(
+        features,
+        maximum_features=maximum_features,
+    )
+
+
+def detect_height_axes(
+    grid: WeatherGrid,
+    *,
+    domain: WeatherMapDomain,
+    pressure_hpa: int = 500,
+    maximum_features_per_kind: int = 4,
+) -> list[SynopticFeature]:
+    """Detect coherent trough and ridge axes on an isobaric height field.
+
+    Axes begin at zero meridional geostrophic wind (the zero contour of the
+    zonal height gradient). The sign and persistence of geopotential-contour
+    curvature distinguish troughs from ridges, while minimum length and
+    curvature thresholds suppress grid-scale and nearly zonal artefacts.
+    """
+    subset = grid.subset(domain)
+    field_name = f"geopotential_height_{pressure_hpa}_gpm"
+    if field_name not in subset.fields:
+        return []
+    height = smooth_field(
+        subset.fields[field_name],
+        sigma_gridpoints=3.0,
+    )
+    dzdx, dzdy = _geospatial_gradient(
+        height,
+        subset.longitude,
+        subset.latitude,
+    )
+    dzdxx, dzdxy = _geospatial_gradient(
+        dzdx,
+        subset.longitude,
+        subset.latitude,
+    )
+    _, dzdyy = _geospatial_gradient(
+        dzdy,
+        subset.longitude,
+        subset.latitude,
+    )
+    gradient_squared = dzdx**2 + dzdy**2
+    curvature = np.divide(
+        (
+            dzdxx * dzdy**2
+            - 2 * dzdxy * dzdx * dzdy
+            + dzdyy * dzdx**2
+        ),
+        np.power(gradient_squared, 1.5),
+        out=np.zeros_like(height),
+        where=gradient_squared > 1e-16,
+    ) * 100_000.0
+    curvature = smooth_field(curvature, sigma_gridpoints=1.0)
+    gradient_scaled = np.sqrt(gradient_squared) * 100_000.0
+
+    latitude_grid = np.broadcast_to(subset.latitude[:, None], height.shape)
+    finite = (
+        np.isfinite(curvature)
+        & np.isfinite(dzdx)
+        & (gradient_scaled >= 4.0)
+        & (latitude_grid >= max(20.0, domain.south + 1.5))
+        & (latitude_grid <= domain.north - 1.0)
+    )
+    surface_pressure = subset.fields.get("surface_pressure_hpa")
+    if surface_pressure is not None:
+        finite &= surface_pressure >= pressure_hpa
+    if finite.sum() < 16:
+        return []
+    curvature_threshold = max(
+        0.025,
+        min(
+            0.16,
+            float(np.nanpercentile(np.abs(curvature[finite]), 64)),
+        ),
+    )
+    masks = {
+        "trough-axis": finite & (curvature >= curvature_threshold),
+        "ridge-axis": finite & (curvature <= -curvature_threshold),
+    }
+    masks = {
+        kind: maximum_filter(
+            mask.astype(np.uint8),
+            size=7,
+            mode="nearest",
+        ).astype(bool)
+        for kind, mask in masks.items()
+    }
+
+    features: list[SynopticFeature] = []
+    axis_field = smooth_field(dzdx * 100_000.0, sigma_gridpoints=1.0)
+    for line in _zero_contours(
+        subset.longitude,
+        subset.latitude,
+        axis_field,
+    ):
+        indices = _line_grid_indices(
+            line,
+            subset.longitude,
+            subset.latitude,
+        )
+        for kind, mask in masks.items():
+            for segment in _split_masked_polyline(line, mask[indices]):
+                length_km = _polyline_length_km(segment)
+                if length_km < 650.0:
+                    continue
+                segment_indices = _line_grid_indices(
+                    segment,
+                    subset.longitude,
+                    subset.latitude,
+                )
+                signed_curvature = curvature[segment_indices]
+                expected_sign = 1.0 if kind == "trough-axis" else -1.0
+                sign_fraction = float(
+                    np.mean(signed_curvature * expected_sign > 0)
+                )
+                strength = float(np.nanmedian(np.abs(signed_curvature)))
+                if sign_fraction < 0.72 or strength < curvature_threshold:
+                    continue
+                coordinates = _prepare_feature_coordinates(segment)
+                if len(coordinates) < 2:
+                    continue
+                score = (
+                    strength / curvature_threshold
+                    + min(1.75, length_km / 1_200.0)
+                    + sign_fraction
+                )
+                features.append(
+                    SynopticFeature(
+                        id=(
+                            f"{pressure_hpa}-"
+                            f"{'trough' if kind == 'trough-axis' else 'ridge'}-"
+                            f"{len(features) + 1}"
+                        ),
+                        kind=kind,
+                        valid_at=subset.valid_at,
+                        coordinates=coordinates,
+                        pressure_hpa=pressure_hpa,
+                        confidence=(
+                            "high"
+                            if strength >= curvature_threshold * 1.4
+                            and length_km >= 900.0
+                            and sign_fraction >= 0.82
+                            else "medium"
+                        ),
+                        score=round(max(0.0, score), 3),
+                        source=(
+                            f"Objective {pressure_hpa} hPa geopotential-height "
+                            "curvature and zero-meridional-geostrophic-wind analysis"
+                        ),
+                    )
+                )
+
+    selected: list[SynopticFeature] = []
+    for kind in ("trough-axis", "ridge-axis"):
+        selected.extend(
+            _rank_and_deduplicate_features(
+                [feature for feature in features if feature.kind == kind],
+                maximum_features=maximum_features_per_kind,
+            )
+        )
+    return selected
+
+
+def _geospatial_gradient(
+    values: np.ndarray,
+    longitude: np.ndarray,
+    latitude: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return x/y derivatives on a regular lat/lon grid in SI metres."""
+    earth_radius_m = 6_371_008.8
+    longitude_radians = np.radians(np.asarray(longitude, dtype=float))
+    latitude_radians = np.radians(np.asarray(latitude, dtype=float))
+    derivative_lon = np.gradient(
+        np.asarray(values, dtype=float),
+        longitude_radians,
+        axis=1,
+        edge_order=2,
+    )
+    cosine_latitude = np.cos(latitude_radians)[:, None]
+    derivative_x = np.divide(
+        derivative_lon,
+        earth_radius_m * cosine_latitude,
+        out=np.full_like(derivative_lon, np.nan),
+        where=np.abs(cosine_latitude) > 1e-6,
+    )
+    derivative_y = np.gradient(
+        np.asarray(values, dtype=float),
+        latitude_radians * earth_radius_m,
+        axis=0,
+        edge_order=2,
+    )
+    return derivative_x, derivative_y
+
+
+def _zero_contours(
+    longitude: np.ndarray,
+    latitude: np.ndarray,
+    values: np.ndarray,
+) -> list[np.ndarray]:
+    finite_values = np.ma.masked_invalid(np.asarray(values, dtype=float))
+    if finite_values.count() < 4:
+        return []
+    minimum = float(finite_values.min())
+    maximum = float(finite_values.max())
+    if minimum > 0 or maximum < 0 or minimum == maximum:
+        return []
+    generator = contour_generator(
+        x=np.asarray(longitude, dtype=float),
+        y=np.asarray(latitude, dtype=float),
+        z=finite_values,
+        corner_mask=True,
+    )
+    return [
+        np.asarray(line, dtype=float)
+        for line in generator.lines(0.0)
+        if len(line) >= 2
+    ]
+
+
+def _line_grid_indices(
+    line: np.ndarray,
+    longitude: np.ndarray,
+    latitude: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    lon_indices = _nearest_coordinate_indices(line[:, 0], longitude)
+    lat_indices = _nearest_coordinate_indices(line[:, 1], latitude)
+    return lat_indices, lon_indices
+
+
+def _nearest_coordinate_indices(
+    values: np.ndarray,
+    coordinates: np.ndarray,
+) -> np.ndarray:
+    indices = np.searchsorted(coordinates, values)
+    indices = np.clip(indices, 1, len(coordinates) - 1)
+    left = coordinates[indices - 1]
+    right = coordinates[indices]
+    use_left = np.abs(values - left) <= np.abs(values - right)
+    return np.where(use_left, indices - 1, indices).astype(int)
+
+
+def _split_masked_polyline(
+    line: np.ndarray,
+    qualifying: np.ndarray,
+    *,
+    maximum_gap_points: int = 2,
+) -> list[np.ndarray]:
+    segments: list[np.ndarray] = []
+    start: int | None = None
+    gap = 0
+    for index, is_valid in enumerate(qualifying):
+        if is_valid:
+            if start is None:
+                start = index
+            gap = 0
+            continue
+        if start is None:
+            continue
+        gap += 1
+        if gap > maximum_gap_points:
+            stop = index - gap + 1
+            if stop - start >= 2:
+                segments.append(line[start:stop])
+            start = None
+            gap = 0
+    if start is not None:
+        stop = len(line) - gap
+        if stop - start >= 2:
+            segments.append(line[start:stop])
+    return segments
+
+
+def _prepare_feature_coordinates(
+    line: np.ndarray,
+) -> list[tuple[float, float]]:
+    if len(line) < 2:
+        return []
+    window = min(7, len(line) if len(line) % 2 else len(line) - 1)
+    if window >= 3:
+        kernel = np.ones(window, dtype=float) / window
+        padding = window // 2
+        longitude = np.convolve(
+            np.pad(line[:, 0], padding, mode="edge"),
+            kernel,
+            mode="valid",
+        )
+        latitude = np.convolve(
+            np.pad(line[:, 1], padding, mode="edge"),
+            kernel,
+            mode="valid",
+        )
+        smoothed = np.column_stack((longitude, latitude))
+    else:
+        smoothed = line
+    stride = max(1, len(smoothed) // 36)
+    sampled = smoothed[::stride]
+    if not np.allclose(sampled[-1], smoothed[-1]):
+        sampled = np.vstack((sampled, smoothed[-1]))
+    return [
+        (round(float(point[0]), 3), round(float(point[1]), 3))
+        for point in sampled
+    ]
+
+
+def _polyline_length_km(line: np.ndarray) -> float:
+    if len(line) < 2:
+        return 0.0
+    latitude_1 = np.radians(line[:-1, 1])
+    latitude_2 = np.radians(line[1:, 1])
+    latitude_delta = latitude_2 - latitude_1
+    longitude_delta = np.radians(line[1:, 0] - line[:-1, 0])
+    haversine = (
+        np.sin(latitude_delta / 2) ** 2
+        + np.cos(latitude_1)
+        * np.cos(latitude_2)
+        * np.sin(longitude_delta / 2) ** 2
+    )
+    distance = 2 * 6_371.0088 * np.arcsin(
+        np.sqrt(np.clip(haversine, 0, 1))
+    )
+    return float(np.nansum(distance))
+
+
+def _rank_and_deduplicate_features(
+    features: list[SynopticFeature],
+    *,
+    maximum_features: int,
+) -> list[SynopticFeature]:
+    selected: list[SynopticFeature] = []
+    for feature in sorted(features, key=lambda item: item.score, reverse=True):
+        midpoint = feature.coordinates[len(feature.coordinates) // 2]
+        duplicate = False
+        for existing in selected:
+            if existing.kind != feature.kind:
+                continue
+            existing_midpoint = existing.coordinates[
+                len(existing.coordinates) // 2
+            ]
+            if _angular_distance_degrees(
+                midpoint[1],
+                midpoint[0],
+                existing_midpoint[1],
+                existing_midpoint[0],
+            ) < 4.0:
+                duplicate = True
+                break
+        if duplicate:
+            continue
+        selected.append(feature)
+        if len(selected) >= maximum_features:
+            break
+    return selected
 
 
 def merge_cyclone_markers(
