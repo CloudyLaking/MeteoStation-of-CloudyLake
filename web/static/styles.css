@@ -3688,3 +3688,916 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* ======================================================================
+   Unified page system
+   Public pages share one content grid, type scale, control language and
+   responsive rhythm. Meteorological canvases keep their specialist layout.
+   ====================================================================== */
+
+:root {
+  --content-width: 1180px;
+  --reading-width: 1100px;
+  --page-gutter: clamp(20px, 4vw, 40px);
+  --section-space: 20px;
+  --control-height: 42px;
+  --radius: 6px;
+  --line-strong: rgba(37, 55, 68, 0.22);
+  --teal-soft: #edf7f5;
+  --yellow: #f6d869;
+  --yellow-soft: #fff8d9;
+  --blue-soft: #eef5fc;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button,
+input,
+select,
+textarea,
+a {
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid rgba(40, 107, 176, 0.55);
+  outline-offset: 2px;
+}
+
+.eyebrow {
+  margin-bottom: 7px;
+  color: var(--teal);
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* Shared masthead and navigation */
+.brand-row {
+  min-height: 82px;
+  padding-block: 13px;
+}
+
+.brand {
+  gap: 13px;
+}
+
+.brand img {
+  width: 54px;
+  height: 54px;
+}
+
+.brand strong {
+  color: var(--blue-deep);
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.main-nav {
+  min-height: 58px;
+  padding-block: 8px;
+}
+
+.main-nav__inner {
+  gap: 20px;
+}
+
+.nav-menu {
+  min-width: 0;
+}
+
+.nav-menu__trigger,
+.main-nav__direct {
+  min-width: 100px;
+  min-height: 40px;
+  padding: 9px 16px;
+  border-color: var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.nav-menu__panel {
+  border-radius: var(--radius);
+}
+
+.nav-menu__panel a,
+.nav-menu__panel button {
+  min-height: 38px;
+  font-size: 12px;
+}
+
+.main-nav__status span {
+  font-size: 12px;
+}
+
+/* One public-page grid */
+.station-query-page,
+.forecast-page,
+.about-page--expanded {
+  width: min(100%, var(--content-width));
+  max-width: none;
+  margin-inline: auto;
+  padding: 36px var(--page-gutter) 64px;
+}
+
+.station-query-heading,
+.forecast-heading {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 24px;
+  text-align: left;
+}
+
+.station-query-heading h1,
+.forecast-heading h1 {
+  margin: 3px 0 8px;
+  color: var(--ink);
+  letter-spacing: -0.035em;
+  font-size: clamp(29px, 3vw, 36px);
+  font-weight: 560;
+  line-height: 1.2;
+}
+
+.station-query-heading > p:last-child,
+.forecast-heading > p:last-child,
+.forecast-heading p {
+  max-width: 760px;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-soft);
+  line-height: 1.75;
+  font-size: 13px;
+}
+
+/* Shared surface language */
+.map-panel,
+.side-panel,
+.station-query-form,
+.realtime-panel,
+.station-image-result,
+.station-region-browser,
+.forecast-form,
+.forecast-section,
+.forecast-sounding-entry,
+.guestbook-form,
+.admin-metrics article,
+.admin-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: none;
+}
+
+.dashboard {
+  gap: var(--section-space);
+}
+
+.panel-heading h1 {
+  font-weight: 560;
+}
+
+.side-panel h2 {
+  font-size: 28px;
+  font-weight: 560;
+}
+
+.side-panel__top > p:last-child {
+  font-size: 13px;
+}
+
+.station-form label,
+.viewer-settings > span {
+  font-size: 12px;
+}
+
+.search-control,
+.viewer-switch button,
+.source-chip {
+  border-radius: 5px;
+}
+
+.search-control input {
+  min-height: var(--control-height);
+  font-size: 13px;
+}
+
+.viewer-switch button {
+  min-height: 38px;
+  font-size: 12px;
+}
+
+.source-chip {
+  color: #31505a;
+  background: #fff;
+  font-size: 10px;
+}
+
+/* Observation query */
+.station-query-form {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto auto auto;
+  align-items: end;
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 var(--section-space);
+  padding: 20px;
+}
+
+.station-query-form label,
+.station-query-form legend,
+.forecast-form__field > span {
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  font-size: 11px;
+  font-weight: 550;
+  text-transform: none;
+}
+
+.station-query-form input[type="search"],
+.station-query-form input[type="date"],
+.forecast-form__field input[type="search"],
+.forecast-form__field input[type="date"],
+.forecast-form__field input[type="datetime-local"],
+.forecast-form__field > select,
+.guestbook-form input,
+.guestbook-form textarea,
+.site-config-form input:not([type="color"]),
+.site-config-form textarea {
+  min-height: var(--control-height);
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: #111;
+  background: #fff;
+  font-size: 13px;
+}
+
+.station-query-mode {
+  min-width: 242px;
+}
+
+.station-query-mode span,
+.station-query-submit,
+.station-image-result header a,
+.station-image-result header button,
+.station-region-tabs button,
+.forecast-mode-switch button,
+.forecast-open-profile,
+.social-links a,
+.admin-back,
+.admin-heading button,
+.admin-actions button,
+.site-config-form button {
+  min-height: var(--control-height);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: #111;
+  background: #fff;
+  box-shadow: none;
+}
+
+.station-query-mode span,
+.station-query-submit,
+.station-image-result header a,
+.station-image-result header button {
+  height: var(--control-height);
+  font-size: 12px;
+}
+
+.station-query-mode input:checked + span,
+.station-region-tabs button.is-active,
+.station-region-tabs button:hover,
+.forecast-mode-switch button.is-active,
+.viewer-switch button.is-active,
+.forecast-open-profile,
+.station-query-submit:hover,
+.station-image-result header a:hover,
+.station-image-result header button:hover,
+.social-links a:hover,
+.friend-links a:hover {
+  border-color: #d4a42a;
+  color: #111;
+  background: var(--yellow);
+}
+
+.realtime-panel,
+.station-image-result,
+.station-region-browser {
+  margin-top: var(--section-space);
+  padding: 22px;
+}
+
+.realtime-panel h2,
+.station-image-result h2,
+.station-region-browser h2,
+.forecast-section h2,
+.about-section h2 {
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 560;
+}
+
+#station-image-source,
+.realtime-panel > header > span,
+.realtime-panel > small,
+.station-region-browser > header > p,
+.observation-dynamic-chart > p {
+  font-size: 11px;
+}
+
+.realtime-values span {
+  font-size: 11px;
+}
+
+.realtime-values strong {
+  font-size: 16px;
+}
+
+.station-region-browser > header {
+  margin-bottom: 16px;
+}
+
+.station-region-browser > header > p {
+  line-height: 1.65;
+}
+
+.station-region-tabs {
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.station-region-tabs button {
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.station-region-map-shell,
+.observation-dynamic-chart,
+.point-forecast-chart-wrap,
+.profile-chart-shell,
+.source-table-wrap {
+  border-color: var(--line);
+  border-radius: 5px;
+  background: #fff;
+}
+
+/* Forecast forms and results */
+.forecast-form {
+  gap: 0;
+  margin: 0 0 var(--section-space);
+  overflow: hidden;
+  background: #fff;
+}
+
+.forecast-form__row {
+  min-height: 76px;
+}
+
+.forecast-form__row > * + * {
+  border-left: 1px solid var(--line);
+}
+
+.forecast-form__field {
+  gap: 7px;
+  padding: 16px 20px;
+}
+
+.forecast-form__switch {
+  min-height: var(--control-height);
+  gap: 18px;
+  padding: 0;
+}
+
+.forecast-form__switch input {
+  accent-color: var(--blue);
+}
+
+.forecast-form__switch label {
+  font-size: 13px;
+}
+
+.forecast-form__note {
+  padding: 16px 20px;
+  font-size: 12px;
+}
+
+.forecast-form__submit,
+.guestbook-form button {
+  min-height: var(--control-height);
+  border: 1px solid var(--teal);
+  border-radius: var(--radius);
+  color: #fff;
+  background: var(--teal);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.forecast-form__submit:hover,
+.guestbook-form button:hover {
+  border-color: #d4a42a;
+  color: #111;
+  background: var(--yellow);
+}
+
+.forecast-section {
+  margin: var(--section-space) 0 0;
+  padding: 22px;
+}
+
+.forecast-section > header {
+  margin-bottom: 16px;
+}
+
+.forecast-section > header p {
+  font-size: 12px;
+}
+
+.forecast-sounding-entry {
+  border-radius: var(--radius);
+}
+
+.forecast-status {
+  min-height: 20px;
+  padding: 10px 0 0;
+  color: var(--blue-deep);
+  font-size: 12px;
+}
+
+/* Method/source notes use one width and one hierarchy everywhere. */
+.product-notes {
+  width: min(var(--reading-width), calc(100% - 40px));
+  margin: 26px auto 48px;
+  padding: 24px;
+  border: 0;
+  border-top: 1px solid var(--teal);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+}
+
+.station-query-page > .product-notes,
+.forecast-page > .product-notes {
+  width: 100%;
+  margin: 34px 0 0;
+}
+
+.product-notes > header {
+  gap: 22px;
+  margin-bottom: 18px;
+}
+
+.product-notes h2 {
+  font-size: 21px;
+  font-weight: 560;
+}
+
+.product-notes h3 {
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.product-notes > div {
+  gap: 22px;
+}
+
+.product-notes p {
+  margin-top: 7px;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+/* About page follows the same page rhythm while retaining its identity area. */
+.identity-panel {
+  grid-template-columns: 64px minmax(240px, 1fr) auto;
+  gap: 20px;
+  padding: 0 0 28px;
+}
+
+.identity-panel > img {
+  width: 60px;
+}
+
+.identity-panel h1 {
+  margin: 3px 0 6px;
+  font-size: clamp(29px, 3vw, 36px);
+  font-weight: 560;
+}
+
+.identity-panel__copy > p:last-child,
+.about-section > header > p:last-child {
+  color: var(--ink-soft);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.social-links {
+  gap: 8px;
+}
+
+.social-links a {
+  min-height: var(--control-height);
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
+.social-links span,
+.social-links strong {
+  font-size: 12px;
+}
+
+.about-section {
+  padding: 24px 0 26px;
+}
+
+.about-section > header {
+  grid-template-columns: 160px 1fr;
+  gap: 6px 26px;
+  margin-bottom: 16px;
+}
+
+.changelog-list article {
+  padding: 15px 16px;
+  border-left: 2px solid var(--teal);
+}
+
+.changelog-list h3 {
+  font-weight: 560;
+}
+
+.guestbook-form {
+  width: min(100%, 560px);
+  padding: 20px;
+}
+
+.guestbook-form label {
+  font-size: 12px;
+}
+
+.friend-link-groups h3 {
+  color: var(--teal);
+}
+
+/* Footer alignment is no longer tied to viewport width. */
+.site-footer {
+  width: min(var(--reading-width), calc(100% - 40px));
+  margin: 0 auto;
+  padding: 22px 0 28px;
+  border-top: 1px solid var(--line);
+  color: #64777d;
+  font-size: 11px;
+}
+
+/* Operations pages inherit the same surfaces and controls. */
+.admin-body {
+  background: #fff;
+}
+
+.admin-page {
+  width: min(100%, var(--content-width));
+  padding: 36px var(--page-gutter) 72px;
+}
+
+.admin-heading h1 {
+  font-size: 32px;
+  font-weight: 560;
+}
+
+.admin-card h2 {
+  font-size: 21px;
+  font-weight: 560;
+}
+
+.admin-heading button,
+.admin-actions button,
+.site-config-form button {
+  min-height: 40px;
+}
+
+@media (max-width: 980px) {
+  .station-query-form {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .station-query-form__station {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .brand-row {
+    min-height: 72px;
+    padding: 10px 14px;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .brand img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand strong {
+    font-size: 15px;
+  }
+
+  .brand small {
+    display: none;
+  }
+
+  .header-motto .server-congestion {
+    gap: 5px;
+  }
+
+  .header-motto .server-congestion__copy strong {
+    font-size: 10px;
+  }
+
+  .header-motto .server-congestion__copy small {
+    display: none;
+  }
+
+  .main-nav {
+    min-height: 54px;
+    padding: 7px 0;
+  }
+
+  .main-nav__inner {
+    width: 100%;
+    padding-inline: 10px;
+  }
+
+  .main-nav__links {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
+    gap: 4px;
+  }
+
+  .nav-menu {
+    min-width: 0;
+  }
+
+  .nav-menu__trigger,
+  .main-nav__direct {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: 8px 2px;
+    overflow: hidden;
+    font-size: 10.5px;
+    line-height: 20px;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  .nav-menu__trigger::after {
+    margin-left: 2px;
+    font-size: 8px;
+  }
+
+  .station-query-page,
+  .forecast-page,
+  .about-page--expanded,
+  .admin-page {
+    width: 100%;
+    padding: 28px 14px 48px;
+  }
+
+  .station-query-heading,
+  .forecast-heading {
+    margin-bottom: 20px;
+    text-align: left;
+  }
+
+  .station-query-heading h1,
+  .forecast-heading h1,
+  .identity-panel h1 {
+    font-size: 28px;
+  }
+
+  .station-query-heading > p:last-child,
+  .forecast-heading > p:last-child,
+  .forecast-heading p {
+    padding: 0;
+    font-size: 13px;
+  }
+
+  .station-query-form {
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 13px;
+    padding: 16px;
+  }
+
+  .station-query-mode {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .station-query-mode label {
+    flex: 1;
+  }
+
+  .station-query-mode span {
+    justify-content: center;
+  }
+
+  .station-query-submit {
+    width: 100%;
+  }
+
+  .realtime-panel,
+  .station-image-result,
+  .station-region-browser,
+  .forecast-section {
+    padding: 16px;
+  }
+
+  .station-region-browser > header {
+    display: block;
+  }
+
+  .station-region-browser > header > p {
+    margin-top: 7px;
+    text-align: left;
+  }
+
+  .station-region-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .station-region-tabs button {
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
+  .forecast-form__row {
+    grid-template-columns: 1fr;
+  }
+
+  .forecast-form__row > * + * {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .forecast-form__field {
+    padding: 15px 16px;
+    border-bottom: 0;
+  }
+
+  .forecast-form__note {
+    padding: 15px 16px;
+  }
+
+  .forecast-sounding-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .product-notes,
+  .station-query-page > .product-notes,
+  .forecast-page > .product-notes {
+    width: 100%;
+    margin: 28px 0 0;
+    padding: 20px 0;
+  }
+
+  body > .product-notes {
+    width: calc(100% - 28px);
+    margin-inline: auto;
+  }
+
+  .product-notes > header {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .product-notes > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .product-notes article {
+    padding: 14px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .product-notes article:last-child {
+    border-bottom: 0;
+  }
+
+  .identity-panel {
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 24px;
+  }
+
+  .identity-panel > img {
+    width: 60px;
+  }
+
+  .identity-panel__copy {
+    min-width: 0;
+  }
+
+  .identity-panel__copy > p:last-child {
+    overflow-wrap: anywhere;
+  }
+
+  .social-links {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .social-links a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .about-section {
+    padding-block: 22px;
+  }
+
+  .about-section > header {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .about-section > header .eyebrow {
+    grid-row: auto;
+  }
+
+  .about-copy-grid,
+  .changelog-list,
+  .friend-link-groups,
+  .friend-links {
+    grid-template-columns: 1fr;
+  }
+
+  .guestbook-form {
+    padding: 16px;
+  }
+
+  .site-footer {
+    width: calc(100% - 28px);
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 18px 0 24px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px) {
+  .header-motto .server-congestion__copy {
+    display: none;
+  }
+
+  .social-links {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Keep inline data-source references typographically distinct from actions. */
+#station-image-source a {
+  display: inline;
+  width: auto;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--teal);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+#station-image-source a:hover {
+  color: var(--blue-deep);
+  background: transparent;
+}
