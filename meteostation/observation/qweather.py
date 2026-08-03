@@ -306,6 +306,51 @@ async def fetch_qweather_realtime(
     )
 
 
+async def fetch_qweather_realtime_with_fallback(
+    station_id: str,
+    *,
+    reference_time: datetime | None = None,
+) -> RealtimeObservation:
+    """Read realtime data, falling back to the previous full Beijing hour.
+
+    q-weather can briefly expose an empty realtime response while its source
+    switches at the top of an hour.  The hourly table is independently
+    published, so the latest fully completed hour is a deterministic fallback.
+    """
+    realtime_error: QWeatherError | None = None
+    try:
+        observation = await fetch_qweather_realtime(station_id)
+        core_values = (
+            observation.temperature_c,
+            observation.relative_humidity_pct,
+            observation.station_pressure_hpa,
+        )
+        if any(value is not None for value in core_values):
+            return observation
+        realtime_error = QWeatherError("实时响应缺少温度、湿度和气压")
+    except QWeatherError as exc:
+        realtime_error = exc
+
+    china_time = ZoneInfo("Asia/Shanghai")
+    now = reference_time or datetime.now(china_time)
+    localized = (
+        now.replace(tzinfo=china_time)
+        if now.tzinfo is None
+        else now.astimezone(china_time)
+    )
+    previous_hour = localized.replace(
+        minute=0,
+        second=0,
+        microsecond=0,
+    ) - timedelta(hours=1)
+    try:
+        return await fetch_qweather_hourly(station_id, previous_hour)
+    except QWeatherError as hourly_error:
+        raise QWeatherError(
+            f"{realtime_error}；上一整点资料也暂不可用：{hourly_error}"
+        ) from hourly_error
+
+
 def parse_qweather_realtime(
     payload: object,
     *,

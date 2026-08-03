@@ -638,7 +638,7 @@ def detect_surface_fronts(
     grid: WeatherGrid,
     *,
     domain: WeatherMapDomain,
-    maximum_features: int = 8,
+    maximum_features: int = 4,
 ) -> list[SynopticFeature]:
     """Diagnose coherent surface fronts from thermodynamic and wind fields.
 
@@ -746,30 +746,32 @@ def detect_surface_fronts(
         return []
 
     gradient_threshold = max(
-        0.65,
+        0.85,
         min(
-            1.8,
-            float(np.nanpercentile(thermal_gradient_scaled[finite], 78)),
+            2.2,
+            float(np.nanpercentile(thermal_gradient_scaled[finite], 84)),
         ),
     )
     deformation_threshold = max(
-        0.45,
-        float(np.nanpercentile(deformation_scaled[finite], 58)),
+        0.55,
+        float(np.nanpercentile(deformation_scaled[finite], 65)),
     )
+    convergence_scaled = -divergence * 100_000.0
     candidate = (
         finite
         & (thermal_gradient_scaled >= gradient_threshold)
+        & (deformation_scaled >= deformation_threshold)
+        & (frontogenesis >= 0.02)
         & (
-            (frontogenesis >= 0.0)
-            | (-divergence * 100_000.0 >= 0.25)
-            | (deformation_scaled >= deformation_threshold)
+            (convergence_scaled >= 0.05)
+            | (deformation_scaled >= deformation_threshold * 1.2)
         )
     )
     # TFP zero lines sit on the warm edge of the baroclinic zone. A small
     # dilation keeps the screening mask collocated after finite differencing.
     candidate = maximum_filter(
         candidate.astype(np.uint8),
-        size=5,
+        size=3,
         mode="nearest",
     ).astype(bool)
 
@@ -791,7 +793,7 @@ def detect_surface_fronts(
         )
         qualifying = candidate[indices]
         for segment in _split_masked_polyline(line, qualifying):
-            if _polyline_length_km(segment) < 450.0:
+            if _polyline_length_km(segment) < 550.0:
                 continue
             segment_indices = _line_grid_indices(
                 segment,
@@ -809,9 +811,17 @@ def detect_surface_fronts(
             frontogenesis_value = float(
                 np.nanmedian(frontogenesis[segment_indices])
             )
-            if advection_value >= 0.30:
+            deformation_value = float(
+                np.nanmedian(deformation_scaled[segment_indices])
+            )
+            if (
+                frontogenesis_value < 0.02
+                or deformation_value < deformation_threshold
+            ):
+                continue
+            if advection_value >= 0.45:
                 kind = "cold-front"
-            elif advection_value <= -0.30:
+            elif advection_value <= -0.45:
                 kind = "warm-front"
             else:
                 kind = "stationary-front"
@@ -832,7 +842,7 @@ def detect_surface_fronts(
                     coordinates=coordinates,
                     confidence=(
                         "high"
-                        if gradient_value >= gradient_threshold * 1.35
+                        if gradient_value >= gradient_threshold * 1.2
                         and length_km >= 700.0
                         and frontogenesis_value >= 0.05
                         else "medium"

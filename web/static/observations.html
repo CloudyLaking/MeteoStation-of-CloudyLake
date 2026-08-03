@@ -9,10 +9,10 @@
     />
     <title>气象站实况查询 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803h" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803l" />
     <script src="/static/site.js?v=2.1.1-0803a" defer></script>
-    <script src="/static/weather-series-chart.js?v=2.1.1-0802i" defer></script>
-    <script src="/static/observations.js?v=2.1.1-0803j" defer></script>
+    <script src="/static/weather-series-chart.js?v=2.1.1-0803l" defer></script>
+    <script src="/static/observations.js?v=2.1.1-0803l" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -119,13 +119,17 @@
 
       <section class="station-region-browser" aria-labelledby="station-region-title">
         <header>
-          <div><p class="eyebrow">REGIONAL STATION MAP</p><h2 id="station-region-title">按地区选择站点</h2></div>
-          <p>切换华东、华北等分区，点击站点圆点即可按上方当前范围查询；悬停或聚焦可查看站名与站号。</p>
+          <div><p class="eyebrow">MOVABLE CHINA STATION MAP</p><h2 id="station-region-title">中国站点地图选点</h2></div>
+          <p>拖动地图、滚轮或双指缩放；点击站点圆点即可按上方当前范围查询。</p>
         </header>
-        <div class="station-region-tabs" id="station-region-tabs" aria-label="站点地区"></div>
+        <div class="station-map-controls" aria-label="地图缩放">
+          <button id="station-map-zoom-in" type="button" aria-label="放大地图">＋</button>
+          <button id="station-map-zoom-out" type="button" aria-label="缩小地图">−</button>
+          <button id="station-map-reset" type="button">全国</button>
+        </div>
         <div class="station-region-map-shell">
-          <svg id="station-region-map" viewBox="0 0 960 560" role="img" aria-label="分地区气象站点地图"></svg>
-          <p id="station-region-status">正在读取华东站点……</p>
+          <svg id="station-region-map" viewBox="0 0 960 560" role="img" aria-label="可拖动缩放的中国气象站点地图"></svg>
+          <p id="station-region-status">正在读取全国站点……</p>
         </div>
       </section>
 

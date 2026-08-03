@@ -119,9 +119,15 @@
 
   function addLegends(svg) {
     const x = 1460;
-    const entries = [["#ef1f1f", "温度"], ["#f39a17", "体感温度"]];
+    const entries = [
+      ["#ef1f1f", "温度"],
+      ["#f39a17", "体感温度"],
+      ["#168173", "露点温度"],
+      ["#8d8dc7", "本站气压"],
+      ["#a9dce8", "风速 / 风向"],
+    ];
     entries.forEach(([colour, label], index) => {
-      const y = 230 + index * 28;
+      const y = 210 + index * 25;
       svg.append(
         node("line", { x1: x, x2: x + 34, y1: y, y2: y, stroke: colour, "stroke-width": 4 }),
         node("text", { x: x + 44, y: y + 5, "font-size": 15 }, label),
@@ -132,7 +138,7 @@
       ["#097000", "暴雨"], ["#740086", "大暴雨"], ["#e700e0", "特大暴雨"],
     ];
     rain.forEach(([colour, label], index) => {
-      const y = 330 + index * 29;
+      const y = 360 + index * 29;
       svg.append(
         node("rect", { x, y: y - 14, width: 32, height: 17, fill: colour }),
         node("text", { x: x + 44, y, "font-size": 15 }, label),
@@ -244,6 +250,7 @@
 
     svg.append(
       node("path", { d: linePath(points, "apparent", x, yTemperature), fill: "none", stroke: "#f39a17", "stroke-width": 2.5 }),
+      node("path", { d: linePath(points, "dewpoint", x, yTemperature), fill: "none", stroke: "#168173", "stroke-width": 2.3 }),
       node("path", { d: linePath(points, "temperature", x, yTemperature), fill: "none", stroke: "#ef1f1f", "stroke-width": 3 }),
     );
     points.forEach((point, index) => {

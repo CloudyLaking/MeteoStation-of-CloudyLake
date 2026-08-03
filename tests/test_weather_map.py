@@ -585,6 +585,37 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
             all(len(feature.coordinates) >= 2 for feature in fronts)
         )
 
+    def test_weak_noisy_surface_field_does_not_create_fronts(self) -> None:
+        longitude = np.linspace(80, 130, 161)
+        latitude = np.linspace(20, 50, 101)
+        lon_grid, lat_grid = np.meshgrid(longitude, latitude)
+        temperature = (
+            18
+            - 0.08 * (lat_grid - 35)
+            + 0.12 * np.sin(np.radians(lon_grid * 5))
+        )
+        grid = WeatherGrid(
+            valid_at=datetime(2026, 7, 26, tzinfo=timezone.utc),
+            source="synthetic weak field",
+            longitude=longitude,
+            latitude=latitude,
+            fields={
+                "temperature_2m_c": temperature,
+                "wind_u_10m_ms": np.full_like(temperature, 2.0),
+                "wind_v_10m_ms": np.full_like(temperature, 1.0),
+                "surface_pressure_hpa": np.full_like(temperature, 1005),
+            },
+        )
+        configuration = WeatherMapCatalog(
+            config_path=Path("config/weather_map.json"),
+            catalog_path=Path("unused.json"),
+        ).configuration()
+
+        self.assertEqual(
+            detect_surface_fronts(grid, domain=configuration.domain),
+            [],
+        )
+
     def test_500_hpa_trough_and_ridge_axes_are_detected(self) -> None:
         longitude = np.linspace(70, 145, 301)
         latitude = np.linspace(15, 60, 181)

@@ -18,6 +18,7 @@ from meteostation.forecast.collector import (
 from meteostation.forecast.fast_store import convert_forecast_grib
 from meteostation.ecmwf_mars import mars_model_keywords, mars_point_area
 from meteostation.observation.station_registry import resolve_station
+from web import app as web_app
 from web.app import resolve_forecast_location
 
 
@@ -233,6 +234,27 @@ def test_recent_cycles_returns_four_cycles_per_day() -> None:
     assert len(cycles) == 8
     assert cycles[0] == datetime(2026, 7, 27, 12, tzinfo=timezone.utc)
     assert cycles[-1] == datetime(2026, 7, 25, 18, tzinfo=timezone.utc)
+
+
+def test_latest_cached_cycle_falls_back_to_previous_complete_run(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(web_app, "FORECAST_CACHE_ROOT", tmp_path)
+    directory = tmp_path / "ecmwf_forecast" / "ifs" / "2026" / "08" / "02"
+    directory.mkdir(parents=True)
+    for hour in ("12", "18"):
+        (directory / (
+            f"ifs_20260802_{hour}z_forecast_surface_144h_3hourly.fast.nc"
+        )).write_bytes(b"cached")
+
+    result = web_app._latest_cached_forecast_cycle(
+        model="ifs",
+        requested_at=datetime(2026, 8, 3, 0, tzinfo=timezone.utc),
+        field_type="surface",
+    )
+
+    assert result == datetime(2026, 8, 2, 18, tzinfo=timezone.utc)
 
 
 def test_collector_interleaves_models_for_latest_cycle(

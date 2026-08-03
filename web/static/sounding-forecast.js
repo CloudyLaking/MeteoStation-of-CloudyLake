@@ -8,8 +8,49 @@ const forecastSection = document.querySelector("#sounding-section");
 const forecastTitle = document.querySelector("#sounding-title");
 const forecastSource = document.querySelector("#sounding-source");
 const reopenProfile = document.querySelector("#open-forecast-profile");
+const worldMapElement = document.querySelector("#sounding-world-map");
+const worldCoordinate = document.querySelector("#forecast-world-coordinate");
 
 let latestForecast = null;
+let worldMap = null;
+let worldMarker = null;
+
+function setWorldPoint(latitude, longitude, { move = true, updateInput = true } = {}) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !worldMap) return;
+  if (worldMarker) worldMarker.setLatLng([latitude, longitude]);
+  else {
+    worldMarker = window.L.circleMarker([latitude, longitude], {
+      radius: 6,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: "#126e68",
+      fillOpacity: 1,
+    }).addTo(worldMap);
+  }
+  if (move) worldMap.setView([latitude, longitude], Math.max(worldMap.getZoom(), 5));
+  if (updateInput) forecastLocation.value = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+  worldCoordinate.textContent = `已选择 ${latitude.toFixed(4)}°, ${longitude.toFixed(4)}° · 可继续拖动地图重新选点`;
+}
+
+function initializeWorldMap() {
+  if (!worldMapElement || !window.L) {
+    if (worldCoordinate) worldCoordinate.textContent = "世界地图组件暂未加载；仍可直接输入站号或经纬度。";
+    return;
+  }
+  worldMap = window.L.map(worldMapElement, {
+    worldCopyJump: true,
+    minZoom: 2,
+    maxZoom: 12,
+  }).setView([28, 105], 2);
+  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 12,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+  }).addTo(worldMap);
+  worldMap.on("click", (event) => {
+    setWorldPoint(event.latlng.lat, event.latlng.lng, { move: false, updateInput: true });
+  });
+  setWorldPoint(31.65, 121.75, { move: false, updateInput: false });
+}
 
 function selectedModel() {
   return document.querySelector('input[name="model"]:checked')?.value || "ifs";
@@ -74,6 +115,22 @@ forecastLocation.addEventListener("input", async () => {
   } catch {}
 });
 
+forecastLocation.addEventListener("change", async () => {
+  const query = forecastLocation.value.trim();
+  const coordinate = query.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*[,，]\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  if (coordinate) {
+    setWorldPoint(Number(coordinate[1]), Number(coordinate[2]), { updateInput: false });
+    return;
+  }
+  if (!query) return;
+  try {
+    const response = await fetch(`/api/v1/stations/resolve?q=${encodeURIComponent(query)}`);
+    if (!response.ok) return;
+    const station = await response.json();
+    setWorldPoint(station.latitude, station.longitude, { updateInput: false });
+  } catch {}
+});
+
 reopenProfile.addEventListener("click", () => openProfile(latestForecast));
 
 forecastForm.addEventListener("submit", async (event) => {
@@ -122,6 +179,7 @@ forecastForm.addEventListener("submit", async (event) => {
 });
 
 const params = new URLSearchParams(window.location.search);
+initializeWorldMap();
 forecastDate.value = params.get("date") || new Date().toISOString().slice(0, 10);
 if (params.get("location")) forecastLocation.value = params.get("location");
 if (params.get("model")) {

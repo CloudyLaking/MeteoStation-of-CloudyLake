@@ -12,14 +12,20 @@ const downloadButton = document.querySelector("#station-image-download");
 const resultTitle = document.querySelector("#station-image-title");
 const resultSource = document.querySelector("#station-image-source");
 const stationOptions = document.querySelector("#surface-station-options");
-const regionTabs = document.querySelector("#station-region-tabs");
 const regionMap = document.querySelector("#station-region-map");
 const regionStatus = document.querySelector("#station-region-status");
+const stationMapZoomIn = document.querySelector("#station-map-zoom-in");
+const stationMapZoomOut = document.querySelector("#station-map-zoom-out");
+const stationMapReset = document.querySelector("#station-map-reset");
 const SVG_NS = "http://www.w3.org/2000/svg";
-const REGIONS = ["华东", "华北", "东北", "华中", "华南", "西南", "西北"];
+const STATION_MAP_SIZE = { width: 960, height: 560 };
+const STATION_MAP_INITIAL_VIEW = { x: 0, y: 0, width: 960, height: 560 };
 
 let stationSearchTimer = null;
 let latestSeries = null;
+let stationMapView = { ...STATION_MAP_INITIAL_VIEW };
+let stationMapDrag = null;
+let suppressStationClick = false;
 
 function localIsoDate(date) {
   const year = date.getFullYear();
@@ -144,7 +150,9 @@ async function loadRealtime(stationId) {
     document.querySelector("#realtime-time").textContent = data.observed_at
       ? `${new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(data.observed_at))} 北京时间`
       : "各要素更新时间不同";
-    document.querySelector("#realtime-note").textContent = "实时状态来源：q-weather 实时观测";
+    document.querySelector("#realtime-note").textContent = data.source === "q-weather hourly"
+      ? "资料来源：q-weather 上一整点观测（实时资料切换期间自动回退）"
+      : "资料来源：q-weather 实时观测";
   } catch (error) {
     document.querySelector("#realtime-time").textContent = "读取失败";
     document.querySelector("#realtime-note").textContent = `实时状态暂不可用：${error.message}`;
@@ -372,23 +380,56 @@ async function updateStationSuggestions() {
   } catch {}
 }
 
-function coordinatePairs(value, output = []) {
-  if (Array.isArray(value) && value.length >= 2 && Number.isFinite(value[0]) && Number.isFinite(value[1])) output.push(value);
-  else if (Array.isArray(value)) value.forEach((item) => coordinatePairs(item, output));
-  return output;
-}
-
 function geometryPath(geometry, project) {
   if (!geometry) return "";
   const rings = geometry.type === "Polygon" ? geometry.coordinates : geometry.type === "MultiPolygon" ? geometry.coordinates.flat() : [];
   return rings.map((ring) => ring.map((pair, index) => `${index ? "L" : "M"}${project(pair[0], pair[1]).join(",")}`).join(" ") + " Z").join(" ");
 }
 
-async function loadRegion(region) {
-  regionStatus.textContent = `正在读取${region}站点……`;
-  regionTabs.querySelectorAll("button").forEach((button) => button.classList.toggle("is-active", button.dataset.region === region));
+function applyStationMapView() {
+  regionMap.setAttribute(
+    "viewBox",
+    `${stationMapView.x} ${stationMapView.y} ${stationMapView.width} ${stationMapView.height}`,
+  );
+}
+
+function clampStationMapView(view) {
+  const width = Math.max(190, Math.min(STATION_MAP_SIZE.width, view.width));
+  const height = width * STATION_MAP_SIZE.height / STATION_MAP_SIZE.width;
+  return {
+    width,
+    height,
+    x: Math.max(0, Math.min(STATION_MAP_SIZE.width - width, view.x)),
+    y: Math.max(0, Math.min(STATION_MAP_SIZE.height - height, view.y)),
+  };
+}
+
+function zoomStationMap(factor, clientX = null, clientY = null) {
+  const rect = regionMap.getBoundingClientRect();
+  const ratioX = clientX === null ? 0.5 : (clientX - rect.left) / rect.width;
+  const ratioY = clientY === null ? 0.5 : (clientY - rect.top) / rect.height;
+  const focusX = stationMapView.x + ratioX * stationMapView.width;
+  const focusY = stationMapView.y + ratioY * stationMapView.height;
+  const width = stationMapView.width * factor;
+  const height = stationMapView.height * factor;
+  stationMapView = clampStationMapView({
+    width,
+    height,
+    x: focusX - ratioX * width,
+    y: focusY - ratioY * height,
+  });
+  applyStationMapView();
+}
+
+function resetStationMap() {
+  stationMapView = { ...STATION_MAP_INITIAL_VIEW };
+  applyStationMapView();
+}
+
+async function loadChinaStationMap() {
+  regionStatus.textContent = "正在读取全国站点……";
   try {
-    const response = await fetch(`/api/v1/stations/region/${encodeURIComponent(region)}`);
+    const response = await fetch("/api/v1/stations/china");
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
     regionMap.replaceChildren(svg("rect", { width: 960, height: 560, fill: "#fbfdfc" }));
@@ -401,14 +442,15 @@ async function loadRegion(region) {
       480 + (longitude - middleLongitude) * longitudeScale * scale,
       280 - (latitude - middleLatitude) * scale,
     ];
-    for (let index = 1; index < 5; index += 1) {
+    const mapContents = svg("g", { class: "station-map-contents" });
+    for (let index = 1; index < 6; index += 1) {
       const longitude = west + index / 5 * (east - west);
       const latitude = south + index / 5 * (north - south);
       const gx = project(longitude, middleLatitude)[0];
       const gy = project(middleLongitude, latitude)[1];
-      regionMap.append(svg("line", { x1: gx, x2: gx, y1: 30, y2: 530, class: "region-grid" }), svg("line", { x1: 30, x2: 930, y1: gy, y2: gy, class: "region-grid" }));
+      mapContents.append(svg("line", { x1: gx, x2: gx, y1: 30, y2: 530, class: "region-grid" }), svg("line", { x1: 30, x2: 930, y1: gy, y2: gy, class: "region-grid" }));
     }
-    (data.boundaries?.features || []).forEach((feature) => regionMap.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-boundary" })));
+    (data.boundaries?.features || []).forEach((feature) => mapContents.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-boundary" })));
     data.stations.forEach((station) => {
       const [cx, cy] = project(station.longitude, station.latitude);
       const group = svg("g", { class: "region-station", tabindex: 0, role: "button", "aria-label": `${station.display_name} ${station.wmo_id}` });
@@ -417,6 +459,7 @@ async function loadRegion(region) {
         regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
       };
       const select = () => {
+        if (suppressStationClick) return;
         regionMap.querySelectorAll(".region-station").forEach((item) => item.classList.remove("is-selected"));
         group.classList.add("is-selected");
         stationInput.value = station.display_name;
@@ -427,13 +470,56 @@ async function loadRegion(region) {
       group.addEventListener("focus", showStation);
       group.addEventListener("click", select);
       group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
-      regionMap.append(group);
+      mapContents.append(group);
     });
-    regionStatus.textContent = `${region} · ${data.provinces.join("、")} · ${data.stations.length} 站`;
+    regionMap.append(mapContents);
+    resetStationMap();
+    regionStatus.textContent = `全国国家站 · ${data.stations.length} 站 · 可拖动缩放`;
   } catch (error) {
     regionStatus.textContent = `站点地图读取失败：${error.message}`;
   }
 }
+
+regionMap.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  zoomStationMap(event.deltaY < 0 ? 0.82 : 1.22, event.clientX, event.clientY);
+}, { passive: false });
+regionMap.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  regionMap.setPointerCapture(event.pointerId);
+  stationMapDrag = {
+    pointerId: event.pointerId,
+    clientX: event.clientX,
+    clientY: event.clientY,
+    originX: stationMapView.x,
+    originY: stationMapView.y,
+    moved: false,
+  };
+});
+regionMap.addEventListener("pointermove", (event) => {
+  if (!stationMapDrag || stationMapDrag.pointerId !== event.pointerId) return;
+  const rect = regionMap.getBoundingClientRect();
+  const dx = event.clientX - stationMapDrag.clientX;
+  const dy = event.clientY - stationMapDrag.clientY;
+  stationMapDrag.moved ||= Math.hypot(dx, dy) > 4;
+  stationMapView = clampStationMapView({
+    ...stationMapView,
+    x: stationMapDrag.originX - dx * stationMapView.width / rect.width,
+    y: stationMapDrag.originY - dy * stationMapView.height / rect.height,
+  });
+  applyStationMapView();
+});
+function finishStationMapDrag(event) {
+  if (!stationMapDrag || stationMapDrag.pointerId !== event.pointerId) return;
+  suppressStationClick = stationMapDrag.moved;
+  stationMapDrag = null;
+  window.setTimeout(() => { suppressStationClick = false; }, 0);
+}
+regionMap.addEventListener("pointerup", finishStationMapDrag);
+regionMap.addEventListener("pointercancel", finishStationMapDrag);
+stationMapZoomIn.addEventListener("click", () => zoomStationMap(0.78));
+stationMapZoomOut.addEventListener("click", () => zoomStationMap(1.28));
+stationMapReset.addEventListener("click", resetStationMap);
 
 async function exportPng() {
   if (!latestSeries) return;
@@ -481,15 +567,9 @@ queryForm.addEventListener("submit", async (event) => {
 });
 stationInput.addEventListener("input", () => { window.clearTimeout(stationSearchTimer); stationSearchTimer = window.setTimeout(updateStationSuggestions, 180); });
 downloadButton.addEventListener("click", exportPng);
-REGIONS.forEach((region) => {
-  const button = document.createElement("button");
-  button.type = "button"; button.dataset.region = region; button.textContent = region;
-  button.addEventListener("click", () => loadRegion(region));
-  regionTabs.append(button);
-});
 updateHistoryDateLimit();
 updateMode();
-loadRegion("华东");
+loadChinaStationMap();
 const initialQuery = new URLSearchParams(window.location.search);
 if (initialQuery.get("station")) {
   stationInput.value = initialQuery.get("station");

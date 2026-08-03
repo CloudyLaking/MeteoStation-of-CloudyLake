@@ -6,10 +6,12 @@
     <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 交互式探空预报。" />
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803h" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803l" />
     <script src="/static/site.js?v=2.1.1-0803a" defer></script>
-    <script src="/static/app.js?v=2.1.1-0802e" defer></script>
-    <script src="/static/sounding-forecast.js?v=2.1.1-0801" defer></script>
+    <script src="/static/app.js?v=2.1.1-0803l" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
+    <script src="/static/sounding-forecast.js?v=2.1.1-0803k" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -57,6 +59,14 @@
         <p class="eyebrow">FORECAST SOUNDING</p>
         <h1>探空预报</h1>
         <p>输入国家站号、站名或经纬度，读取 0–144 小时任一模式层结并进入交互图。</p>
+      </section>
+
+      <section class="forecast-world-picker" aria-labelledby="forecast-world-picker-title">
+        <header>
+          <div><p class="eyebrow">MOVABLE WORLD MAP</p><h2 id="forecast-world-picker-title">世界地图选点</h2></div>
+          <p id="forecast-world-coordinate">点击地图后自动填写纬度、经度；可拖动并滚轮或双指缩放。</p>
+        </header>
+        <div id="sounding-world-map" role="application" aria-label="探空预报世界地图选点"></div>
       </section>
 
       <form class="forecast-form" id="sounding-forecast-form">

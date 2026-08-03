@@ -12,6 +12,7 @@ from .qweather import (
     close_qweather_client,
     fetch_qweather_hourly,
     fetch_qweather_realtime,
+    fetch_qweather_realtime_with_fallback,
     fetch_qweather_series,
     history_window_bounds,
     history_window_label,
@@ -26,6 +27,7 @@ from .station_registry import (
     STATION_REGIONS,
     resolve_station,
     search_stations,
+    station_records,
     stations_in_region,
 )
 
@@ -42,6 +44,7 @@ __all__ = [
     "close_qweather_client",
     "fetch_ogimet_series",
     "fetch_qweather_realtime",
+    "fetch_qweather_realtime_with_fallback",
     "fetch_qweather_hourly",
     "fetch_qweather_series",
     "history_window_bounds",
@@ -53,6 +56,7 @@ __all__ = [
     "render_legacy_observation_png",
     "resolve_station",
     "search_stations",
+    "station_records",
     "stations_in_region",
     "station_information",
     "to_legacy_weather_table",

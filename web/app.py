@@ -35,11 +35,12 @@ from meteostation.observation import (
     SurfaceObservationSeries,
     close_qweather_client,
     fetch_qweather_hourly,
-    fetch_qweather_realtime,
+    fetch_qweather_realtime_with_fallback,
     fetch_qweather_series,
     render_legacy_observation_png,
     resolve_station,
     search_stations,
+    station_records,
     stations_in_region,
 )
 from meteostation.sounding import (
@@ -645,6 +646,14 @@ async def station_region_map(region: str) -> dict[str, object]:
 
 
 @app.get(
+    "/api/v1/stations/china",
+    summary="读取全国国家站与省级边界，供可拖动站点地图使用",
+)
+async def station_china_map() -> dict[str, object]:
+    return _station_china_payload()
+
+
+@app.get(
     "/api/v1/observations/realtime/{station_id}",
     response_model=RealtimeObservation,
     summary="查询气象站实时观测",
@@ -653,7 +662,7 @@ async def realtime_observation(station_id: str) -> RealtimeObservation:
     validate_station_id(station_id)
     try:
         resolve_station(station_id)
-        return await fetch_qweather_realtime(station_id)
+        return await fetch_qweather_realtime_with_fallback(station_id)
     except StationLookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except QWeatherError as exc:
@@ -1003,6 +1012,36 @@ FORECAST_CYCLES = ("00", "06", "12", "18")
 FORECAST_MODELS = ("ifs", "aifs")
 
 
+def _latest_cached_forecast_cycle(
+    *,
+    model: str,
+    requested_at: datetime,
+    field_type: Literal["surface", "pressure"],
+) -> datetime | None:
+    """Find the newest complete local field at or before a requested cycle."""
+    model_root = FORECAST_CACHE_ROOT / "ecmwf_forecast" / model
+    pattern = re.compile(
+        rf"^{re.escape(model)}_(\d{{8}})_(\d{{2}})z_"
+        rf"forecast_{field_type}_144h_\d+hourly\.fast\.nc$"
+    )
+    candidates: list[datetime] = []
+    if not model_root.is_dir():
+        return None
+    for path in model_root.rglob(
+        f"{model}_*_forecast_{field_type}_144h_*hourly.fast.nc"
+    ):
+        match = pattern.match(path.name)
+        if match is None:
+            continue
+        initialized_at = datetime.strptime(
+            match.group(1) + match.group(2),
+            "%Y%m%d%H",
+        ).replace(tzinfo=timezone.utc)
+        if initialized_at <= requested_at:
+            candidates.append(initialized_at)
+    return max(candidates, default=None)
+
+
 @app.get("/api/v1/forecast/cache/status")
 async def forecast_cache_status() -> dict[str, object]:
     """Return the forecast-cycle monitor state without starting downloads."""
@@ -1036,6 +1075,7 @@ async def surface_forecast(
         raise HTTPException(status_code=404, detail=str(exc))
 
     initialized_at = _build_initialized_at(date, cycle)
+    actual_initialized_at = initialized_at
 
     try:
         surf_path, _ = await asyncio.to_thread(
@@ -1049,11 +1089,43 @@ async def surface_forecast(
             backend="open-data",
             allow_download=False,
         )
+    except FileNotFoundError:
+        fallback = _latest_cached_forecast_cycle(
+            model=model,
+            requested_at=initialized_at,
+            field_type="surface",
+        )
+        if fallback is None or fallback == initialized_at:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"ECMWF {model.upper()} forecast unavailable: "
+                    f"{initialized_at:%Y-%m-%d %H} UTC is not cached yet"
+                ),
+            )
+        actual_initialized_at = fallback
+        try:
+            surf_path, _ = await asyncio.to_thread(
+                retrieve_ecmwf_forecast,
+                initialized_at=actual_initialized_at,
+                cache_root=FORECAST_CACHE_ROOT,
+                model=model,
+                include_pressure=False,
+                latitude=point["latitude"],
+                longitude=point["longitude"],
+                backend="open-data",
+                allow_download=False,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
+            ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
-        )
+        ) from exc
 
     forecast = await asyncio.to_thread(
         extract_surface_forecast,
@@ -1062,7 +1134,7 @@ async def surface_forecast(
         station_name=point["name"],
         latitude=point["latitude"],
         longitude=point["longitude"],
-        initialized_at=initialized_at,
+        initialized_at=actual_initialized_at,
     )
     if forecast is None:
         raise HTTPException(status_code=422, detail="Could not decode forecast")
@@ -1115,6 +1187,7 @@ async def sounding_forecast(
         )
 
     initialized_at = _build_initialized_at(date, cycle)
+    actual_initialized_at = initialized_at
     requested_step = step
     if target is not None:
         target_utc = (
@@ -1156,11 +1229,44 @@ async def sounding_forecast(
             allow_download=False,
             cached_step=requested_step,
         )
+    except FileNotFoundError:
+        fallback = _latest_cached_forecast_cycle(
+            model=model,
+            requested_at=initialized_at,
+            field_type="pressure",
+        )
+        if fallback is None or fallback == initialized_at:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"ECMWF {model.upper()} forecast unavailable: "
+                    f"{initialized_at:%Y-%m-%d %H} UTC is not cached yet"
+                ),
+            )
+        actual_initialized_at = fallback
+        try:
+            _, pres_path = await asyncio.to_thread(
+                retrieve_ecmwf_forecast,
+                initialized_at=actual_initialized_at,
+                cache_root=FORECAST_CACHE_ROOT,
+                model=model,
+                include_surface=False,
+                latitude=point["latitude"],
+                longitude=point["longitude"],
+                backend="open-data",
+                allow_download=False,
+                cached_step=requested_step,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
+            ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
-        )
+        ) from exc
 
     soundings = await asyncio.to_thread(
         extract_sounding_forecast,
@@ -1169,7 +1275,7 @@ async def sounding_forecast(
         station_name=point["name"],
         latitude=point["latitude"],
         longitude=point["longitude"],
-        initialized_at=initialized_at,
+        initialized_at=actual_initialized_at,
         step_hours=requested_step,
     )
     if not soundings:
@@ -1307,6 +1413,26 @@ def _station_region_payload(region: str) -> dict[str, object]:
             "east": max(longitudes) + 0.35,
             "south": min(latitudes) - 0.25,
             "north": max(latitudes) + 0.25,
+        },
+        "boundaries": {"type": "FeatureCollection", "features": features},
+        "stations": [station.as_dict() for station in stations],
+    }
+
+
+@lru_cache(maxsize=1)
+def _station_china_payload() -> dict[str, object]:
+    stations = list(station_records())
+    geojson_path = PROJECT_ROOT / "中国_省.geojson"
+    features: list[dict[str, object]] = []
+    if geojson_path.exists():
+        payload = json.loads(geojson_path.read_text(encoding="utf-8"))
+        features = list(payload.get("features", []))
+    return {
+        "bounds": {
+            "west": 73.0,
+            "east": 135.0,
+            "south": 18.0,
+            "north": 54.0,
         },
         "boundaries": {"type": "FeatureCollection", "features": features},
         "stations": [station.as_dict() for station in stations],

@@ -97,7 +97,7 @@ class ForecastCollector:
         candidates = recent_forecast_cycles(
             reference_time=now,
             cycles=self.config.cycles,
-            count=self.config.retain_complete_cycles + len(self.config.cycles),
+            count=self.config.retain_complete_cycles,
         )
         complete_for_model = {
             model: 0

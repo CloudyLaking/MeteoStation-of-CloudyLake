@@ -136,7 +136,7 @@ AIFS 与 IFS，避免首次回填时长时间只有一个模式可用：
 - 每个模式只保留最新四个完整周期，约等于一天；
 - 网页接口只读本地缓存，缺少周期时返回“尚未缓存”，不会同步下载。
 
-先执行单次检查；注意首次运行会尝试补齐最近八周期：
+先执行单次检查；首次运行会尝试补齐配置中应保留的最近四个周期：
 
 ```powershell
 .\.venv\Scripts\python.exe run_forecast_collector.py --once
@@ -149,6 +149,7 @@ AIFS 与 IFS，避免首次回填时长时间只有一个模式可用：
 ```
 
 状态保存在 `data/state/forecast_collector.json`，也可读取 `/api/v1/forecast/cache/status`。生产端默认使用 ECMWF 的 Google Cloud 官方镜像，数据内容和许可仍属于 ECMWF Open Data。
+网页选择的起报尚未缓存时，单点与探空接口只在本地查找不晚于所选时次的最近完整同模式周期；返回资料中的 `initialized_at` 始终是实际使用的起报，不伪装为所选时次。
 下载中的周期使用 `.part` 与 `.part.resume` 保存连续的已选 GRIB 字节；服务或网络中断后会按 Open Data 索引裁剪已完成范围继续下载，不会把完整周期前已经落盘的数据重新下载。
 
 完整地面与等压面 GRIB 到齐后，采集器默认将其流式转换为相邻的 `*.fast.nc` 分块随机访问文件。转换先写入 `.part`，字段、维度与格式标识校验通过后再原子替换；随后才删除对应 GRIB 及 cfgrib 索引。网页的站点或任意经纬度查询只解压覆盖目标格点的空间块。`convert_to_fast_store` 或 `discard_grib_after_conversion` 仅用于故障诊断，生产配置应保持为 `true`。

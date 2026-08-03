@@ -3,6 +3,9 @@ from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 from meteostation.observation import (
+    QWeatherError,
+    RealtimeObservation,
+    fetch_qweather_realtime_with_fallback,
     parse_ogimet_csv,
     parse_qweather_hourly_html,
     parse_qweather_series_html,
@@ -155,6 +158,47 @@ class ObservationParserTests(unittest.TestCase):
 
 
 class ObservationWindowFetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_realtime_failure_falls_back_to_previous_beijing_hour(self) -> None:
+        hourly = RealtimeObservation(
+            station_id="58362",
+            source="q-weather hourly",
+            source_url="https://example.test/hourly/",
+            temperature_c=30.0,
+            observed_at=datetime(
+                2026,
+                8,
+                3,
+                11,
+                tzinfo=timezone(timedelta(hours=8)),
+            ),
+        )
+        with (
+            patch(
+                "meteostation.observation.qweather.fetch_qweather_realtime",
+                AsyncMock(side_effect=QWeatherError("switching")),
+            ),
+            patch(
+                "meteostation.observation.qweather.fetch_qweather_hourly",
+                AsyncMock(return_value=hourly),
+            ) as hourly_fetch,
+        ):
+            result = await fetch_qweather_realtime_with_fallback(
+                "58362",
+                reference_time=datetime(
+                    2026,
+                    8,
+                    3,
+                    12,
+                    2,
+                    tzinfo=timezone(timedelta(hours=8)),
+                ),
+            )
+
+        self.assertEqual(result.source, "q-weather hourly")
+        requested_at = hourly_fetch.await_args.args[1]
+        self.assertEqual(requested_at.hour, 11)
+        self.assertEqual(requested_at.minute, 0)
+
     async def test_history_window_merges_two_dates_and_clips_end(self) -> None:
         header = """
         <tr><th>时次</th><th>瞬时温度</th><th>地面气压</th><th>相对湿度</th>

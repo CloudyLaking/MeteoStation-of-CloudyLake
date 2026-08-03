@@ -599,15 +599,19 @@ stationForm?.addEventListener("submit", async (event) => {
       );
     }
 
-    const [diagnosticsResponse] = await Promise.all([
+    const [diagnosticsResponse, stationResponse] = await Promise.all([
       fetch(
         `/api/v1/soundings/${stationId}/diagnostics?${query.toString()}`,
         { headers: { Accept: "application/json" } },
       ),
+      fetch(`/api/v1/stations/resolve?q=${encodeURIComponent(stationId)}`, {
+        headers: { Accept: "application/json" },
+      }),
     ]);
     const diagnostics = diagnosticsResponse.ok
       ? await diagnosticsResponse.json()
       : null;
+    const station = stationResponse.ok ? await stationResponse.json() : null;
 
     currentSounding = {
       data,
@@ -616,6 +620,7 @@ stationForm?.addEventListener("submit", async (event) => {
       query: query.toString(),
       diagnostics,
       corrected: null,
+      stationName: station?.display_name ?? `WMO ${stationId}`,
     };
     populateCorrectionFields(data);
     renderSoundingSummary();
@@ -649,7 +654,7 @@ function renderSoundingSummary() {
   };
   soundingResult.innerHTML = `
     <span class="sounding-result__label">探空资料 · ${cacheLabel}</span>
-    <strong>${data.station_id} · ${cycle} UTC</strong>
+    <strong>${escapeHtml(currentSounding.stationName ?? `WMO ${data.station_id}`)} · ${data.station_id} · ${cycle} UTC</strong>
     <dl>
       <div><dt>垂直层数</dt><dd>${data.level_count}</dd></div>
       <div><dt>地面气压</dt><dd>${formatNumber(data.surface_pressure_hpa, 1)} hPa</dd></div>
