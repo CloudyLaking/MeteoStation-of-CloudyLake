@@ -25,6 +25,7 @@ let stationSearchTimer = null;
 let latestSeries = null;
 let stationMapView = { ...STATION_MAP_INITIAL_VIEW };
 let stationMapDrag = null;
+const stationMapPointers = new Map();
 let suppressStationClick = false;
 
 function localIsoDate(date) {
@@ -487,18 +488,55 @@ regionMap.addEventListener("wheel", (event) => {
 regionMap.addEventListener("pointerdown", (event) => {
   if (event.button !== 0) return;
   regionMap.setPointerCapture(event.pointerId);
-  stationMapDrag = {
-    pointerId: event.pointerId,
-    clientX: event.clientX,
-    clientY: event.clientY,
-    originX: stationMapView.x,
-    originY: stationMapView.y,
-    moved: false,
-  };
+  stationMapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (stationMapPointers.size === 1) {
+    stationMapDrag = {
+      type: "pan",
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      originX: stationMapView.x,
+      originY: stationMapView.y,
+      moved: false,
+    };
+  } else if (stationMapPointers.size === 2) {
+    const [first, second] = [...stationMapPointers.values()];
+    const rect = regionMap.getBoundingClientRect();
+    const centerX = (first.x + second.x) / 2;
+    const centerY = (first.y + second.y) / 2;
+    stationMapDrag = {
+      type: "pinch",
+      distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
+      focusX: stationMapView.x + (centerX - rect.left) / rect.width * stationMapView.width,
+      focusY: stationMapView.y + (centerY - rect.top) / rect.height * stationMapView.height,
+      viewWidth: stationMapView.width,
+      viewHeight: stationMapView.height,
+      moved: false,
+    };
+  }
 });
 regionMap.addEventListener("pointermove", (event) => {
-  if (!stationMapDrag || stationMapDrag.pointerId !== event.pointerId) return;
+  if (!stationMapPointers.has(event.pointerId) || !stationMapDrag) return;
+  stationMapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   const rect = regionMap.getBoundingClientRect();
+  if (stationMapDrag.type === "pinch" && stationMapPointers.size >= 2) {
+    const [first, second] = [...stationMapPointers.values()];
+    const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+    const centerX = (first.x + second.x) / 2;
+    const centerY = (first.y + second.y) / 2;
+    const width = stationMapDrag.viewWidth * stationMapDrag.distance / distance;
+    const height = stationMapDrag.viewHeight * stationMapDrag.distance / distance;
+    stationMapDrag.moved = true;
+    stationMapView = clampStationMapView({
+      width,
+      height,
+      x: stationMapDrag.focusX - (centerX - rect.left) / rect.width * width,
+      y: stationMapDrag.focusY - (centerY - rect.top) / rect.height * height,
+    });
+    applyStationMapView();
+    return;
+  }
+  if (stationMapDrag.pointerId !== event.pointerId) return;
   const dx = event.clientX - stationMapDrag.clientX;
   const dy = event.clientY - stationMapDrag.clientY;
   stationMapDrag.moved ||= Math.hypot(dx, dy) > 4;
@@ -510,9 +548,24 @@ regionMap.addEventListener("pointermove", (event) => {
   applyStationMapView();
 });
 function finishStationMapDrag(event) {
-  if (!stationMapDrag || stationMapDrag.pointerId !== event.pointerId) return;
-  suppressStationClick = stationMapDrag.moved;
-  stationMapDrag = null;
+  if (!stationMapPointers.has(event.pointerId)) return;
+  const moved = Boolean(stationMapDrag?.moved);
+  stationMapPointers.delete(event.pointerId);
+  suppressStationClick = moved;
+  if (stationMapPointers.size === 1) {
+    const [pointerId, point] = [...stationMapPointers.entries()][0];
+    stationMapDrag = {
+      type: "pan",
+      pointerId,
+      clientX: point.x,
+      clientY: point.y,
+      originX: stationMapView.x,
+      originY: stationMapView.y,
+      moved,
+    };
+  } else {
+    stationMapDrag = null;
+  }
   window.setTimeout(() => { suppressStationClick = false; }, 0);
 }
 regionMap.addEventListener("pointerup", finishStationMapDrag);
