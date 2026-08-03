@@ -9,6 +9,9 @@ from .fields import WeatherGrid
 from .models import WeatherMapDomain
 
 
+STANDARD_GRAVITY_MS2 = 9.80665
+
+
 class WeatherMapDecodeUnavailable(RuntimeError):
     """Raised when an optional GRIB decoder is not installed."""
 
@@ -254,8 +257,16 @@ def find_data_values(
 
 
 def geopotential_to_height_if_needed(values: np.ndarray) -> np.ndarray:
+    """Normalize ECMWF ``gh`` or ``z`` to geopotential metres.
+
+    ECMWF ``gh`` is already expressed in geopotential metres. Older or
+    alternate ``z`` messages contain geopotential in m2 s-2 and therefore
+    require division by standard gravity. Their magnitudes are separated by
+    roughly one order, so the threshold remains safe for the pressure levels
+    used by this project.
+    """
     if np.nanmedian(np.abs(values)) > 20_000:
-        return values / 9.80665
+        return values / STANDARD_GRAVITY_MS2
     return values
 
 

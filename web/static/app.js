@@ -68,6 +68,15 @@ let exportFontDataPromise = null;
 let weatherMapConfig = null;
 let selectedWeatherLayer = "composite";
 let mapStationProfiles = new Map();
+let weatherMapPlotBounds = null;
+let weatherMapMetadataUrl = null;
+
+const DEFAULT_WEATHER_MAP_PLOT_BOUNDS = {
+  left: 0.075,
+  right: 0.860,
+  bottom: 0.100,
+  top: 0.860,
+};
 
 const sourceRoleLabels = {
   primary: "探空主源",
@@ -144,6 +153,8 @@ async function loadWeatherMapProduct() {
     layer?.description ?? "等待天气图产品配置。";
   weatherMapStatus.textContent = "正在读取已保存天气图";
   weatherMapBadge.hidden = true;
+  weatherMapPlotBounds = null;
+  weatherMapMetadataUrl = null;
 
   const query = new URLSearchParams({
     date: archiveDate.value,
@@ -161,6 +172,7 @@ async function loadWeatherMapProduct() {
     }
     const product = data.products[0];
     if (product) {
+      void loadWeatherMapGeometry(product.metadata_url);
       weatherMapImage.src = product.image_url;
       weatherMapImage.alt =
         `${layer?.label ?? selectedWeatherLayer} ${archiveDate.value} ${selectedCycle()} UTC`;
@@ -184,20 +196,13 @@ async function loadWeatherMapProduct() {
         const previewData = await previewResponse.json();
         const preview = previewData.previews[0];
         if (preview) {
+          void loadWeatherMapGeometry(preview.metadata_url);
           weatherMapImage.src = preview.image_url;
           weatherMapImage.alt =
             `${layer?.label ?? selectedWeatherLayer} ECMWF 天气场开发预览`;
           weatherMapImage.hidden = false;
           weatherMapPlaceholder.hidden = true;
-          weatherMapBadge.hidden = false;
-          weatherMapBadge.textContent =
-            preview.base_map_status === "official-service-preview"
-              ? "TIANDITU STANDARD MAP SERVICE"
-              : (
-                  preview.base_map_status === "official-boundary-preview"
-                    ? "TIANDITU BOUNDARY DATA"
-                    : "ECMWF FIELD · NO ADMINISTRATIVE BOUNDARIES"
-                );
+          weatherMapBadge.hidden = true;
           weatherMapStatus.textContent = "ECMWF 天气场开发预览";
           weatherMapDescription.textContent =
             preview.base_map_status === "official-service-preview"
@@ -245,6 +250,48 @@ async function loadWeatherMapProduct() {
     weatherMapStatus.textContent = "天气图读取失败";
     weatherMapDescription.textContent = error.message;
   }
+}
+
+async function loadWeatherMapGeometry(metadataUrl) {
+  weatherMapMetadataUrl = metadataUrl || null;
+  const requestedMetadataUrl = weatherMapMetadataUrl;
+  weatherMapPlotBounds = null;
+  if (!metadataUrl) {
+    updateMapStationPositions();
+    return;
+  }
+  try {
+    const response = await fetch(metadataUrl, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const metadata = await response.json();
+    if (weatherMapMetadataUrl !== requestedMetadataUrl) {
+      return;
+    }
+    const bounds = metadata?.rendering?.plot_bounds_fraction;
+    if (
+      [bounds?.left, bounds?.right, bounds?.bottom, bounds?.top]
+        .every(Number.isFinite) &&
+      bounds.left >= 0 &&
+      bounds.right <= 1 &&
+      bounds.bottom >= 0 &&
+      bounds.top <= 1 &&
+      bounds.left < bounds.right &&
+      bounds.bottom < bounds.top
+    ) {
+      weatherMapPlotBounds = bounds;
+    }
+  } catch (error) {
+    if (weatherMapMetadataUrl !== requestedMetadataUrl) {
+      return;
+    }
+    weatherMapPlotBounds = null;
+  }
+  updateMapStationPositions();
 }
 
 function renderMapSoundingStations() {
@@ -295,6 +342,15 @@ function updateMapStationPositions() {
   const offsetX = (stageWidth - renderedWidth) / 2;
   const offsetY = (stageHeight - renderedHeight) / 2;
   const domain = weatherMapConfig.domain;
+  const bounds = weatherMapPlotBounds ?? DEFAULT_WEATHER_MAP_PLOT_BOUNDS;
+  const stationModelSize = Math.max(
+    9,
+    Math.min(30, (renderedWidth / weatherMapImage.naturalWidth) * 58),
+  );
+  mapSoundingStations.style.setProperty(
+    "--station-model-size",
+    `${stationModelSize.toFixed(2)}px`,
+  );
   for (const button of mapSoundingStations.children) {
     const longitude = Number(button.dataset.longitude);
     const latitude = Number(button.dataset.latitude);
@@ -302,8 +358,10 @@ function updateMapStationPositions() {
       (longitude - domain.west) / (domain.east - domain.west);
     const latitudeFraction =
       (latitude - domain.south) / (domain.north - domain.south);
-    const figureX = 0.075 + longitudeFraction * (0.860 - 0.075);
-    const figureY = 1 - (0.100 + latitudeFraction * (0.860 - 0.100));
+    const figureX =
+      bounds.left + longitudeFraction * (bounds.right - bounds.left);
+    const figureY =
+      1 - (bounds.bottom + latitudeFraction * (bounds.top - bounds.bottom));
     button.style.left = `${offsetX + renderedWidth * figureX}px`;
     button.style.top = `${offsetY + renderedHeight * figureY}px`;
   }
@@ -381,7 +439,13 @@ function updateMapStationLabels() {
       `${station?.name ?? ""} ${station?.wmo_id ?? button.dataset.stationId}` +
       ` · ${levelLabel} · ${statusText}` +
       ` · T ${formatValue(level?.temperature_c)}°C` +
-      ` · Td ${formatValue(level?.dewpoint_c)}°C`;
+      ` · Td ${formatValue(level?.dewpoint_c)}°C` +
+      (
+        Number.isFinite(level?.geopotential_height_m) &&
+        ["850", "500", "200"].includes(selectedWeatherLayer)
+          ? ` · H ${Math.round(level.geopotential_height_m / 10)} dagpm`
+          : ""
+      );
     button.title = detail;
     button.setAttribute("aria-label", `${detail}；点击打开探空`);
   }

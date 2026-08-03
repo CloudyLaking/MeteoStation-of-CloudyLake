@@ -226,24 +226,6 @@ def render_weather_map_preview(
         color="#263943",
         pad=16,
     )
-    axis.set_title(
-        (
-            "TIANDITU STANDARD MAP SERVICE\n"
-            f"Service review No. {base_map.source_review_number}"
-            if base_map is not None
-            else (
-                "TIANDITU BOUNDARY DATA\n"
-                "National and provincial boundaries"
-                if boundary_layer is not None
-                else "ECMWF FIELD\nNo administrative boundaries"
-            )
-        ),
-        loc="right",
-        fontsize=8.5,
-        fontproperties=font,
-        color="#a45247",
-        pad=18,
-    )
     source_note = subset.source
     if layer_id == "500":
         normal_metadata = subset.metadata.get(
@@ -275,6 +257,18 @@ def render_weather_map_preview(
         color="#126e68",
         fontproperties=font,
     )
+
+    # Preserving the geographic aspect ratio can shrink the axes inside the
+    # requested subplot rectangle. Persist the actual plot box so browser
+    # overlays use the identical geographic frame instead of guessed margins.
+    figure.canvas.draw()
+    plot_position = axis.get_position()
+    plot_bounds_fraction = {
+        "left": float(plot_position.x0),
+        "right": float(plot_position.x1),
+        "bottom": float(plot_position.y0),
+        "top": float(plot_position.y1),
+    }
 
     directory = (
         Path(preview_root)
@@ -337,6 +331,9 @@ def render_weather_map_preview(
         "fields": sorted(subset.fields),
         "source_metadata": subset.metadata,
         "rendering": {
+            "projection": "plate-carree",
+            "plot_bounds_fraction": plot_bounds_fraction,
+            "height_contour_unit": "dagpm",
             "smoothing_sigma_gridpoints": (
                 SMOOTHING_SIGMA_GRIDPOINTS
             ),
@@ -887,7 +884,14 @@ def draw_pressure_level(
         colors="#263238",
         linewidths=0.62,
     )
-    axis.clabel(contours, inline=True, fontsize=7, fmt="%.0f")
+    # Match the pressure-level station model convention: 588 dagpm instead
+    # of 5880 gpm. The decoded field remains in geopotential metres.
+    axis.clabel(
+        contours,
+        inline=True,
+        fontsize=7,
+        fmt=format_geopotential_height_dagpm,
+    )
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
     add_weather_colorbar(figure, shaded, colorbar_label)
 
@@ -1042,3 +1046,8 @@ def require_field(grid: WeatherGrid, name: str) -> np.ndarray:
 
 def round_up(value: float, interval: float) -> float:
     return float(np.ceil(value / interval) * interval)
+
+
+def format_geopotential_height_dagpm(value: float) -> str:
+    """Format a geopotential-metre contour in decametres."""
+    return f"{value / 10:.0f}"

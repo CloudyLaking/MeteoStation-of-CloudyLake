@@ -11,6 +11,13 @@ import xarray as xr
 from PIL import Image
 
 import meteostation.weather_map.basemap as basemap_module
+from meteostation.weather_map.decode import (
+    STANDARD_GRAVITY_MS2,
+    geopotential_to_height_if_needed,
+)
+from meteostation.weather_map.render import (
+    format_geopotential_height_dagpm,
+)
 
 from meteostation.weather_map import (
     WeatherGrid,
@@ -35,6 +42,19 @@ from meteostation.weather_map import (
 
 
 class WeatherMapCatalogTests(unittest.TestCase):
+    def test_ecmwf_geopotential_and_height_use_one_gpm_unit(self) -> None:
+        height_gpm = np.asarray([[5_880.0]])
+        geopotential = height_gpm * STANDARD_GRAVITY_MS2
+        np.testing.assert_allclose(
+            geopotential_to_height_if_needed(height_gpm),
+            height_gpm,
+        )
+        np.testing.assert_allclose(
+            geopotential_to_height_if_needed(geopotential),
+            height_gpm,
+        )
+        self.assertEqual(format_geopotential_height_dagpm(5_880), "588")
+
     def test_configuration_and_empty_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -670,6 +690,15 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
                     "synoptic_features",
                     metadata["rendering"],
                 )
+                self.assertEqual(
+                    metadata["rendering"]["height_contour_unit"],
+                    "dagpm",
+                )
+                bounds = metadata["rendering"]["plot_bounds_fraction"]
+                self.assertLess(bounds["left"], bounds["right"])
+                self.assertLess(bounds["bottom"], bounds["top"])
+                self.assertGreaterEqual(bounds["left"], 0)
+                self.assertLessEqual(bounds["right"], 1)
             catalog_path = root / "weather_maps" / "catalog.json"
             update_preview_catalog(catalog_path, previews)
             update_preview_catalog(catalog_path, previews)
