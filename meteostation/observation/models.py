@@ -28,6 +28,9 @@ class SurfaceObservationSeries(BaseModel):
     source_url: str
     fetched_at: datetime
     cache_status: str
+    window_start: datetime | None = None
+    window_end: datetime | None = None
+    window_label: str | None = None
     observations: list[SurfaceObservation]
 
 

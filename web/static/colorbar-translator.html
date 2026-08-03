@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="从色条截图提取配色并转换为 Matplotlib、Plotly、CSS 或 JSON 代码。" />
+    <title>色条翻译器 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803g" />
+    <script src="/static/site.js?v=2.1.1-0802f" defer></script>
+    <script src="/static/colorbar-translator.js?v=2.1.1-0803a" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span>
+        </a>
+        <a class="header-motto" href="/admin" title="打开运维监视器"><strong>服务器状态读取中</strong><span>SERVER STATUS</span></a>
+      </div>
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <details class="nav-menu"><summary class="nav-menu__trigger">实况分析</summary><div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div></details>
+            <details class="nav-menu"><summary class="nav-menu__trigger">模式预报</summary><div class="nav-menu__panel"><a href="/forecast">单点预报</a><a href="/sounding-forecast">探空预报</a></div></details>
+            <details class="nav-menu is-active"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a class="is-current" href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
+            <a class="main-nav__direct" href="/about">关于</a>
+          </div>
+          <div class="main-nav__status"><i aria-hidden="true"></i><span>浏览器本地处理</span><small>V2.1.1</small></div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="translator-page">
+      <section class="translator-heading">
+        <p class="eyebrow">COLORBAR TRANSLATOR</p>
+        <h1>色条翻译器</h1>
+        <p>截取任意色条，框选纯色带区域，转换为可直接使用的配色代码。</p>
+      </section>
+
+      <section class="translator-workspace" aria-label="色条提取工作区">
+        <div class="translator-source-panel">
+          <header><p class="eyebrow">SOURCE IMAGE</p><h2>色条截图</h2></header>
+          <label class="translator-dropzone" id="colorbar-dropzone">
+            <input id="colorbar-file" type="file" accept="image/*" />
+            <span>选择图片、拖入图片，或直接粘贴截图</span>
+            <small>图片只在当前浏览器中读取，不会上传。</small>
+          </label>
+          <div class="translator-canvas-shell" id="translator-canvas-shell" hidden>
+            <canvas id="colorbar-source-canvas" aria-label="色条截图与裁切区域"></canvas>
+          </div>
+          <p class="translator-selection-note" id="translator-selection-note">载入图片后，拖动框选色条本体。</p>
+          <div class="translator-source-actions">
+            <button id="colorbar-auto" type="button" disabled>自动识别色条</button>
+            <button id="colorbar-reset" type="button" disabled>使用整张图片</button>
+          </div>
+        </div>
+
+        <div class="translator-settings-panel">
+          <header><p class="eyebrow">EXTRACTION</p><h2>提取设置</h2></header>
+          <div class="translator-settings-grid">
+            <label><span>色条方向</span><select id="colorbar-orientation"><option value="auto">自动判断</option><option value="vertical">纵向</option><option value="horizontal">横向</option></select></label>
+            <label><span>采样模式</span><select id="colorbar-mode"><option value="continuous">连续渐变</option><option value="discrete">离散分级</option></select></label>
+            <label><span>颜色数量</span><input id="colorbar-count" type="number" min="2" max="64" value="12" /></label>
+            <label><span>代码格式</span><select id="colorbar-format"><option value="matplotlib">Matplotlib</option><option value="plotly">Plotly</option><option value="css">CSS</option><option value="json">通用 JSON</option></select></label>
+            <label><span>最小值</span><input id="colorbar-min" type="number" step="any" value="0" /></label>
+            <label><span>最大值</span><input id="colorbar-max" type="number" step="any" value="1" /></label>
+          </div>
+          <label class="translator-check"><input id="colorbar-reverse" type="checkbox" /><span>反转颜色顺序</span></label>
+          <button class="translator-generate" id="colorbar-generate" type="button" disabled>提取并生成代码</button>
+        </div>
+      </section>
+
+      <section class="translator-output" id="translator-output" hidden>
+        <header>
+          <div><p class="eyebrow">TRANSLATED PALETTE</p><h2>提取结果</h2></div>
+          <div><button id="colorbar-copy" type="button">复制代码</button><button id="colorbar-download" type="button">下载代码</button></div>
+        </header>
+        <div class="translator-palette" id="translator-palette" aria-label="提取后的颜色预览"></div>
+        <div class="translator-swatches" id="translator-swatches"></div>
+        <textarea id="colorbar-code" readonly spellcheck="false" aria-label="生成的配色代码"></textarea>
+        <p id="translator-result-note"></p>
+      </section>
+
+      <section class="product-notes" aria-labelledby="translator-method-heading">
+        <header><p class="eyebrow">METHOD &amp; LIMITS</p><h2 id="translator-method-heading">使用说明</h2></header>
+        <div>
+          <article><h3>提取方法</h3><p>对框选区域沿色条方向等距采样，并在色条短轴中部取多点中值，以减弱边框、刻度线和压缩噪声影响。</p></article>
+          <article><h3>框选建议</h3><p>自动识别后仍可重新拖动框选。尽量只保留有颜色的矩形条，避开数字、标题、三角延伸端和大块背景。</p></article>
+          <article><h3>输出说明</h3><p>连续模式生成渐变色标，离散模式生成分级颜色与边界。最小值和最大值仅用于数值映射，不参与图片识别。</p></article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Copyright © 2026- CloudyLake. All Rights Reserved.</span>
+      <a href="mailto:cloudylaking@outlook.com">Contact: cloudylaking@outlook.com</a>
+      <span>Powered with Codex &amp; Deepseek V4 Pro</span>
+    </footer>
+  </body>
+</html>

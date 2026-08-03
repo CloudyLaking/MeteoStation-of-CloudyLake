@@ -1,6 +1,6 @@
 import io
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import matplotlib
@@ -25,6 +25,7 @@ def render_legacy_observation_png(
     station: StationRecord,
     mode: str,
     historical_date: date | None = None,
+    history_window: str = "08-08",
 ) -> LegacyPlotResult:
     """Run the original q-weather fetch and plot flow with memory output."""
     from Basic_function import History_ObsStation
@@ -39,7 +40,9 @@ def render_legacy_observation_png(
             f"https://q-weather.info/weather/{station.wmo_id}/history/"
             f"?date={historical_date:%Y-%m-%d}"
         )
-        date_label = historical_date.strftime("%Y%m%d")
+        if history_window not in {"08-08", "20-20"}:
+            raise ValueError("history window must be 08-08 or 20-20")
+        date_label = f"{historical_date:%Y%m%d}-{history_window}"
     else:
         raise ValueError("history mode requires a date")
 
@@ -47,7 +50,29 @@ def render_legacy_observation_png(
     if not weather_data or len(weather_data) < 2:
         raise RuntimeError("原数据源没有返回可绘制的逐小时资料")
     if mode == "history":
-        weather_data = [weather_data[0], *reversed(weather_data[1:])]
+        next_date = historical_date + timedelta(days=1)
+        next_url = (
+            f"https://q-weather.info/weather/{station.wmo_id}/history/"
+            f"?date={next_date:%Y-%m-%d}"
+        )
+        next_data = History_ObsStation.getdata(next_url)
+        if not next_data or len(next_data) < 2:
+            raise RuntimeError("所选 24 小时时段的次日资料暂不可用")
+        hour = 8 if history_window == "08-08" else 20
+        start = datetime.combine(historical_date, datetime.min.time()).replace(hour=hour)
+        end = start + timedelta(days=1)
+        time_index = weather_data[0].index("时次")
+        rows = [*weather_data[1:], *next_data[1:]]
+        filtered_rows = []
+        for row in rows:
+            try:
+                observed_at = datetime.strptime(row[time_index][:16], "%Y-%m-%d %H:%M")
+            except (ValueError, IndexError):
+                continue
+            if start <= observed_at < end:
+                filtered_rows.append(row)
+        weather_data = [weather_data[0], *reversed(filtered_rows)]
+        source_url = f"{source_url} ; {next_url}"
 
     buffer = io.BytesIO()
     project_font = Path(__file__).resolve().parents[2] / "MiSans VF.ttf"

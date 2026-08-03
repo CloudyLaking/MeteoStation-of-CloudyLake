@@ -2,6 +2,7 @@ const queryForm = document.querySelector("#station-query-form");
 const stationInput = document.querySelector("#surface-station");
 const dateInput = document.querySelector("#surface-date");
 const dateWrap = document.querySelector("#history-date-wrap");
+const historyWindowWrap = document.querySelector("#history-window-wrap");
 const realtimePanel = document.querySelector("#realtime-panel");
 const resultSection = document.querySelector("#station-image-result");
 const resultState = document.querySelector("#station-image-state");
@@ -31,11 +32,29 @@ function selectedMode() {
   return queryForm.elements.mode.value;
 }
 
+function selectedHistoryWindow() {
+  return queryForm.elements.history_window.value;
+}
+
 function updateMode() {
   const historical = selectedMode() === "history";
   dateWrap.hidden = !historical;
+  historyWindowWrap.hidden = !historical;
   dateInput.required = historical;
   dateInput.disabled = !historical;
+  queryForm.querySelectorAll("[name='history_window']").forEach((input) => {
+    input.disabled = !historical;
+  });
+}
+
+function updateHistoryDateLimit() {
+  const now = new Date();
+  const latestStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (selectedHistoryWindow() === "20-20" && now.getHours() < 20) {
+    latestStart.setDate(latestStart.getDate() - 1);
+  }
+  dateInput.max = localIsoDate(latestStart);
+  if (!dateInput.value || dateInput.value > dateInput.max) dateInput.value = dateInput.max;
 }
 
 function formatValue(value, digits, suffix = "") {
@@ -275,7 +294,7 @@ function renderObservationChart(series) {
     }));
   const latest = points.at(-1);
   return window.CloudyLakeWeatherSeriesRenderer.render(chart, {
-    title: `${series.station_name}站(#${series.station_id})24h实况序列`,
+    title: `${series.station_name}站(#${series.station_id})24h实况序列${series.window_label ? ` · ${series.window_label}` : ""}`,
     locationLine: `${series.latitude.toFixed(2)}°N  ${series.longitude.toFixed(2)}°E`,
     timeLine: latest ? `查询时次: ${timeLabelForHeader(latest.time)}` : "",
     points,
@@ -300,8 +319,13 @@ async function loadObservationSeries(station, mode) {
   chartWrap.hidden = true;
   downloadButton.hidden = true;
   const query = new URLSearchParams({ mode });
-  if (mode === "history") query.set("date", dateInput.value);
-  resultTitle.textContent = mode === "past24h" ? `${station.display_name} · WMO ${station.wmo_id} · 过去 24h` : `${station.display_name} · WMO ${station.wmo_id} · ${dateInput.value}`;
+  const historyWindow = selectedHistoryWindow();
+  if (mode === "history") {
+    query.set("date", dateInput.value);
+    query.set("window", historyWindow);
+  }
+  const historyWindowLabel = historyWindow === "20-20" ? "20:00—次日 20:00" : "08:00—次日 08:00";
+  resultTitle.textContent = mode === "past24h" ? `${station.display_name} · WMO ${station.wmo_id} · 过去 24h` : `${station.display_name} · WMO ${station.wmo_id} · ${dateInput.value} ${historyWindowLabel}`;
   try {
     const response = await fetch(`/api/v1/observations/series/${station.wmo_id}?${query}`);
     const series = await response.json();
@@ -389,7 +413,18 @@ async function loadRegion(region) {
       const [cx, cy] = project(station.longitude, station.latitude);
       const group = svg("g", { class: "region-station", tabindex: 0, role: "button", "aria-label": `${station.display_name} ${station.wmo_id}` });
       group.append(svg("circle", { cx, cy, r: 7, class: "region-station-hit" }), svg("circle", { cx, cy, r: 2.8, class: "region-station-dot" }), svg("title", {}, `${station.display_name} · ${station.wmo_id}`));
-      const select = () => { stationInput.value = station.display_name; queryForm.requestSubmit(); };
+      const showStation = () => {
+        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
+      };
+      const select = () => {
+        regionMap.querySelectorAll(".region-station").forEach((item) => item.classList.remove("is-selected"));
+        group.classList.add("is-selected");
+        stationInput.value = station.display_name;
+        showStation();
+        queryForm.requestSubmit();
+      };
+      group.addEventListener("pointerenter", showStation);
+      group.addEventListener("focus", showStation);
       group.addEventListener("click", select);
       group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
       regionMap.append(group);
@@ -419,14 +454,18 @@ async function exportPng() {
     const png = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     const pngUrl = URL.createObjectURL(png);
     const anchor = document.createElement("a");
-    anchor.href = pngUrl; anchor.download = `${latestSeries.station_id}_${latestSeries.observation_date}_observations.png`; anchor.click();
+    const windowPart = latestSeries.window_label ? `_${selectedHistoryWindow()}` : "";
+    anchor.href = pngUrl; anchor.download = `${latestSeries.station_id}_${latestSeries.observation_date}${windowPart}_observations.png`; anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(pngUrl), 1000);
   } finally {
     downloadButton.disabled = false;
   }
 }
 
-queryForm.addEventListener("change", (event) => { if (event.target.name === "mode") updateMode(); });
+queryForm.addEventListener("change", (event) => {
+  if (event.target.name === "mode") updateMode();
+  if (event.target.name === "history_window") updateHistoryDateLimit();
+});
 queryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
@@ -448,8 +487,7 @@ REGIONS.forEach((region) => {
   button.addEventListener("click", () => loadRegion(region));
   regionTabs.append(button);
 });
-dateInput.max = localIsoDate(new Date());
-dateInput.value = dateInput.max;
+updateHistoryDateLimit();
 updateMode();
 loadRegion("华东");
 const initialQuery = new URLSearchParams(window.location.search);
@@ -458,19 +496,10 @@ if (initialQuery.get("station")) {
   if (initialQuery.get("mode") === "history" && initialQuery.get("date")) {
     queryForm.elements.mode.value = "history";
     dateInput.value = initialQuery.get("date");
+    if (["08-08", "20-20"].includes(initialQuery.get("window"))) {
+      queryForm.elements.history_window.value = initialQuery.get("window");
+    }
     updateMode();
   }
   window.setTimeout(() => queryForm.requestSubmit(), 0);
-}
-const initialParameters = new URLSearchParams(window.location.search);
-const initialStation = initialParameters.get("station");
-if (initialStation) {
-  stationInput.value = initialStation;
-  const initialMode = initialParameters.get("mode");
-  if (initialMode === "history") {
-    queryForm.elements.mode.value = "history";
-    dateInput.value = initialParameters.get("date") || dateInput.value;
-    updateMode();
-  }
-  queryForm.requestSubmit();
 }

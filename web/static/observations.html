@@ -9,10 +9,10 @@
     />
     <title>气象站实况查询 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803b" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0803f" />
     <script src="/static/site.js?v=2.1.1-0802f" defer></script>
     <script src="/static/weather-series-chart.js?v=2.1.1-0802i" defer></script>
-    <script src="/static/observations.js?v=2.1.1-0802i" defer></script>
+    <script src="/static/observations.js?v=2.1.1-0803j" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -43,7 +43,7 @@
             </details>
             <details class="nav-menu">
               <summary class="nav-menu__trigger">实验性功能</summary>
-              <div class="nav-menu__panel"><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
             </details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
@@ -98,9 +98,21 @@
         </fieldset>
 
         <div class="station-query-form__date" id="history-date-wrap" hidden>
-          <label for="surface-date">UTC 日期</label>
+          <label for="surface-date">起始日期 / 北京时间</label>
           <input id="surface-date" name="date" type="date" />
         </div>
+
+        <fieldset class="station-query-mode station-query-window" id="history-window-wrap" hidden>
+          <legend>24h 时段 / 北京时间</legend>
+          <label>
+            <input type="radio" name="history_window" value="08-08" checked />
+            <span>08—次日 08</span>
+          </label>
+          <label>
+            <input type="radio" name="history_window" value="20-20" />
+            <span>20—次日 20</span>
+          </label>
+        </fieldset>
 
         <button class="station-query-submit" type="submit">查询并绘图</button>
       </form>
@@ -108,7 +120,7 @@
       <section class="station-region-browser" aria-labelledby="station-region-title">
         <header>
           <div><p class="eyebrow">REGIONAL STATION MAP</p><h2 id="station-region-title">按地区选择站点</h2></div>
-          <p>点击地图中的站点即可查询；站点与行政区边界分别依据全国气象站目录和天地图资料显示。</p>
+          <p>切换华东、华北等分区，点击站点圆点即可按上方当前范围查询；悬停或聚焦可查看站名与站号。</p>
         </header>
         <div class="station-region-tabs" id="station-region-tabs" aria-label="站点地区"></div>
         <div class="station-region-map-shell">
@@ -167,7 +179,7 @@
       <section class="product-notes" aria-labelledby="obs-method-heading">
         <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="obs-method-heading">实况产品说明</h2></header>
         <div>
-          <article><h3>处理方法</h3><p>按观测时刻排列温度、露点、体感温度、相对湿度、气压、降水和风。缺测项保持空缺，不作人为填补；图面可交互查读并导出 PNG。</p></article>
+          <article><h3>处理方法</h3><p>按观测时刻排列温度、露点、体感温度、相对湿度、气压、降水和风。历史产品可选择北京时间 08—次日 08 或 20—次日 20，跨日资料合并后按精确时段裁切；缺测项保持空缺。</p></article>
           <article><h3>资料来源</h3><p>逐小时与实时观测来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>；站号、站名和所属地区依据全国气象站目录匹配。</p></article>
           <article><h3>阅读提示</h3><p>历史日期的可查范围以资料源实际收录为准。站点缺测或资料延迟时，相应时刻和要素可能暂缺。</p></article>
         </div>

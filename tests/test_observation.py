@@ -1,11 +1,14 @@
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 from meteostation.observation import (
     parse_ogimet_csv,
     parse_qweather_hourly_html,
     parse_qweather_series_html,
     parse_qweather_realtime,
+    fetch_qweather_series,
+    history_window_bounds,
     to_legacy_weather_table,
 )
 from meteostation.observation.station_registry import (
@@ -21,6 +24,15 @@ SAMPLE_CSV = """WMO_ID,ANO,MES,DIA,HORA,MINUTO,PARTE
 
 
 class ObservationParserTests(unittest.TestCase):
+    def test_history_windows_use_beijing_time_and_span_24_hours(self) -> None:
+        start_08, end_08 = history_window_bounds(date(2026, 7, 26), "08-08")
+        start_20, end_20 = history_window_bounds(date(2026, 7, 26), "20-20")
+
+        self.assertEqual(start_08.isoformat(), "2026-07-26T08:00:00+08:00")
+        self.assertEqual(end_08 - start_08, timedelta(hours=24))
+        self.assertEqual(start_20.hour, 20)
+        self.assertEqual(end_20.isoformat(), "2026-07-27T20:00:00+08:00")
+
     def test_qweather_hourly_table_selects_exact_hour(self) -> None:
         html = """
         <table class="border">
@@ -140,6 +152,35 @@ class ObservationParserTests(unittest.TestCase):
         self.assertEqual(realtime.temperature_c, 34.3)
         self.assertEqual(realtime.wind_direction_deg, 270)
         self.assertEqual(realtime.visibility_km, 27.486)
+
+
+class ObservationWindowFetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_history_window_merges_two_dates_and_clips_end(self) -> None:
+        header = """
+        <tr><th>时次</th><th>瞬时温度</th><th>地面气压</th><th>相对湿度</th>
+        <th>瞬时风向</th><th>瞬时风速</th><th>1小时降水</th><th>10分钟平均能见度</th></tr>
+        """
+        first_page = f"""<table class="border">{header}
+          <tr><td>2026-07-26 07:00 +0800</td><td>20</td><td>1008</td><td>80</td><td>90/E</td><td>2</td><td>0</td><td>20</td></tr>
+          <tr><td>2026-07-26 08:00 +0800</td><td>21</td><td>1007</td><td>78</td><td>90/E</td><td>2</td><td>0</td><td>20</td></tr>
+        </table>"""
+        second_page = f"""<table class="border">{header}
+          <tr><td>2026-07-27 07:00 +0800</td><td>22</td><td>1006</td><td>76</td><td>90/E</td><td>2</td><td>0</td><td>20</td></tr>
+          <tr><td>2026-07-27 08:00 +0800</td><td>23</td><td>1005</td><td>74</td><td>90/E</td><td>2</td><td>0</td><td>20</td></tr>
+        </table>"""
+        fetch = AsyncMock(side_effect=[first_page, second_page])
+        with patch("meteostation.observation.qweather._fetch_qweather_html", fetch):
+            series = await fetch_qweather_series(
+                resolve_station("58362"),
+                mode="history",
+                historical_date=date(2026, 7, 26),
+                history_window="08-08",
+            )
+
+        self.assertEqual([item.observed_at.hour for item in series.observations], [8, 7])
+        self.assertEqual(series.observations[-1].observed_at.day, 27)
+        self.assertEqual(series.window_label, "08:00—次日 08:00")
+        self.assertEqual(fetch.await_count, 2)
 
 
 if __name__ == "__main__":

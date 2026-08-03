@@ -1,4 +1,5 @@
-from datetime import date, datetime, timezone
+import asyncio
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -46,6 +47,7 @@ async def fetch_qweather_series(
     *,
     mode: str,
     historical_date: date | None = None,
+    history_window: str = "08-08",
 ) -> SurfaceObservationSeries:
     """Fetch and normalize one 24-hour q-weather table without plotting."""
 
@@ -53,20 +55,93 @@ async def fetch_qweather_series(
     if mode == "past24h":
         observation_date = datetime.now(china_time).date()
         source_url = f"https://q-weather.info/weather/{station.wmo_id}/today/"
+        html = await _fetch_qweather_html(source_url)
+        return parse_qweather_series_html(
+            html,
+            station=station,
+            source_url=source_url,
+            observation_date=observation_date,
+        )
     elif mode == "history" and historical_date is not None:
         observation_date = historical_date
-        source_url = (
-            f"https://q-weather.info/weather/{station.wmo_id}/history/"
-            f"?date={historical_date:%Y-%m-%d}"
+        window_start, window_end = history_window_bounds(
+            historical_date,
+            history_window,
+        )
+        dates = (historical_date, historical_date + timedelta(days=1))
+        source_urls = tuple(
+            _qweather_daily_url(station.wmo_id, item, china_time)
+            for item in dates
+        )
+        html_pages = await asyncio.gather(
+            *(_fetch_qweather_html(url) for url in source_urls)
+        )
+        daily_series = [
+            parse_qweather_series_html(
+                html,
+                station=station,
+                source_url=url,
+                observation_date=day,
+                limit=None,
+            )
+            for html, url, day in zip(html_pages, source_urls, dates)
+        ]
+        merged = {
+            observation.observed_at: observation
+            for series in daily_series
+            for observation in series.observations
+            if window_start <= observation.observed_at < window_end
+        }
+        observations = [merged[key] for key in sorted(merged)]
+        if not observations:
+            raise QWeatherError("所选 24 小时时段没有可用的逐小时资料")
+        return daily_series[0].model_copy(
+            update={
+                "source_url": source_urls[0],
+                "fetched_at": datetime.now(timezone.utc),
+                "window_start": window_start,
+                "window_end": window_end,
+                "window_label": history_window_label(history_window),
+                "observations": observations,
+            }
         )
     else:
         raise QWeatherError("history mode requires a date")
-    html = await _fetch_qweather_html(source_url)
-    return parse_qweather_series_html(
-        html,
-        station=station,
-        source_url=source_url,
-        observation_date=observation_date,
+
+
+def history_window_bounds(
+    observation_date: date,
+    history_window: str,
+) -> tuple[datetime, datetime]:
+    """Return the selected Beijing-time 24-hour interval as [start, end)."""
+
+    try:
+        hour = {"08-08": 8, "20-20": 20}[history_window]
+    except KeyError as exc:
+        raise QWeatherError("history window must be 08-08 or 20-20") from exc
+    zone = ZoneInfo("Asia/Shanghai")
+    start = datetime.combine(observation_date, time(hour=hour), tzinfo=zone)
+    return start, start + timedelta(days=1)
+
+
+def history_window_label(history_window: str) -> str:
+    if history_window == "08-08":
+        return "08:00—次日 08:00"
+    if history_window == "20-20":
+        return "20:00—次日 20:00"
+    raise QWeatherError("history window must be 08-08 or 20-20")
+
+
+def _qweather_daily_url(
+    station_id: str,
+    requested_date: date,
+    china_time: ZoneInfo,
+) -> str:
+    if requested_date == datetime.now(china_time).date():
+        return f"https://q-weather.info/weather/{station_id}/today/"
+    return (
+        f"https://q-weather.info/weather/{station_id}/history/"
+        f"?date={requested_date:%Y-%m-%d}"
     )
 
 
@@ -76,6 +151,7 @@ def parse_qweather_series_html(
     station: StationRecord,
     source_url: str,
     observation_date: date,
+    limit: int | None = 24,
 ) -> SurfaceObservationSeries:
     table = BeautifulSoup(html, "html.parser").find("table", class_="border")
     if table is None:
@@ -117,7 +193,8 @@ def parse_qweather_series_html(
             )
         )
     observations.sort(key=lambda item: item.observed_at)
-    observations = observations[-24:]
+    if limit is not None:
+        observations = observations[-limit:]
     if not observations:
         raise QWeatherError("q-weather 逐小时资料表没有可解析记录")
     return SurfaceObservationSeries(

@@ -100,9 +100,9 @@ weather_map_catalog = WeatherMapCatalog(
 )
 observation_plot_lock = asyncio.Lock()
 observation_series_cache: dict[
-    tuple[str, str, str], tuple[float, SurfaceObservationSeries]
+    tuple[str, str, str, str], tuple[float, SurfaceObservationSeries]
 ] = {}
-observation_series_locks: dict[tuple[str, str, str], asyncio.Lock] = {}
+observation_series_locks: dict[tuple[str, str, str, str], asyncio.Lock] = {}
 guestbook_lock = asyncio.Lock()
 traffic = RuntimeTraffic(TRAFFIC_STATE_PATH)
 admin_security = HTTPBasic(auto_error=False)
@@ -128,7 +128,7 @@ async def _warm_primary_observation() -> None:
         )
     except (QWeatherError, StationLookupError):
         return
-    observation_series_cache[("58362", "past24h", "today")] = (
+    observation_series_cache[("58362", "past24h", "today", "current")] = (
         monotonic() + 3600,
         series,
     )
@@ -176,6 +176,11 @@ async def sounding_forecast_page() -> FileResponse:
 @app.get("/about", include_in_schema=False)
 async def about_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "about.html")
+
+
+@app.get("/colorbar-translator", include_in_schema=False)
+async def colorbar_translator_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "colorbar-translator.html")
 
 
 class GuestbookSubmission(BaseModel):
@@ -689,6 +694,10 @@ async def observation_series(
     station_id: str,
     mode: Literal["past24h", "history"] = Query(default="past24h"),
     historical_date: date | None = Query(default=None, alias="date"),
+    history_window: Literal["08-08", "20-20"] = Query(
+        default="08-08",
+        alias="window",
+    ),
 ) -> SurfaceObservationSeries:
     validate_station_id(station_id)
     if mode == "history" and historical_date is None:
@@ -700,7 +709,8 @@ async def observation_series(
     except StationLookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     date_key = historical_date.isoformat() if historical_date else "today"
-    key = (station_id, mode, date_key)
+    window_key = history_window if mode == "history" else "current"
+    key = (station_id, mode, date_key, window_key)
     now = monotonic()
     cached = observation_series_cache.get(key)
     if cached and cached[0] > now:
@@ -715,6 +725,7 @@ async def observation_series(
                 station,
                 mode=mode,
                 historical_date=historical_date,
+                history_window=history_window,
             )
         except QWeatherError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -739,6 +750,10 @@ async def surface_observation_plot(
     station_query: str = Query(alias="station", min_length=1, max_length=40),
     mode: Literal["past24h", "history"] = Query(default="past24h"),
     historical_date: date | None = Query(default=None, alias="date"),
+    history_window: Literal["08-08", "20-20"] = Query(
+        default="08-08",
+        alias="window",
+    ),
 ) -> StreamingResponse:
     if historical_date is not None and historical_date > datetime.now(
         timezone.utc
@@ -767,6 +782,7 @@ async def surface_observation_plot(
                 station=station,
                 mode=mode,
                 historical_date=historical_date,
+                history_window=history_window,
             )
         except Exception as exc:
             raise HTTPException(
@@ -774,7 +790,7 @@ async def surface_observation_plot(
                 detail=f"静态实况图生成失败：{exc}",
             ) from exc
     filename = (
-        f"{station.wmo_id}_{date_label.replace(' ', '-')}_observations.png"
+        f"{station.wmo_id}_{date_label.replace(' ', '-')}_{history_window if mode == 'history' else 'past24h'}_observations.png"
     )
     return StreamingResponse(
         io.BytesIO(result.image_bytes),

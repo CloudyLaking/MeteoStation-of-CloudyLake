@@ -1561,6 +1561,14 @@ a {
   border: 0;
 }
 
+.station-query-window[hidden] {
+  display: none;
+}
+
+.station-query-window {
+  min-width: 300px;
+}
+
 .station-query-mode legend {
   margin-bottom: 7px;
 }
@@ -1795,7 +1803,8 @@ a {
 }
 
 #station-region-map .region-station:hover .region-station-dot,
-#station-region-map .region-station:focus .region-station-dot {
+#station-region-map .region-station:focus .region-station-dot,
+#station-region-map .region-station.is-selected .region-station-dot {
   fill: #f2c94c;
   stroke: #253744;
 }
@@ -4572,6 +4581,308 @@ summary:focus-visible {
     gap: 7px;
     padding: 18px 0 24px;
     font-size: 11px;
+  }
+}
+
+/* Experimental colorbar translator */
+.translator-page {
+  width: min(1360px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 34px 0 40px;
+}
+
+.translator-heading {
+  margin-bottom: 22px;
+}
+
+.translator-heading h1 {
+  margin: 3px 0 7px;
+  color: var(--ink);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 590;
+  letter-spacing: -0.035em;
+}
+
+.translator-heading > p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.translator-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(310px, 0.65fr);
+  gap: 16px;
+}
+
+.translator-source-panel,
+.translator-settings-panel,
+.translator-output {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.translator-source-panel > header,
+.translator-settings-panel > header,
+.translator-output > header {
+  margin-bottom: 16px;
+}
+
+.translator-source-panel h2,
+.translator-settings-panel h2,
+.translator-output h2 {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 560;
+}
+
+.translator-dropzone {
+  display: grid;
+  min-height: 104px;
+  place-content: center;
+  gap: 5px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fbfdfc;
+  text-align: center;
+  cursor: pointer;
+}
+
+.translator-dropzone.is-dragging {
+  border-color: var(--site-primary);
+  background: rgba(18, 110, 104, 0.07);
+}
+
+.translator-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.translator-dropzone span {
+  font-size: 13px;
+}
+
+.translator-dropzone small,
+.translator-selection-note,
+#translator-result-note {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.translator-canvas-shell {
+  max-height: 620px;
+  margin-top: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background-color: #f5f7f6;
+  background-image: linear-gradient(45deg, #e7ebea 25%, transparent 25%), linear-gradient(-45deg, #e7ebea 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e7ebea 75%), linear-gradient(-45deg, transparent 75%, #e7ebea 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+#colorbar-source-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.translator-selection-note {
+  margin: 9px 0 0;
+}
+
+.translator-source-actions,
+.translator-output > header > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.translator-source-actions button,
+.translator-generate,
+.translator-output button {
+  min-height: var(--control-height);
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: #111;
+  background: #fff;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.translator-source-actions button:hover:not(:disabled),
+.translator-generate:hover:not(:disabled),
+.translator-output button:hover {
+  border-color: #d4a42a;
+  background: var(--yellow);
+}
+
+.translator-source-actions button:disabled,
+.translator-generate:disabled {
+  color: #9ca3a6;
+  cursor: not-allowed;
+}
+
+.translator-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px 10px;
+}
+
+.translator-settings-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.translator-settings-grid span,
+.translator-check span {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.translator-settings-grid select,
+.translator-settings-grid input {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: #111;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+
+.translator-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.translator-generate {
+  width: 100%;
+  background: var(--yellow);
+}
+
+.translator-output {
+  margin-top: 16px;
+}
+
+.translator-output[hidden] {
+  display: none;
+}
+
+.translator-output > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.translator-output > header > div:last-child {
+  margin: 0;
+}
+
+.translator-palette {
+  width: 100%;
+  height: 76px;
+  border: 1px solid var(--line-strong);
+}
+
+.translator-palette.is-vertical {
+  width: 76px;
+  height: 260px;
+}
+
+.translator-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 1px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.translator-swatches span {
+  min-height: 34px;
+  padding: 9px 8px 8px 32px;
+  color: var(--ink);
+  background: linear-gradient(90deg, var(--swatch) 0 24px, #fff 24px);
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+#colorbar-code {
+  width: 100%;
+  min-height: 250px;
+  margin-top: 14px;
+  padding: 16px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #1d313d;
+  background: #f8faf9;
+  font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace;
+  tab-size: 2;
+}
+
+#translator-result-note {
+  margin: 9px 0 0;
+}
+
+.translator-page > .product-notes {
+  margin-top: 16px;
+}
+
+@media (max-width: 860px) {
+  .translator-page {
+    width: min(100% - 24px, 700px);
+    padding-top: 24px;
+  }
+
+  .translator-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .translator-settings-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .translator-source-panel,
+  .translator-settings-panel,
+  .translator-output {
+    padding: 16px;
+  }
+
+  .translator-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .translator-output > header {
+    display: block;
+  }
+
+  .translator-output > header > div:last-child {
+    margin-top: 12px;
+  }
+
+  .translator-palette.is-vertical {
+    width: 56px;
+    height: 220px;
   }
 }
 
