@@ -53,6 +53,7 @@ class ThermodynamicDiagnosticLevel(BaseModel):
     virtual_temperature_c: float
     wet_bulb_temperature_c: float
     parcel_temperature_c: float
+    equivalent_potential_temperature_k: float
 
 
 class SoundingDiagnostics(BaseModel):

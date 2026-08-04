@@ -738,6 +738,16 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     ((skewTemperature(temperature, pressure) - xMinimum) /
       (xMaximum - xMinimum)) *
       mainWidth;
+  // Equivalent potential temperature is drawn against a compact, fixed K axis
+  // pinned to the right edge of the main plot. A fixed 320-400 K window covers
+  // essentially every real sounding and keeps the curve inside the frame.
+  const thetaEMinK = 320;
+  const thetaEMaxK = 400;
+  const thetaEPlotWidth = 70;
+  const xForThetaE = (thetaE) =>
+    CHART.plotRight -
+    thetaEPlotWidth +
+    ((thetaE - thetaEMinK) / (thetaEMaxK - thetaEMinK)) * thetaEPlotWidth;
 
   chartProjection = {
     yForPressure,
@@ -954,6 +964,45 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "stroke-linecap": "round",
       "clip-path": "url(#plot-clip)",
     });
+    appendSvg("path", {
+      d: diagnosticPath(
+        diagnosticLevels,
+        "equivalent_potential_temperature_k",
+        (thetaE) => xForThetaE(thetaE),
+        yForPressure,
+      ),
+      fill: "none",
+      stroke: "#8a5a2b",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "clip-path": "url(#plot-clip)",
+    });
+    // θe scale ticks along the top edge of the main plot.
+    [320, 340, 360, 380, 400].forEach((thetaE) => {
+      appendSvg(
+        "text",
+        {
+          x: xForThetaE(thetaE),
+          y: CHART.top + 12,
+          fill: "#8a5a2b",
+          "font-size": "8.5",
+          "text-anchor": "middle",
+        },
+        `${thetaE}`,
+      );
+    });
+    appendSvg(
+      "text",
+      {
+        x: xForThetaE(400) + 15,
+        y: CHART.top + 12,
+        fill: "#8a5a2b",
+        "font-size": "8.5",
+        "font-weight": "700",
+      },
+      "K θe",
+    );
   }
 
   appendSvg(
@@ -1991,10 +2040,11 @@ function drawChartLegend() {
     ["Tw", "#3d9fc4", ""],
     ["Tv", "#8463a6", "7 4"],
     ["Parcel", "#d39143", "3 4"],
+    ["θe", "#8a5a2b", ""],
     ["CAPE", "#eaa66c", ""],
     ["CIN", "#77a7c9", ""],
   ];
-  let x = 250;
+  let x = 232;
   entries.forEach(([label, color, dash]) => {
     appendSvg("line", {
       x1: x,
@@ -2016,7 +2066,7 @@ function drawChartLegend() {
       },
       label,
     );
-    x += label === "Parcel" ? 86 : 66;
+    x += label === "Parcel" || label === "θe" ? 74 : 58;
   });
 }
 

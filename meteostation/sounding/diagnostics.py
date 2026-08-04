@@ -9,6 +9,7 @@ from metpy.calc import (
     critical_angle,
     downdraft_cape,
     el,
+    equivalent_potential_temperature,
     lcl,
     lfc,
     mixed_layer_cape_cin,
@@ -82,6 +83,11 @@ def calculate_sounding_diagnostics(
         temperature,
         dewpoint,
     ).to(units.degC)
+    equivalent_potential = equivalent_potential_temperature(
+        pressure,
+        temperature,
+        dewpoint,
+    ).to(units.kelvin)
     parcel_temperature = parcel_profile(
         pressure,
         temperature[0],
@@ -206,12 +212,16 @@ def calculate_sounding_diagnostics(
             virtual_temperature_c=float(virtual.to(units.degC).magnitude),
             wet_bulb_temperature_c=float(wet_bulb_value.to(units.degC).magnitude),
             parcel_temperature_c=float(parcel.to(units.degC).magnitude),
+            equivalent_potential_temperature_k=float(
+                theta_e_value.to(units.kelvin).magnitude
+            ),
         )
-        for level, virtual, wet_bulb_value, parcel in zip(
+        for level, virtual, wet_bulb_value, parcel, theta_e_value in zip(
             usable_levels,
             virtual_temperature,
             wet_bulb,
             parcel_temperature,
+            equivalent_potential,
         )
     ]
     return SoundingDiagnostics(
