@@ -1516,28 +1516,64 @@ function drawHodograph(levels, diagnostics) {
         (Number(level.geopotential_height_m) - surfaceHeight) / 1000,
     }))
     .filter((point) => point.heightKm >= 0 && point.heightKm <= 12.5);
-  const motionPoints = [
-    diagnostics?.bunkers_right_motion_u_ms,
-    diagnostics?.bunkers_right_motion_v_ms,
-    diagnostics?.bunkers_left_motion_u_ms,
-    diagnostics?.bunkers_left_motion_v_ms,
-  ].filter(Number.isFinite);
-  const componentMaximum = Math.max(
-    5,
-    ...points.flatMap((point) => [Math.abs(point.u), Math.abs(point.v)]),
-    ...motionPoints.map(Math.abs),
+  const motionPairs = [
+    [
+      diagnostics?.bunkers_right_motion_u_ms,
+      diagnostics?.bunkers_right_motion_v_ms,
+    ],
+    [
+      diagnostics?.bunkers_left_motion_u_ms,
+      diagnostics?.bunkers_left_motion_v_ms,
+    ],
+    [
+      diagnostics?.mean_wind_0_6km_u_ms,
+      diagnostics?.mean_wind_0_6km_v_ms,
+    ],
+  ].filter(([u, v]) => Number.isFinite(u) && Number.isFinite(v));
+  // Data-focused view: recentre the hodograph on the wind-data bounding box
+  // instead of pinning the plot to the calm-wind origin. The origin (0, 0) is
+  // always included so the zero-wind reference stays visible, but the view
+  // zooms into the actual wind profile.
+  const allU = [
+    0,
+    ...points.map((point) => point.u),
+    ...motionPairs.map(([u]) => u),
+  ];
+  const allV = [
+    0,
+    ...points.map((point) => point.v),
+    ...motionPairs.map(([, v]) => v),
+  ];
+  const dataCenterU = (Math.min(...allU) + Math.max(...allU)) / 2;
+  const dataCenterV = (Math.min(...allV) + Math.max(...allV)) / 2;
+  const halfSpan = Math.max(
+    (Math.max(...allU) - Math.min(...allU)) / 2,
+    (Math.max(...allV) - Math.min(...allV)) / 2,
+    10,
   );
-  const radius = Math.min(80, Math.max(5, Math.ceil(componentMaximum / 5) * 5));
+  const radius = Math.min(80, Math.max(5, Math.ceil(halfSpan / 5) * 5));
   const centerX = (left + right) / 2;
   const centerY = (top + bottom) / 2 + 10;
   const scale = Math.min(right - left - 42, bottom - top - 58) / (2 * radius);
-  const xForU = (u) => centerX + u * scale;
-  const yForV = (v) => centerY - v * scale;
+  const xForU = (u) => centerX + (u - dataCenterU) * scale;
+  const yForV = (v) => centerY - (v - dataCenterV) * scale;
+  const originX = xForU(0);
+  const originY = yForV(0);
+  // Clip the wind canvas so focused rings and spokes never bleed outside.
+  const hodoDefs = appendSvg("defs");
+  const hodoClip = appendSvgTo(hodoDefs, "clipPath", { id: "hodo-clip" });
+  appendSvgTo(hodoClip, "rect", {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  });
+  const hodoGroup = appendSvg("g", { "clip-path": "url(#hodo-clip)" });
 
   for (let ring = 10; ring <= radius; ring += 10) {
-    appendSvg("circle", {
-      cx: centerX,
-      cy: centerY,
+    appendSvgTo(hodoGroup, "circle", {
+      cx: originX,
+      cy: originY,
       r: ring * scale,
       fill: "none",
       stroke: "#9aa3a5",
@@ -1545,22 +1581,23 @@ function drawHodograph(levels, diagnostics) {
       "stroke-dasharray": ring === radius ? "none" : "3 3",
       opacity: "0.55",
     });
-    appendSvg(
+    appendSvgTo(
+      hodoGroup,
       "text",
       {
-        x: centerX + 3,
-        y: centerY - ring * scale + 10,
+        x: originX + 3,
+        y: originY - ring * scale + 10,
         fill: "#8a9294",
         "font-size": "8",
       },
       `${ring}`,
     );
   }
-  appendSvg("line", {
-    x1: xForU(-radius),
-    x2: xForU(radius),
-    y1: centerY,
-    y2: centerY,
+  appendSvgTo(hodoGroup, "line", {
+    x1: originX - radius * scale,
+    x2: originX + radius * scale,
+    y1: originY,
+    y2: originY,
     stroke: "#667174",
     "stroke-width": "0.8",
   });
@@ -1573,7 +1610,7 @@ function drawHodograph(levels, diagnostics) {
       },
       0,
     );
-    appendSvg("polygon", {
+    appendSvgTo(hodoGroup, "polygon", {
       points: [
         `${xForU(0)},${yForV(0)}`,
         ...lowLevelPoints.map((point) => `${xForU(point.u)},${yForV(point.v)}`),
@@ -1590,7 +1627,7 @@ function drawHodograph(levels, diagnostics) {
       if (index % Math.max(1, Math.ceil(lowLevelPoints.length / 12)) !== 0) {
         return;
       }
-      appendSvg("line", {
+      appendSvgTo(hodoGroup, "line", {
         x1: xForU(0),
         y1: yForV(0),
         x2: xForU(point.u),
@@ -1601,7 +1638,7 @@ function drawHodograph(levels, diagnostics) {
       });
     });
   }
-  appendSvg("line", {
+  appendSvgTo(hodoGroup, "line", {
     x1: xForU(0),
     y1: yForV(0),
     x2: xForU(points[0].u),
@@ -1611,11 +1648,11 @@ function drawHodograph(levels, diagnostics) {
     "stroke-dasharray": "3 3",
     opacity: "0.72",
   });
-  appendSvg("line", {
-    x1: centerX,
-    x2: centerX,
-    y1: yForV(-radius),
-    y2: yForV(radius),
+  appendSvgTo(hodoGroup, "line", {
+    x1: originX,
+    x2: originX,
+    y1: originY - radius * scale,
+    y2: originY + radius * scale,
     stroke: "#667174",
     "stroke-width": "0.8",
   });
@@ -1629,7 +1666,7 @@ function drawHodograph(levels, diagnostics) {
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
     const end = points[index + 1];
-    appendSvg("line", {
+    appendSvgTo(hodoGroup, "line", {
       x1: xForU(start.u),
       y1: yForV(start.v),
       x2: xForU(end.u),
@@ -1649,7 +1686,7 @@ function drawHodograph(levels, diagnostics) {
     if (Math.abs(point.heightKm - heightKm) > 1) {
       return;
     }
-    appendSvg("line", {
+    appendSvgTo(hodoGroup, "line", {
       x1: xForU(0),
       y1: yForV(0),
       x2: xForU(point.u),
@@ -1658,13 +1695,14 @@ function drawHodograph(levels, diagnostics) {
       "stroke-width": "0.7",
       opacity: "0.22",
     });
-    appendSvg("circle", {
+    appendSvgTo(hodoGroup, "circle", {
       cx: xForU(point.u),
       cy: yForV(point.v),
       r: 2.8,
       fill: "#111",
     });
-    appendSvg(
+    appendSvgTo(
+      hodoGroup,
       "text",
       {
         x: xForU(point.u) + 5,
@@ -1683,6 +1721,7 @@ function drawHodograph(levels, diagnostics) {
     "#cc4fa2",
     xForU,
     yForV,
+    hodoGroup,
   );
   drawHodographMotion(
     "LM",
@@ -1691,6 +1730,7 @@ function drawHodograph(levels, diagnostics) {
     "#476ee8",
     xForU,
     yForV,
+    hodoGroup,
   );
   drawHodographMotion(
     "MW",
@@ -1699,6 +1739,7 @@ function drawHodograph(levels, diagnostics) {
     "#6d7679",
     xForU,
     yForV,
+    hodoGroup,
   );
   appendSvg(
     "text",
@@ -1713,13 +1754,14 @@ function drawHodograph(levels, diagnostics) {
   );
 }
 
-function drawHodographMotion(label, u, v, color, xForU, yForV) {
+function drawHodographMotion(label, u, v, color, xForU, yForV, group) {
   if (!Number.isFinite(u) || !Number.isFinite(v)) {
     return;
   }
   const x = xForU(u);
   const y = yForV(v);
-  appendSvg("rect", {
+  const target = group || profileChart;
+  appendSvgTo(target, "rect", {
     x: x - 3.5,
     y: y - 3.5,
     width: 7,
@@ -1728,7 +1770,8 @@ function drawHodographMotion(label, u, v, color, xForU, yForV) {
     stroke: color,
     "stroke-width": "2",
   });
-  appendSvg(
+  appendSvgTo(
+    target,
     "text",
     {
       x: x + 6,
