@@ -40,9 +40,12 @@ from meteostation.observation import (
     fetch_qweather_hourly,
     fetch_qweather_realtime_with_fallback,
     fetch_qweather_series,
+    place_records,
     render_legacy_observation_png,
+    resolve_place,
     resolve_station,
     resolve_world_station,
+    search_places,
     search_stations,
     search_world_stations,
     station_records,
@@ -669,6 +672,21 @@ async def station_search(
     return {
         "query": q,
         "stations": [*china, *world],
+    }
+
+
+@app.get(
+    "/api/v1/places/search",
+    summary="按名称检索全国行政区划地名（省/市/区县）",
+)
+async def place_search(
+    q: str = Query(min_length=1, max_length=40),
+    limit: int = Query(default=8, ge=1, le=20),
+) -> dict[str, object]:
+    return {
+        "query": q,
+        "places": search_places(q, limit=limit),
+        "total": len(place_records()),
     }
 
 
@@ -1789,13 +1807,30 @@ def resolve_forecast_location(query: str) -> dict[str, object]:
             "longitude": longitude,
         }
 
-    record = resolve_station(normalized)
-    return {
-        "id": record.wmo_id,
-        "name": record.display_name,
-        "latitude": record.latitude,
-        "longitude": record.longitude,
-    }
+    try:
+        record = resolve_station(normalized)
+        return {
+            "id": record.wmo_id,
+            "name": record.display_name,
+            "latitude": record.latitude,
+            "longitude": record.longitude,
+        }
+    except StationLookupError:
+        pass
+
+    # Administrative place names (province/city/district) resolve to the
+    # administrative centre, which is a fine anchor for gridded forecasts.
+    place = resolve_place(normalized)
+    if place is not None:
+        return {
+            "id": str(place.get("adcode") or normalized),
+            "name": str(place["name"]),
+            "latitude": float(place["latitude"]),
+            "longitude": float(place["longitude"]),
+        }
+    raise StationLookupError(
+        f"找不到“{query}”：可输入国家站号/站名、全国地名（省/市/区县）或“纬度,经度”"
+    )
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

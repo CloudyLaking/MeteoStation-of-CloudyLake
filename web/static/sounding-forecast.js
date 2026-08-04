@@ -94,25 +94,13 @@ document.querySelectorAll('input[name="model"]').forEach((input) => {
 });
 rebuildSteps();
 
-forecastLocation.addEventListener("input", async () => {
-  const query = forecastLocation.value.trim();
-  if (query.length < 2 || query.includes(",") || query.includes("，")) return;
-  try {
-    const response = await fetch(
-      `/api/v1/stations/search?q=${encodeURIComponent(query)}&limit=8`,
-    );
-    if (!response.ok) return;
-    const data = await response.json();
-    forecastOptions.replaceChildren();
-    for (const station of data.stations || []) {
-      const option = document.createElement("option");
-      option.value = station.wmo_id;
-      option.label =
-        `${station.display_name} · ` +
-        `${station.latitude.toFixed(2)},${station.longitude.toFixed(2)}`;
-      forecastOptions.appendChild(option);
+initLocationSuggest(forecastLocation, forecastOptions, {
+  onPick: (item) => {
+    if (Number.isFinite(item.latitude) && Number.isFinite(item.longitude)) {
+      setWorldPoint(item.latitude, item.longitude, { updateInput: false });
     }
-  } catch {}
+    forecastForm.requestSubmit();
+  },
 });
 
 forecastLocation.addEventListener("change", async () => {

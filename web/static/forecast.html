@@ -6,7 +6,7 @@
     <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 单点预报。" />
     <title>单点预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0804a" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0805c" />
   </head>
   <body>
     <header class="site-header">
@@ -59,18 +59,19 @@
       <form class="forecast-form" id="forecast-form">
         <div class="forecast-form__row">
           <label class="forecast-form__field" for="forecast-location">
-            <span>站号 / 站名 / 经纬度</span>
-            <input
-              id="forecast-location"
-              name="location"
-              type="search"
-              autocomplete="off"
-              placeholder="58362、上海宝山或 31.65,121.75"
-              list="forecast-location-options"
-              value="58362"
-              required
-            />
-            <datalist id="forecast-location-options"></datalist>
+            <span>站号 / 站名 / 地名 / 经纬度</span>
+            <div class="station-search-box">
+              <input
+                id="forecast-location"
+                name="location"
+                type="search"
+                autocomplete="off"
+                placeholder="58362、上海、杭州市或 31.65,121.75"
+                value="58362"
+                required
+              />
+              <div class="station-suggestions" id="forecast-location-options" hidden></div>
+            </div>
           </label>
           <div class="forecast-form__field">
             <span>模式</span>
@@ -142,6 +143,7 @@
     </footer>
     <script src="/static/site.js?v=2.1.1-0803a" defer></script>
     <script src="/static/weather-series-chart.js?v=2.1.1-0804b" defer></script>
-    <script src="/static/forecast.js?v=2.1.1-0802i" defer></script>
+    <script src="/static/location-suggest.js?v=2.1.1-0805c" defer></script>
+    <script src="/static/forecast.js?v=2.1.1-0805c" defer></script>
   </body>
 </html>

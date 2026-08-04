@@ -7,11 +7,12 @@
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0804a" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0805c" />
     <script src="/static/site.js?v=2.1.1-0803a" defer></script>
     <script src="/static/app.js?v=2.1.1-0803l" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
-    <script src="/static/sounding-forecast.js?v=2.1.1-0803k" defer></script>
+    <script src="/static/location-suggest.js?v=2.1.1-0805c" defer></script>
+    <script src="/static/sounding-forecast.js?v=2.1.1-0805c" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -72,16 +73,18 @@
       <form class="forecast-form" id="sounding-forecast-form">
         <div class="forecast-form__row">
           <label class="forecast-form__field" for="sounding-location">
-            <span>站号 / 站名 / 经纬度</span>
-            <input
-              id="sounding-location"
-              type="search"
-              placeholder="58362、上海宝山或 31.65,121.75"
-              list="sounding-location-options"
-              value="58362"
-              required
-            />
-            <datalist id="sounding-location-options"></datalist>
+            <span>站号 / 站名 / 地名 / 经纬度</span>
+            <div class="station-search-box">
+              <input
+                id="sounding-location"
+                type="search"
+                autocomplete="off"
+                placeholder="58362、上海、杭州市或 31.65,121.75"
+                value="58362"
+                required
+              />
+              <div class="station-suggestions" id="sounding-location-options" hidden></div>
+            </div>
           </label>
           <div class="forecast-form__field">
             <span>模式</span>

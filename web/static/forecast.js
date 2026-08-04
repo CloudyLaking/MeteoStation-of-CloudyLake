@@ -10,23 +10,8 @@ const chart = document.querySelector("#point-forecast-chart");
 
 dateInput.value = new Date().toISOString().slice(0, 10);
 
-locationInput.addEventListener("input", async () => {
-  const query = locationInput.value.trim();
-  if (query.length < 2 || query.includes(",") || query.includes("，")) return;
-  try {
-    const response = await fetch(
-      `/api/v1/stations/search?q=${encodeURIComponent(query)}&limit=8`,
-    );
-    if (!response.ok) return;
-    const data = await response.json();
-    options.replaceChildren();
-    for (const station of data.stations || []) {
-      const option = document.createElement("option");
-      option.value = station.wmo_id;
-      option.label = `${station.display_name} · ${station.latitude.toFixed(2)},${station.longitude.toFixed(2)}`;
-      options.appendChild(option);
-    }
-  } catch {}
+initLocationSuggest(locationInput, options, {
+  onPick: () => form.requestSubmit(),
 });
 
 function svg(tag, attributes = {}, text = "") {

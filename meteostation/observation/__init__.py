@@ -21,6 +21,11 @@ from .qweather import (
     parse_qweather_series_html,
     warm_qweather_connection,
 )
+from .places import (
+    place_records,
+    resolve_place,
+    search_places,
+)
 from .station_registry import (
     StationLookupError,
     StationRecord,
@@ -71,4 +76,7 @@ __all__ = [
     "resolve_world_station",
     "search_world_stations",
     "world_station_records",
+    "place_records",
+    "resolve_place",
+    "search_places",
 ]
