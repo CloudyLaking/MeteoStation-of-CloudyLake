@@ -4959,6 +4959,44 @@ summary:focus-visible {
   margin: 16px 0;
 }
 
+.translator-ticks-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 14px 0 2px;
+}
+
+.translator-ticks-row button {
+  min-height: var(--control-height);
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: #111;
+  background: #fff;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.translator-ticks-row button:hover:not(:disabled) {
+  border-color: #d4a42a;
+  background: var(--yellow);
+}
+
+.translator-ticks-row button:disabled {
+  color: #9ca3a6;
+  cursor: not-allowed;
+}
+
+.translator-ticks-row p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .translator-generate {
   width: 100%;
   background: var(--yellow);

@@ -6,9 +6,9 @@
     <meta name="description" content="从色条截图提取配色并转换为 Matplotlib、Plotly、CSS 或 JSON 代码。" />
     <title>色条翻译器 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0804a" />
-    <script src="/static/site.js?v=2.1.1-0803a" defer></script>
-    <script src="/static/colorbar-translator.js?v=2.1.1-0803a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0805b" />
+    <script src="/static/site.js?v=2.1.1-0805a" defer></script>
+    <script src="/static/colorbar-translator.js?v=2.1.1-0805b" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -66,6 +66,10 @@
             <label><span>代码格式</span><select id="colorbar-format"><option value="matplotlib">Matplotlib</option><option value="plotly">Plotly</option><option value="css">CSS</option><option value="json">通用 JSON</option></select></label>
             <label><span>最小值</span><input id="colorbar-min" type="number" step="any" value="0" /></label>
             <label><span>最大值</span><input id="colorbar-max" type="number" step="any" value="1" /></label>
+          </div>
+          <div class="translator-ticks-row">
+            <button id="colorbar-ticks" type="button" disabled>读取刻度数字</button>
+            <p id="translator-ticks-note">识别色条旁边的刻度数字并自动填入最小/最大值。</p>
           </div>
           <label class="translator-check"><input id="colorbar-reverse" type="checkbox" /><span>反转颜色顺序</span></label>
           <button class="translator-generate" id="colorbar-generate" type="button" disabled>提取并生成代码</button>
