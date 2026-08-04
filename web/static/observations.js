@@ -418,8 +418,11 @@ function updateStationMapLod() {
   if (!stationMapProjection) return;
   const width = stationMapView.width;
   const showCities = width < 500;
-  const showWmo = width < 400 && width >= 190;
-  const showName = width < 190;
+  // WMO numbers only appear once the view is zoomed in well past the initial
+  // view, and station names only once it is zoomed in much further, so the
+  // map stays clean while browsing the whole country.
+  const showWmo = width < 300 && width >= 150;
+  const showName = width < 150;
   if (stationCityLayer) {
     stationCityLayer.classList.toggle("is-visible", showCities);
   }
@@ -429,11 +432,13 @@ function updateStationMapLod() {
   if (showName) {
     requestDistrictBoundaries();
   }
-  layoutStationLabels(showWmo || showName, showName);
-  // Re-scale markers and labels only when the zoom level actually changes so
-  // panning (constant width) does not rewrite thousands of attributes.
+  // Re-layout labels, re-scale markers and labels only when the zoom level
+  // actually changes. Panning keeps the view width constant, so labels just
+  // follow the map and are clipped by the viewBox — re-laying them out on
+  // every pointermove would make them flicker and feel laggy.
   if (Math.abs(width - stationMapLodWidth) <= 4) return;
   stationMapLodWidth = width;
+  layoutStationLabels(showWmo || showName, showName);
   const k = Math.max(0.16, width / STATION_MAP_SIZE.width);
   const dotRadius = Math.min(2.6, Math.max(1.2, 2.6 * k));
   const hitRadius = Math.min(7, Math.max(4.2, 7 * k));
@@ -466,10 +471,11 @@ function layoutStationLabels(showLabels, showNames) {
   const vh = stationMapView.height;
   const margin = 32;
   // Full Chinese station names are wider than a five-digit number, so use a
-  // slightly coarser de-duplication grid in the name mode to keep labels
-  // readable without showing too few.
-  const grid = showNames ? 52 : 48;
+  // coarser de-duplication grid in the name mode; both grids are large enough
+  // that adjacent labels cannot touch even in dense station clusters.
+  const grid = showNames ? 68 : 64;
   const buckets = new Set();
+  const candidates = [];
   for (const station of contents.querySelectorAll(".region-station")) {
     const nameLabel = station.querySelector(".region-station-name");
     const wmoLabel = station.querySelector(".region-station-wmo");
@@ -496,9 +502,48 @@ function layoutStationLabels(showLabels, showNames) {
       continue;
     }
     buckets.add(key);
-    wmoLabel?.classList.toggle("is-visible", !showNames);
-    nameLabel?.classList.toggle("is-visible", showNames);
+    // Temporarily reveal the label so its real rendered box can be measured.
+    // This happens synchronously, so the browser never paints the transient
+    // state and there is no flicker.
+    const label = showNames ? nameLabel : wmoLabel;
+    label?.classList.add("is-visible");
+    candidates.push({ label, cx, cy });
   }
+  const measured = candidates
+    .map((c) => ({ label: c.label, b: c.label?.getBBox() }))
+    .filter((c) => c.b && c.b.width > 0 && c.b.height > 0);
+  // Place labels top-to-bottom, left-to-right so dense clusters get labels
+  // spread evenly instead of whichever station comes first in the DOM.
+  // Collision avoidance uses each label's exact rendered box (getBBox), so
+  // labels can never touch regardless of font size or content width.
+  measured.sort((a, b) => (a.b.y - b.b.y) || (a.b.x - b.b.x));
+  const placed = [];
+  for (const { label, b } of measured) {
+    const pad = 1.5;
+    const x0 = b.x - pad;
+    const y0 = b.y - pad;
+    const x1 = b.x + b.width + pad;
+    const y1 = b.y + b.height + pad;
+    let collides = false;
+    for (const p of placed) {
+      if (x0 < p[2] && x1 > p[0] && y0 < p[3] && y1 > p[1]) {
+        collides = true;
+        break;
+      }
+    }
+    if (collides) {
+      label.classList.remove("is-visible");
+      continue;
+    }
+    placed.push([x0, y0, x1, y1]);
+  }
+  // Hide the label kind that is not active in this zoom mode.
+  contents.querySelectorAll(".region-station-label").forEach((label) => {
+    const wrongKind = showNames
+      ? label.classList.contains("region-station-wmo")
+      : label.classList.contains("region-station-name");
+    if (wrongKind) label.classList.remove("is-visible");
+  });
 }
 
 async function requestDistrictBoundaries() {
