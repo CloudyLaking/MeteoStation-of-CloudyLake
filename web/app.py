@@ -28,18 +28,23 @@ from meteostation.operations import (
     server_congestion_snapshot,
 )
 from meteostation.observation import (
+    OgimetError,
     QWeatherError,
     RealtimeObservation,
     STATION_REGIONS,
     StationLookupError,
     SurfaceObservationSeries,
+    WorldStation,
     close_qweather_client,
+    fetch_ogimet_series,
     fetch_qweather_hourly,
     fetch_qweather_realtime_with_fallback,
     fetch_qweather_series,
     render_legacy_observation_png,
     resolve_station,
+    resolve_world_station,
     search_stations,
+    search_world_stations,
     station_records,
     stations_in_region,
 )
@@ -604,32 +609,79 @@ async def weather_map_jobs(
     }
 
 
+def resolve_observation_station(query: str) -> tuple[object, str]:
+    """Resolve a query to ``(station, source)``.
+
+    ``source`` is ``"qweather"`` for Chinese national stations or ``"ogimet"``
+    for everything else: any 5-digit WMO id can be queried through OGIMET even
+    when it is missing from the bundled world directory (which then supplies
+    the name and coordinates when available).
+    """
+    try:
+        return resolve_station(query), "qweather"
+    except StationLookupError:
+        pass
+    world = resolve_world_station(query)
+    if world is not None:
+        return world, "ogimet"
+    normalized = query.strip()
+    if re.fullmatch(r"\d{5}", normalized):
+        return (
+            WorldStation(
+                wmo_id=normalized,
+                name=normalized,
+                country_code="",
+                latitude=0.0,
+                longitude=0.0,
+                elevation_m=0.0,
+            ),
+            "ogimet",
+        )
+    raise StationLookupError(
+        f"找不到“{query}”：可输入中国站名或任意 5 位 WMO 站号（含国外站）"
+    )
+
+
+def _observation_station_payload(station: object, source: str) -> dict[str, object]:
+    payload = station.as_dict()
+    if source == "qweather":
+        payload["source"] = "china"
+        payload["country_code"] = "CN"
+    return payload
+
+
 @app.get(
     "/api/v1/stations/search",
-    summary="按 WMO 站号或中文站名检索内置气象站表",
+    summary="按 WMO 站号或中文站名检索内置气象站表（含国外站）",
 )
 async def station_search(
     q: str = Query(min_length=1, max_length=40),
     limit: int = Query(default=8, ge=1, le=20),
 ) -> dict[str, object]:
+    china = [
+        _observation_station_payload(station, "qweather")
+        for station in search_stations(q, limit=limit)
+    ]
+    world = [
+        station.as_dict()
+        for station in search_world_stations(q, limit=limit)
+    ]
     return {
         "query": q,
-        "stations": [
-            station.as_dict()
-            for station in search_stations(q, limit=limit)
-        ],
+        "stations": [*china, *world],
     }
 
 
 @app.get(
     "/api/v1/stations/resolve",
-    summary="将 WMO 站号或中文站名解析为唯一站点",
+    summary="将 WMO 站号或中文站名解析为唯一站点（含国外站）",
 )
 async def station_resolve(
     q: str = Query(min_length=1, max_length=40),
 ) -> dict[str, object]:
     try:
-        return resolve_station(q).as_dict()
+        station, source = resolve_observation_station(q)
+        return _observation_station_payload(station, source)
     except StationLookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -653,26 +705,60 @@ async def station_china_map() -> dict[str, object]:
     return _station_china_payload()
 
 
+async def _ogimet_realtime(
+    station_id: str,
+    station: WorldStation,
+) -> RealtimeObservation:
+    """Latest OGIMET SYNOP as the realtime observation for a world station."""
+    series = await fetch_ogimet_series(
+        station_id=station_id,
+        mode="past24h",
+        station_info=station.as_dict(),
+    )
+    latest = series.observations[-1] if series.observations else None
+    if latest is None:
+        raise OgimetError("OGIMET 没有返回该站实时观测")
+    return RealtimeObservation(
+        station_id=station_id,
+        source=series.source,
+        source_url=series.source_url,
+        temperature_c=latest.temperature_c,
+        relative_humidity_pct=latest.relative_humidity_pct,
+        station_pressure_hpa=latest.station_pressure_hpa,
+        wind_direction_deg=latest.wind_direction_deg,
+        wind_speed_ms=latest.wind_speed_ms,
+        precipitation_1h_mm=latest.precipitation_1h_mm,
+        visibility_km=latest.visibility_km,
+        observed_at=latest.observed_at,
+    )
+
+
 @app.get(
     "/api/v1/observations/realtime/{station_id}",
     response_model=RealtimeObservation,
-    summary="查询气象站实时观测",
+    summary="查询气象站实时观测（含国外站）",
 )
 async def realtime_observation(station_id: str) -> RealtimeObservation:
     validate_station_id(station_id)
     try:
-        resolve_station(station_id)
-        return await fetch_qweather_realtime_with_fallback(station_id)
+        station, source = resolve_observation_station(station_id)
     except StationLookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except QWeatherError as exc:
+    if source == "qweather":
+        try:
+            return await fetch_qweather_realtime_with_fallback(station_id)
+        except QWeatherError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        return await _ogimet_realtime(station_id, station)
+    except OgimetError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get(
     "/api/v1/observations/hourly/{station_id}",
     response_model=RealtimeObservation,
-    summary="查询指定整点的地面观测",
+    summary="查询指定整点的地面观测（含国外站）",
 )
 async def hourly_observation(
     station_id: str,
@@ -686,12 +772,50 @@ async def hourly_observation(
     ):
         raise HTTPException(status_code=422, detail="time must be on the hour")
     try:
-        resolve_station(station_id)
-        return await fetch_qweather_hourly(station_id, observed_at)
+        station, source = resolve_observation_station(station_id)
     except StationLookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except QWeatherError as exc:
+    if source == "qweather":
+        try:
+            return await fetch_qweather_hourly(station_id, observed_at)
+        except QWeatherError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+    try:
+        series = await fetch_ogimet_series(
+            station_id=station_id,
+            mode="history",
+            historical_date=observed_at.date(),
+            station_info=station.as_dict(),
+        )
+    except OgimetError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    match = next(
+        (
+            item
+            for item in series.observations
+            if item.observed_at.hour == observed_at.hour
+            and item.observed_at.date() == observed_at.date()
+        ),
+        None,
+    )
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail="OGIMET 在该整点没有观测记录",
+        )
+    return RealtimeObservation(
+        station_id=station_id,
+        source=series.source,
+        source_url=series.source_url,
+        temperature_c=match.temperature_c,
+        relative_humidity_pct=match.relative_humidity_pct,
+        station_pressure_hpa=match.station_pressure_hpa,
+        wind_direction_deg=match.wind_direction_deg,
+        wind_speed_ms=match.wind_speed_ms,
+        precipitation_1h_mm=match.precipitation_1h_mm,
+        visibility_km=match.visibility_km,
+        observed_at=match.observed_at,
+    )
 
 
 @app.get(
@@ -714,7 +838,7 @@ async def observation_series(
     if historical_date is not None and historical_date > datetime.now(timezone.utc).date():
         raise HTTPException(status_code=422, detail="date cannot be in the future")
     try:
-        station = resolve_station(station_id)
+        station, source = resolve_observation_station(station_id)
     except StationLookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     date_key = historical_date.isoformat() if historical_date else "today"
@@ -730,13 +854,21 @@ async def observation_series(
         if cached and cached[0] > monotonic():
             return cached[1].model_copy(update={"cache_status": "memory-hit"})
         try:
-            series = await fetch_qweather_series(
-                station,
-                mode=mode,
-                historical_date=historical_date,
-                history_window=history_window,
-            )
-        except QWeatherError as exc:
+            if source == "qweather":
+                series = await fetch_qweather_series(
+                    station,
+                    mode=mode,
+                    historical_date=historical_date,
+                    history_window=history_window,
+                )
+            else:
+                series = await fetch_ogimet_series(
+                    station_id=station.wmo_id,
+                    mode=mode,
+                    historical_date=historical_date,
+                    station_info=station.as_dict(),
+                )
+        except (QWeatherError, OgimetError) as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         # The upstream table updates hourly. Reusing the normalized response
         # through the current hour avoids repeatedly waiting on a variable-

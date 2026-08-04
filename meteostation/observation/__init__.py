@@ -30,6 +30,12 @@ from .station_registry import (
     station_records,
     stations_in_region,
 )
+from .world_stations import (
+    WorldStation,
+    resolve_world_station,
+    search_world_stations,
+    world_station_records,
+)
 
 __all__ = [
     "OgimetError",
@@ -61,4 +67,8 @@ __all__ = [
     "station_information",
     "to_legacy_weather_table",
     "warm_qweather_connection",
+    "WorldStation",
+    "resolve_world_station",
+    "search_world_stations",
+    "world_station_records",
 ]

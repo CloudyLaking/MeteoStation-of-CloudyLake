@@ -9,10 +9,10 @@
     />
     <title>气象站实况查询 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0804a" />
-    <script src="/static/site.js?v=2.1.1-0803a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0805b" />
+    <script src="/static/site.js?v=2.1.1-0805a" defer></script>
     <script src="/static/weather-series-chart.js?v=2.1.1-0804b" defer></script>
-    <script src="/static/observations.js?v=2.1.1-0804i" defer></script>
+    <script src="/static/observations.js?v=2.1.1-0805c" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -67,17 +67,18 @@
 
       <form class="station-query-form" id="station-query-form">
         <div class="station-query-form__station">
-          <label for="surface-station">WMO 站号或中文站名</label>
-          <input
-            id="surface-station"
-            name="station"
-            type="search"
-            autocomplete="off"
-            placeholder="例如：58362、宝山或上海宝山"
-            list="surface-station-options"
-            required
-          />
-          <datalist id="surface-station-options"></datalist>
+          <label for="surface-station">WMO 站号或站名</label>
+          <div class="station-search-box">
+            <input
+              id="surface-station"
+              name="station"
+              type="search"
+              autocomplete="off"
+              placeholder="例如：58362、宝山或 03772（国外站）"
+              required
+            />
+            <div class="station-suggestions" id="station-suggestions" hidden></div>
+          </div>
         </div>
 
         <fieldset class="station-query-mode">

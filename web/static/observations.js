@@ -11,7 +11,7 @@ const chart = document.querySelector("#station-observation-chart");
 const downloadButton = document.querySelector("#station-image-download");
 const resultTitle = document.querySelector("#station-image-title");
 const resultSource = document.querySelector("#station-image-source");
-const stationOptions = document.querySelector("#surface-station-options");
+const stationSuggestions = document.querySelector("#station-suggestions");
 const regionMap = document.querySelector("#station-region-map");
 const regionStatus = document.querySelector("#station-region-status");
 const stationMapZoomIn = document.querySelector("#station-map-zoom-in");
@@ -160,9 +160,11 @@ async function loadRealtime(stationId) {
     document.querySelector("#realtime-time").textContent = data.observed_at
       ? `${new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Shanghai" }).format(new Date(data.observed_at))} 北京时间`
       : "各要素更新时间不同";
-    document.querySelector("#realtime-note").textContent = data.source === "q-weather hourly"
-      ? "资料来源：q-weather 上一整点观测（实时资料切换期间自动回退）"
-      : "资料来源：q-weather 实时观测";
+    document.querySelector("#realtime-note").textContent = data.source === "OGIMET SYNOP"
+      ? "资料来源：OGIMET SYNOP 最近时次观测"
+      : (data.source === "q-weather hourly"
+        ? "资料来源：q-weather 上一整点观测（实时资料切换期间自动回退）"
+        : "资料来源：q-weather 实时观测");
   } catch (error) {
     document.querySelector("#realtime-time").textContent = "读取失败";
     document.querySelector("#realtime-note").textContent = `实时状态暂不可用：${error.message}`;
@@ -357,7 +359,8 @@ async function loadObservationSeries(station, mode) {
     const lastTime = lastObservation?.observed_at
       ? timeLabelForHeader(lastObservation.observed_at)
       : "—";
-    resultSource.innerHTML = `资料来源：<a href="${series.source_url}" target="_blank" rel="noopener">q-weather 逐小时观测</a> · ${series.observations.length} 个时次 · ${firstTime}—${lastTime}`;
+    const sourceName = series.source === "OGIMET SYNOP" ? "OGIMET SYNOP 观测" : "q-weather 逐小时观测";
+    resultSource.innerHTML = `资料来源：<a href="${series.source_url}" target="_blank" rel="noopener">${sourceName}</a> · ${series.observations.length} 个时次 · ${firstTime}—${lastTime}`;
     resultState.hidden = true;
     chartWrap.hidden = false;
     downloadButton.hidden = false;
@@ -374,20 +377,73 @@ async function resolveStation(query) {
   return data;
 }
 
+let suggestionItems = [];
+let suggestionIndex = -1;
+
+function closeSuggestions() {
+  stationSuggestions.hidden = true;
+  suggestionItems = [];
+  suggestionIndex = -1;
+}
+
+function pickSuggestion(station) {
+  stationInput.value = station.display_name;
+  closeSuggestions();
+  queryForm.requestSubmit();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function renderSuggestionList(stations) {
+  stationSuggestions.replaceChildren(...stations.map((station, index) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "station-suggestion";
+    item.dataset.index = String(index);
+    const region = station.source === "world"
+      ? (station.country_code || "World")
+      : (station.province || "中国");
+    const label = document.createElement("strong");
+    label.textContent = station.display_name;
+    const meta = document.createElement("small");
+    meta.textContent = `${station.wmo_id} · ${station.source === "world" ? "OGIMET " : ""}${region}`;
+    item.append(label, meta);
+    item.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      pickSuggestion(station);
+    });
+    return item;
+  }));
+  stationSuggestions.hidden = false;
+  stationSuggestions.classList.toggle("has-world", stations.some((station) => station.source === "world"));
+}
+
+function highlightSuggestion(index) {
+  suggestionIndex = index;
+  stationSuggestions.querySelectorAll(".station-suggestion").forEach((item) => {
+    item.classList.toggle("is-highlighted", Number(item.dataset.index) === index);
+  });
+  const active = stationSuggestions.querySelector(`[data-index="${index}"]`);
+  active?.scrollIntoView({ block: "nearest" });
+}
+
 async function updateStationSuggestions() {
   const query = stationInput.value.trim();
-  if (!query) { stationOptions.replaceChildren(); return; }
+  if (!query) { closeSuggestions(); return; }
   try {
     const response = await fetch(`/api/v1/stations/search?q=${encodeURIComponent(query)}&limit=8`);
-    if (!response.ok) return;
+    if (!response.ok) { closeSuggestions(); return; }
     const data = await response.json();
-    stationOptions.replaceChildren(...data.stations.map((station) => {
-      const option = document.createElement("option");
-      option.value = station.display_name;
-      option.label = `${station.wmo_id} · ${station.province}`;
-      return option;
-    }));
-  } catch {}
+    suggestionItems = data.stations || [];
+    if (!suggestionItems.length) { closeSuggestions(); return; }
+    renderSuggestionList(suggestionItems);
+  } catch { closeSuggestions(); }
 }
 
 function geometryPath(geometry, project) {
@@ -837,6 +893,27 @@ queryForm.addEventListener("submit", async (event) => {
   }
 });
 stationInput.addEventListener("input", () => { window.clearTimeout(stationSearchTimer); stationSearchTimer = window.setTimeout(updateStationSuggestions, 180); });
+stationInput.addEventListener("keydown", (event) => {
+  if (stationSuggestions.hidden) return;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    highlightSuggestion(Math.min(suggestionItems.length - 1, suggestionIndex + 1));
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    highlightSuggestion(Math.max(0, suggestionIndex - 1));
+  } else if (event.key === "Enter") {
+    const station = suggestionItems[suggestionIndex];
+    if (station) {
+      event.preventDefault();
+      pickSuggestion(station);
+    }
+  } else if (event.key === "Escape") {
+    closeSuggestions();
+  }
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!event.target.closest(".station-search-box")) closeSuggestions();
+});
 downloadButton.addEventListener("click", exportPng);
 updateHistoryDateLimit();
 updateMode();

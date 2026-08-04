@@ -18,6 +18,7 @@ async def fetch_ogimet_series(
     station_id: str,
     mode: str,
     historical_date: date | None = None,
+    station_info: dict[str, object] | None = None,
 ) -> SurfaceObservationSeries:
     begin, end, observation_date = query_interval(
         mode=mode,
@@ -54,14 +55,15 @@ async def fetch_ogimet_series(
     if not observations:
         raise OgimetError("OGIMET 在所选时段没有返回该站 SYNOP")
 
-    station = resolve_station(station_id)
+    info = station_info or {}
+    station_name = info.get("display_name") or info.get("name") or station_id
     return SurfaceObservationSeries(
         station_id=station_id,
-        station_name=station.display_name,
-        station_name_en=station.name,
-        latitude=station.as_dict()["latitude"],
-        longitude=station.as_dict()["longitude"],
-        elevation_m=station.observation_elevation_m,
+        station_name=str(station_name),
+        station_name_en=str(info.get("name") or ""),
+        latitude=float(info.get("latitude", 0.0)),
+        longitude=float(info.get("longitude", 0.0)),
+        elevation_m=float(info.get("elevation_m", 0.0)),
         observation_date=observation_date,
         source="OGIMET SYNOP",
         source_url=source_url,
@@ -119,6 +121,25 @@ def parse_ogimet_csv(
     return observations
 
 
+def _looks_like_visibility(group: str) -> bool:
+    """Standard ``ixhVV`` group: i in 0..4, VV numeric in the last two chars."""
+    return (
+        len(group) == 5
+        and group[0] in "01234"
+        and group[3:5].isdigit()
+    )
+
+
+def _looks_like_wind(group: str) -> bool:
+    """A ``ddff`` group (possibly with a leading ``/``): dd 00..36, ff numeric."""
+    if len(group) != 5:
+        return False
+    dd_source = group[1:3] if group[0] == "/" else group[0:2]
+    if not dd_source.isdigit() or not group[3:5].isdigit():
+        return False
+    return 0 <= int(dd_source) <= 36
+
+
 def decode_synop(
     report: str,
     *,
@@ -129,34 +150,56 @@ def decode_synop(
         aaxx_index = groups.index("AAXX")
         wind_unit_code = int(groups[aaxx_index + 1][-1])
         station_index = aaxx_index + 2
-        visibility_group = groups[station_index + 1]
-        wind_group = groups[station_index + 2]
     except (ValueError, IndexError):
         return None
 
     section_end = groups.index("333") if "333" in groups else len(groups)
-    section_one = groups[station_index + 3:section_end]
+    body = groups[station_index + 1:section_end]
     section_three = groups[section_end + 1:] if section_end < len(groups) else []
 
-    temperature = _signed_tenths(_first_group(section_one, "1"))
-    dewpoint_group = _first_group(section_one, "2")
-    dewpoint = _signed_tenths(dewpoint_group)
-    humidity = _relative_humidity(temperature, dewpoint)
+    # Standard reports put visibility then wind right after the id; the rest
+    # of section one is decoded by group prefix. Overseas reports (e.g. some
+    # Gulf stations) may omit the wind/visibility pair, so those stay None.
+    visibility_code = None
+    wind_group = None
+    semantic_start = 0
+    if body and _looks_like_visibility(body[0]):
+        visibility_code = body[0][3:5]
+        semantic_start = 1
+    if len(body) > semantic_start and _looks_like_wind(body[semantic_start]):
+        wind_group = body[semantic_start]
+        semantic_start += 1
+    semantic = body[semantic_start:]
 
-    direction, wind_speed = _wind(wind_group, wind_unit_code)
+    def find(prefix: str) -> str | None:
+        return next(
+            (
+                group
+                for group in semantic
+                if len(group) == 5
+                and group.startswith(prefix)
+                and "/" not in group
+            ),
+            None,
+        )
+
+    temperature = _signed_tenths(find("1"))
+    dewpoint = _signed_tenths(find("2"))
+    humidity = _relative_humidity(temperature, dewpoint)
+    direction, wind_speed = (
+        _wind(wind_group, wind_unit_code) if wind_group else (None, None)
+    )
     return SurfaceObservation(
         observed_at=observed_at,
         temperature_c=temperature,
         dewpoint_c=dewpoint,
         relative_humidity_pct=humidity,
-        station_pressure_hpa=_pressure(_first_group(section_one, "3")),
+        station_pressure_hpa=_pressure(find("3")),
         wind_direction_deg=direction,
         wind_speed_ms=wind_speed,
         gust_speed_ms=_gust(section_three, wind_unit_code),
-        precipitation_1h_mm=_precipitation(
-            _first_group(section_one, "6")
-        ),
-        visibility_km=_visibility(visibility_group[-2:]),
+        precipitation_1h_mm=_precipitation(find("6")),
+        visibility_km=_visibility(visibility_code),
     )
 
 
@@ -220,8 +263,12 @@ def _signed_tenths(group: str | None) -> float | None:
 def _pressure(group: str | None) -> float | None:
     if group is None or not group[1:].isdigit():
         return None
-    value = int(group[1:]) / 10
-    return value + (1000 if value < 500 else 900)
+    value = int(group[1:])
+    if value >= 5000:
+        # Pressure below 1000 hPa is coded as (P - 900) * 10, e.g. 994.3 -> 9943.
+        return value / 10
+    # Pressure at or above 1000 hPa is coded as (P - 1000) * 10, e.g. 1007.3 -> 73.
+    return value / 10 + 1000
 
 
 def _wind(
@@ -261,7 +308,8 @@ def _precipitation(group: str | None) -> float | None:
         return None
     code = int(group[1:4])
     if code <= 988:
-        return float(code)
+        # 6RRRt: RRR is coded in tenths of a millimetre.
+        return code / 10
     if code == 990:
         return 0.0
     if 991 <= code <= 999:

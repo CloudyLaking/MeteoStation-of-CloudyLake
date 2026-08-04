@@ -1605,6 +1605,10 @@ a {
   flex: 1 1 290px;
 }
 
+.station-search-box {
+  position: relative;
+}
+
 .station-query-form input[type="search"],
 .station-query-form input[type="date"] {
   height: 40px;
@@ -1620,6 +1624,60 @@ a {
 
 .station-query-form input:focus {
   border-color: rgba(40, 107, 176, 0.62);
+}
+
+.station-suggestions {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid rgba(37, 55, 68, 0.18);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(20, 35, 44, 0.16);
+}
+
+.station-suggestions[hidden] {
+  display: none;
+}
+
+.station-suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.station-suggestion strong {
+  font-size: 12.5px;
+  font-weight: 560;
+}
+
+.station-suggestion small {
+  color: var(--ink-soft);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.station-suggestion.is-highlighted {
+  background: var(--yellow);
+}
+
+.station-suggestion:hover {
+  background: var(--yellow);
 }
 
 .station-query-mode {
