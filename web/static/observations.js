@@ -406,30 +406,98 @@ function applyStationMapView() {
 
 let stationDistrictRequestedLon = null;
 let stationDistrictRequestedLat = null;
+let stationMapLodWidth = -1;
 
 // Level-of-detail: province boundaries always; city boundaries when zooming in;
 // station labels only when the view is close enough to read them; district
 // boundaries are fetched on demand for the province under the view centre.
+// SVG circles and font sizes are user units that grow with the viewBox, so the
+// station markers and labels are re-scaled as the view zooms to keep them at a
+// roughly constant on-screen size instead of becoming oversized.
 function updateStationMapLod() {
   if (!stationMapProjection) return;
   const width = stationMapView.width;
   const showCities = width < 500;
-  const showWmo = width < 480 && width >= 280;
-  const showName = width < 280;
+  const showWmo = width < 400 && width >= 190;
+  const showName = width < 190;
   if (stationCityLayer) {
     stationCityLayer.classList.toggle("is-visible", showCities);
   }
-  regionMap.querySelectorAll(".region-station-wmo").forEach((label) => {
-    label.classList.toggle("is-visible", showWmo || showName);
-  });
-  regionMap.querySelectorAll(".region-station-name").forEach((label) => {
-    label.classList.toggle("is-visible", showName);
-  });
   if (stationDistrictLayer) {
     stationDistrictLayer.classList.toggle("is-visible", showName);
   }
   if (showName) {
     requestDistrictBoundaries();
+  }
+  layoutStationLabels(showWmo || showName, showName);
+  // Re-scale markers and labels only when the zoom level actually changes so
+  // panning (constant width) does not rewrite thousands of attributes.
+  if (Math.abs(width - stationMapLodWidth) <= 4) return;
+  stationMapLodWidth = width;
+  const k = Math.max(0.16, width / STATION_MAP_SIZE.width);
+  const dotRadius = Math.min(2.6, Math.max(1.2, 2.6 * k));
+  const hitRadius = Math.min(7, Math.max(4.2, 7 * k));
+  const wmoSize = Math.min(9, Math.max(6.5, 9 * k));
+  const nameSize = Math.min(8.5, Math.max(6.5, 8.5 * k));
+  const contents = regionMap.querySelector(".station-map-contents");
+  contents?.querySelectorAll(".region-station-dot").forEach((circle) => {
+    circle.setAttribute("r", dotRadius.toFixed(2));
+  });
+  contents?.querySelectorAll(".region-station-hit").forEach((circle) => {
+    circle.setAttribute("r", hitRadius.toFixed(2));
+  });
+  contents?.querySelectorAll(".region-station-wmo").forEach((label) => {
+    label.setAttribute("font-size", wmoSize.toFixed(1));
+  });
+  contents?.querySelectorAll(".region-station-name").forEach((label) => {
+    label.setAttribute("font-size", nameSize.toFixed(1));
+  });
+}
+
+// Show labels only for stations inside the current viewport and de-duplicate
+// them on a coarse grid so dense clusters stay readable. The marker dots are
+// untouched, so every station remains clickable.
+function layoutStationLabels(showLabels, showNames) {
+  const contents = regionMap.querySelector(".station-map-contents");
+  if (!contents) return;
+  const vx = stationMapView.x;
+  const vy = stationMapView.y;
+  const vw = stationMapView.width;
+  const vh = stationMapView.height;
+  const margin = 32;
+  // Full Chinese station names are wider than a five-digit number, so use a
+  // slightly coarser de-duplication grid in the name mode to keep labels
+  // readable without showing too few.
+  const grid = showNames ? 52 : 48;
+  const buckets = new Set();
+  for (const station of contents.querySelectorAll(".region-station")) {
+    const nameLabel = station.querySelector(".region-station-name");
+    const wmoLabel = station.querySelector(".region-station-wmo");
+    if (!showLabels) {
+      nameLabel?.classList.remove("is-visible");
+      wmoLabel?.classList.remove("is-visible");
+      continue;
+    }
+    const dot = station.querySelector(".region-station-dot");
+    const cx = Number(dot.getAttribute("cx"));
+    const cy = Number(dot.getAttribute("cy"));
+    if (
+      cx < vx - margin || cx > vx + vw + margin
+      || cy < vy - margin || cy > vy + vh + margin
+    ) {
+      nameLabel?.classList.remove("is-visible");
+      wmoLabel?.classList.remove("is-visible");
+      continue;
+    }
+    const key = `${Math.floor(cx / grid)},${Math.floor(cy / grid)}`;
+    if (buckets.has(key)) {
+      nameLabel?.classList.remove("is-visible");
+      wmoLabel?.classList.remove("is-visible");
+      continue;
+    }
+    buckets.add(key);
+    wmoLabel?.classList.toggle("is-visible", !showNames);
+    nameLabel?.classList.toggle("is-visible", showNames);
   }
 }
 
@@ -479,7 +547,7 @@ async function requestDistrictBoundaries() {
 }
 
 function clampStationMapView(view) {
-  const width = Math.max(190, Math.min(STATION_MAP_SIZE.width, view.width));
+  const width = Math.max(150, Math.min(STATION_MAP_SIZE.width, view.width));
   const height = width * STATION_MAP_SIZE.height / STATION_MAP_SIZE.width;
   return {
     width,
