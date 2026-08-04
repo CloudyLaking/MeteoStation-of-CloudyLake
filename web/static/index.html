@@ -9,8 +9,8 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0804a" />
-    <script src="/static/site.js?v=2.1.1-0803a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.1.1-0805a" />
+    <script src="/static/site.js?v=2.1.1-0805a" defer></script>
     <script src="/static/app.js?v=2.1.1-0803l" defer></script>
   </head>
   <body>
@@ -26,7 +26,7 @@
 
         <a class="header-motto" href="/admin" title="打开运维监视器">
           <strong>服务器状态读取中</strong>
-          <span>SERVER STATUS</span>
+          <span>状态与访问</span>
         </a>
       </div>
 
@@ -60,7 +60,7 @@
       <section class="map-panel" aria-labelledby="map-title">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">CHINA WEATHER ANALYSIS</p>
+            <p class="eyebrow">China Weather Analysis</p>
             <h1 id="map-title">中国天气自动分析</h1>
             <p id="homepage-subtitle" class="panel-subtitle">
               探空实况、天气形势与模式背景的统一工作台
@@ -99,7 +99,7 @@
             hidden
           />
           <div class="weather-map-badge" id="weather-map-badge" hidden>
-            ECMWF FIELD PREVIEW · NO BASE MAP · NOT FOR PUBLICATION
+            ECMWF Field Preview · No Base Map · Not for Publication
           </div>
           <div
             class="map-sounding-stations"
@@ -150,7 +150,7 @@
 
       <aside class="side-panel" aria-labelledby="sounding-title">
         <div class="side-panel__top">
-          <p class="eyebrow">SOUNDING WORKSPACE</p>
+          <p class="eyebrow">Sounding Workspace</p>
           <h2 id="sounding-title">探空工作台</h2>
           <p id="sounding-subtitle">点击地图站点或输入站号，可选择时次、图形和地面订正方式。</p>
         </div>
@@ -225,7 +225,7 @@
     >
       <header class="profile-workspace__header">
         <div>
-          <p class="eyebrow">INTERACTIVE SOUNDING</p>
+          <p class="eyebrow">Interactive Sounding</p>
           <h2 id="profile-workspace-title">交互式探空廓线</h2>
           <p id="profile-workspace-meta">选择站点与资料时次后查看探空廓线。</p>
         </div>
@@ -255,7 +255,7 @@
         </div>
 
         <aside class="level-inspector" aria-live="polite">
-          <span class="level-inspector__eyebrow">SELECTED LEVEL</span>
+          <span class="level-inspector__eyebrow">Selected Level</span>
           <strong id="level-pressure">— hPa</strong>
           <span id="level-height">Geopotential height —</span>
           <dl id="level-values">
@@ -269,7 +269,7 @@
           </dl>
           <form class="sounding-correction" id="sounding-correction">
             <header>
-              <span>SURFACE CORRECTION</span>
+              <span>Surface Correction</span>
               <button id="correction-reset" type="button">恢复原始</button>
             </header>
             <label class="sounding-correction__time">
@@ -318,7 +318,7 @@
     </section>
 
     <section class="product-notes" aria-labelledby="home-method-heading">
-      <header><p class="eyebrow">METHOD &amp; SOURCES</p><h2 id="home-method-heading">中国天气分析说明</h2></header>
+      <header><p class="eyebrow">Method &amp; Sources</p><h2 id="home-method-heading">中国天气分析说明</h2></header>
       <div>
         <article><h3>处理方法</h3><p>以 ECMWF IFS 场为连续背景，对海平面气压和等高线作尺度受控的平滑；地面锋面由热力锋参数、锋生、形变/辐合和温度平流联合识别，500 hPa 槽脊轴由位势高度曲率、地转风零线及连续性筛选。探空点独立显示实测资料是否已经更新。</p></article>
         <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>、<a href="https://weather.uwyo.edu/upperair/sounding.html" target="_blank" rel="noopener">University of Wyoming</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">WMO WIS 2.0</a> 与天地图标准地图服务。</p></article>
