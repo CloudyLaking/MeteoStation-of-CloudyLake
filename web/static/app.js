@@ -53,9 +53,13 @@ const CHART = {
   barbsLeft: 850,
   barbsRight: 940,
   hodoLeft: 950,
-  hodoRight: 1382,
+  hodoRight: 1250,
   hodoTop: 78,
   hodoBottom: 390,
+  thetaeLeft: 1260,
+  thetaeRight: 1382,
+  thetaeTop: 78,
+  thetaeBottom: 390,
   diagnosticsTop: 404,
   // The diagnostic groups and their favourability key share one framed column.
   diagnosticsBottom: 760,
@@ -738,16 +742,6 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     ((skewTemperature(temperature, pressure) - xMinimum) /
       (xMaximum - xMinimum)) *
       mainWidth;
-  // Equivalent potential temperature is drawn against a compact, fixed K axis
-  // pinned to the right edge of the main plot. A fixed 320-400 K window covers
-  // essentially every real sounding and keeps the curve inside the frame.
-  const thetaEMinK = 320;
-  const thetaEMaxK = 400;
-  const thetaEPlotWidth = 70;
-  const xForThetaE = (thetaE) =>
-    CHART.plotRight -
-    thetaEPlotWidth +
-    ((thetaE - thetaEMinK) / (thetaEMaxK - thetaEMinK)) * thetaEPlotWidth;
 
   chartProjection = {
     yForPressure,
@@ -810,7 +804,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
   appendSvg(
     "text",
     {
-      x: CHART.hodoRight,
+      x: CHART.thetaeRight,
       y: 31,
       fill: "#126e68",
       "font-size": "12",
@@ -843,6 +837,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
   drawHodograph(profile.levels, diagnostics);
   drawDiagnosticColumn(diagnostics);
   const diagnosticLevels = joinDiagnosticLevels(profile.levels, diagnostics);
+  drawThetaE(diagnosticLevels, yForPressure);
   if (diagnostics && diagnosticLevels.length) {
     drawEnergyAreas(
       diagnosticLevels,
@@ -964,45 +959,6 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "stroke-linecap": "round",
       "clip-path": "url(#plot-clip)",
     });
-    appendSvg("path", {
-      d: diagnosticPath(
-        diagnosticLevels,
-        "equivalent_potential_temperature_k",
-        (thetaE) => xForThetaE(thetaE),
-        yForPressure,
-      ),
-      fill: "none",
-      stroke: "#8a5a2b",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      "clip-path": "url(#plot-clip)",
-    });
-    // θe scale ticks along the top edge of the main plot.
-    [320, 340, 360, 380, 400].forEach((thetaE) => {
-      appendSvg(
-        "text",
-        {
-          x: xForThetaE(thetaE),
-          y: CHART.top + 12,
-          fill: "#8a5a2b",
-          "font-size": "8.5",
-          "text-anchor": "middle",
-        },
-        `${thetaE}`,
-      );
-    });
-    appendSvg(
-      "text",
-      {
-        x: xForThetaE(400) + 15,
-        y: CHART.top + 12,
-        fill: "#8a5a2b",
-        "font-size": "8.5",
-        "font-weight": "700",
-      },
-      "K θe",
-    );
   }
 
   appendSvg(
@@ -1803,6 +1759,107 @@ function drawHodograph(levels, diagnostics) {
   );
 }
 
+function drawThetaE(diagnosticLevels, yForPressure) {
+  const left = CHART.thetaeLeft;
+  const right = CHART.thetaeRight;
+  const top = CHART.thetaeTop;
+  const bottom = CHART.thetaeBottom;
+  // The small frame shares the exact top/bottom edges with the hodograph so
+  // the two panels line up; the header reserves a fixed strip at the top.
+  const headerHeight = 34;
+  const thetaEMinK = 320;
+  const thetaEMaxK = 400;
+  const xForThetaE = (thetaE) =>
+    left + ((thetaE - thetaEMinK) / (thetaEMaxK - thetaEMinK)) * (right - left);
+  const yForThetaE = (pressure) => {
+    const fraction = (yForPressure(pressure) - top) / (bottom - top);
+    return top + headerHeight + fraction * (bottom - top - headerHeight);
+  };
+  appendSvg("rect", {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+    fill: "#ffffff",
+    stroke: "#baa997",
+    "stroke-width": "1",
+  });
+  appendSvg(
+    "text",
+    {
+      x: left + 10,
+      y: top + 19,
+      fill: "#263943",
+      "font-size": "11",
+      "font-weight": "700",
+      "letter-spacing": "0.5",
+    },
+    "θe (K)",
+  );
+  [320, 340, 360, 380, 400].forEach((thetaE) => {
+    appendSvg(
+      "text",
+      {
+        x: xForThetaE(thetaE),
+        y: top + 30,
+        fill: "#8a5a2b",
+        "font-size": "7.5",
+        "text-anchor": "middle",
+      },
+      `${thetaE}`,
+    );
+  });
+  if (!diagnosticLevels?.length) {
+    appendSvg(
+      "text",
+      {
+        x: (left + right) / 2,
+        y: (top + bottom) / 2,
+        fill: "#788286",
+        "font-size": "10",
+        "text-anchor": "middle",
+      },
+      "No profile",
+    );
+    return;
+  }
+  const thetaeDefs = appendSvg("defs");
+  const thetaeClip = appendSvgTo(thetaeDefs, "clipPath", {
+    id: "thetae-clip",
+  });
+  appendSvgTo(thetaeClip, "rect", {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  });
+  const thetaeGroup = appendSvg("g", { "clip-path": "url(#thetae-clip)" });
+  appendSvgTo(thetaeGroup, "path", {
+    d: diagnosticPath(
+      diagnosticLevels,
+      "equivalent_potential_temperature_k",
+      (thetaE) => xForThetaE(thetaE),
+      yForThetaE,
+    ),
+    fill: "none",
+    stroke: "#8a5a2b",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+  });
+  appendSvg(
+    "text",
+    {
+      x: right - 8,
+      y: bottom - 9,
+      fill: "#788286",
+      "font-size": "7.5",
+      "text-anchor": "end",
+    },
+    "320–400 K",
+  );
+}
+
 function drawHodographMotion(label, u, v, color, xForU, yForV, group) {
   if (!Number.isFinite(u) || !Number.isFinite(v)) {
     return;
@@ -2040,11 +2097,10 @@ function drawChartLegend() {
     ["Tw", "#3d9fc4", ""],
     ["Tv", "#8463a6", "7 4"],
     ["Parcel", "#d39143", "3 4"],
-    ["θe", "#8a5a2b", ""],
     ["CAPE", "#eaa66c", ""],
     ["CIN", "#77a7c9", ""],
   ];
-  let x = 232;
+  let x = 250;
   entries.forEach(([label, color, dash]) => {
     appendSvg("line", {
       x1: x,
@@ -2066,13 +2122,13 @@ function drawChartLegend() {
       },
       label,
     );
-    x += label === "Parcel" || label === "θe" ? 74 : 58;
+    x += label === "Parcel" ? 86 : 66;
   });
 }
 
 function drawDiagnosticColumn(diagnostics) {
   const left = CHART.hodoLeft;
-  const right = CHART.hodoRight;
+  const right = CHART.thetaeRight;
   const top = CHART.diagnosticsTop;
   const bottom = CHART.diagnosticsBottom;
   appendSvg("rect", {
@@ -2314,7 +2370,7 @@ function drawConvectiveToneLegend() {
     ["EXTREME", "#822c83"],
   ];
   const left = CHART.hodoLeft;
-  const right = CHART.hodoRight;
+  const right = CHART.thetaeRight;
   const bottom = CHART.diagnosticsBottom;
   const legendLeft = left + 10;
   const legendRight = right - 10;
