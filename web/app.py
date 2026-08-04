@@ -1427,6 +1427,11 @@ def _station_china_payload() -> dict[str, object]:
     if geojson_path.exists():
         payload = json.loads(geojson_path.read_text(encoding="utf-8"))
         features = list(payload.get("features", []))
+    city_geojson_path = PROJECT_ROOT / "中国_市.geojson"
+    city_features: list[dict[str, object]] = []
+    if city_geojson_path.exists():
+        payload = json.loads(city_geojson_path.read_text(encoding="utf-8"))
+        city_features = list(payload.get("features", []))
     return {
         "bounds": {
             "west": 73.0,
@@ -1435,8 +1440,166 @@ def _station_china_payload() -> dict[str, object]:
             "north": 54.0,
         },
         "boundaries": {"type": "FeatureCollection", "features": features},
+        "city_boundaries": {"type": "FeatureCollection", "features": city_features},
         "stations": [station.as_dict() for station in stations],
     }
+
+
+# Administrative boundary level-of-detail for the station picker map. The
+# province layer ships with the repo; city and district layers come from the
+# DataV GeoAtlas public dataset and are cached under data/geo/ (git-ignored).
+PROVINCE_ADCODE_NAMES = {
+    "110000": "北京市", "120000": "天津市", "130000": "河北省",
+    "140000": "山西省", "150000": "内蒙古自治区", "210000": "辽宁省",
+    "220000": "吉林省", "230000": "黑龙江省", "310000": "上海市",
+    "320000": "江苏省", "330000": "浙江省", "340000": "安徽省",
+    "350000": "福建省", "360000": "江西省", "370000": "山东省",
+    "410000": "河南省", "420000": "湖北省", "430000": "湖南省",
+    "440000": "广东省", "450000": "广西壮族自治区", "460000": "海南省",
+    "500000": "重庆市", "510000": "四川省", "520000": "贵州省",
+    "530000": "云南省", "540000": "西藏自治区", "610000": "陕西省",
+    "620000": "甘肃省", "630000": "青海省", "640000": "宁夏回族自治区",
+    "650000": "新疆维吾尔自治区", "710000": "台湾省", "810000": "香港特别行政区",
+    "820000": "澳门特别行政区",
+}
+_DISTRICT_CACHE_ROOT = PROJECT_ROOT / "data" / "geo"
+
+
+def _download_geojson(url: str) -> dict[str, object]:
+    import urllib.request
+
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "MeteoStation/2.1.1"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _point_in_ring(lon: float, lat: float, ring: object) -> bool:
+    if not isinstance(ring, list) or len(ring) < 3:
+        return False
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = float(ring[i][0]), float(ring[i][1])
+        xj, yj = float(ring[j][0]), float(ring[j][1])
+        if (yi > lat) != (yj > lat) and lon < (xj - xi) * (lat - yi) / (yj - yi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def _point_in_geometry(lon: float, lat: float, geometry: object) -> bool:
+    if not isinstance(geometry, dict):
+        return False
+    kind = geometry.get("type")
+    if kind == "Polygon":
+        rings = geometry.get("coordinates") or []
+        if not rings:
+            return False
+        if not _point_in_ring(lon, lat, rings[0]):
+            return False
+        return not any(
+            _point_in_ring(lon, lat, ring)
+            for ring in rings[1:]
+        )
+    if kind == "MultiPolygon":
+        polygons = geometry.get("coordinates") or []
+        return any(
+            _point_in_geometry(lon, lat, {"type": "Polygon", "coordinates": polygon})
+            for polygon in polygons
+        )
+    return False
+
+
+@lru_cache(maxsize=1)
+def _national_province_features() -> list[dict[str, object]]:
+    cache_path = _DISTRICT_CACHE_ROOT / "provinces.json"
+    if cache_path.exists():
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        return list(payload.get("features", []))
+    payload = _download_geojson(
+        "https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json"
+    )
+    features = list(payload.get("features", []))
+    _DISTRICT_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(
+        json.dumps({"type": "FeatureCollection", "features": features}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return features
+
+
+def _province_adcode_for_point(lon: float, lat: float) -> str | None:
+    for feature in _national_province_features():
+        adcode = str(feature.get("properties", {}).get("adcode", ""))
+        if adcode and _point_in_geometry(lon, lat, feature.get("geometry")):
+            return adcode
+    return None
+
+
+def _district_boundaries_for_province(province_adcode: str) -> dict[str, object]:
+    _DISTRICT_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+    cache_path = _DISTRICT_CACHE_ROOT / f"district_{province_adcode}.json"
+    if cache_path.exists():
+        return json.loads(cache_path.read_text(encoding="utf-8"))
+    province = _download_geojson(
+        f"https://geo.datav.aliyun.com/areas_v3/bound/{province_adcode}_full.json"
+    )
+    features = list(province.get("features", []))
+    merged: dict[str, object] = {"type": "FeatureCollection", "features": []}
+    if any(
+        isinstance(f, dict)
+        and f.get("properties", {}).get("level") == "district"
+        for f in features
+    ):
+        # Direct-administered municipalities already return district polygons.
+        merged["features"] = features
+    else:
+        for city in features:
+            if not isinstance(city, dict):
+                continue
+            city_code = str(city.get("properties", {}).get("adcode", ""))
+            if not city_code:
+                continue
+            try:
+                city_data = _download_geojson(
+                    f"https://geo.datav.aliyun.com/areas_v3/bound/{city_code}_full.json"
+                )
+                merged["features"].extend(city_data.get("features", []))
+            except Exception:
+                merged["features"].append(city)
+    cache_path.write_text(
+        json.dumps(merged, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return merged
+
+
+@app.get("/api/v1/stations/district-boundaries")
+async def station_district_boundaries(
+    lon: float = Query(ge=-180, le=180),
+    lat: float = Query(ge=-90, le=90),
+) -> dict[str, object]:
+    def resolve() -> dict[str, object] | None:
+        adcode = _province_adcode_for_point(lon, lat)
+        if adcode is None:
+            return None
+        boundaries = _district_boundaries_for_province(adcode)
+        return {
+            "province_adcode": adcode,
+            "province_name": PROVINCE_ADCODE_NAMES.get(adcode, ""),
+            "boundaries": boundaries,
+        }
+
+    payload = await asyncio.to_thread(resolve)
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Point is outside China's land boundaries",
+        )
+    return payload
 
 
 def _province_geojson_name(name: str) -> str:

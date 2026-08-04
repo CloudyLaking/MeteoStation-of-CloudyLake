@@ -19,7 +19,11 @@ const stationMapZoomOut = document.querySelector("#station-map-zoom-out");
 const stationMapReset = document.querySelector("#station-map-reset");
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STATION_MAP_SIZE = { width: 960, height: 560 };
-const STATION_MAP_INITIAL_VIEW = { x: 0, y: 0, width: 960, height: 560 };
+// Initial view focuses on the main eastern/central station belt of China
+// (roughly 96-130°E, 24-40°N: East, Central, North China and the northern
+// South China coast) so the map opens on the dense station clusters instead of
+// the sparsely instrumented western interior. "全国" resets to the full view.
+const STATION_MAP_INITIAL_VIEW = { x: 415, y: 226, width: 367, height: 214 };
 
 let stationSearchTimer = null;
 let latestSeries = null;
@@ -27,6 +31,11 @@ let stationMapView = { ...STATION_MAP_INITIAL_VIEW };
 let stationMapDrag = null;
 const stationMapPointers = new Map();
 let suppressStationClick = false;
+let stationCityLayer = null;
+let stationDistrictLayer = null;
+let stationDistrictProvince = null;
+let stationDistrictLoading = false;
+let stationMapProjection = null;
 
 function localIsoDate(date) {
   const year = date.getFullYear();
@@ -392,6 +401,81 @@ function applyStationMapView() {
     "viewBox",
     `${stationMapView.x} ${stationMapView.y} ${stationMapView.width} ${stationMapView.height}`,
   );
+  updateStationMapLod();
+}
+
+let stationDistrictRequestedLon = null;
+let stationDistrictRequestedLat = null;
+
+// Level-of-detail: province boundaries always; city boundaries when zooming in;
+// station labels only when the view is close enough to read them; district
+// boundaries are fetched on demand for the province under the view centre.
+function updateStationMapLod() {
+  if (!stationMapProjection) return;
+  const width = stationMapView.width;
+  const showCities = width < 500;
+  const showWmo = width < 480 && width >= 280;
+  const showName = width < 280;
+  if (stationCityLayer) {
+    stationCityLayer.classList.toggle("is-visible", showCities);
+  }
+  regionMap.querySelectorAll(".region-station-wmo").forEach((label) => {
+    label.classList.toggle("is-visible", showWmo || showName);
+  });
+  regionMap.querySelectorAll(".region-station-name").forEach((label) => {
+    label.classList.toggle("is-visible", showName);
+  });
+  if (stationDistrictLayer) {
+    stationDistrictLayer.classList.toggle("is-visible", showName);
+  }
+  if (showName) {
+    requestDistrictBoundaries();
+  }
+}
+
+async function requestDistrictBoundaries() {
+  if (!stationMapProjection || stationDistrictLoading) return;
+  const [lon, lat] = stationMapProjection.unproject(
+    stationMapView.x + stationMapView.width / 2,
+    stationMapView.y + stationMapView.height / 2,
+  );
+  if (
+    stationDistrictRequestedLon !== null
+    && stationDistrictRequestedLat !== null
+    && Math.hypot(lon - stationDistrictRequestedLon, lat - stationDistrictRequestedLat) < 1
+  ) {
+    return;
+  }
+  stationDistrictRequestedLon = lon;
+  stationDistrictRequestedLat = lat;
+  stationDistrictLoading = true;
+  try {
+    const response = await fetch(
+      `/api/v1/stations/district-boundaries?lon=${lon.toFixed(4)}&lat=${lat.toFixed(4)}`,
+    );
+    if (!response.ok) {
+      if (response.status === 404) return;
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    if (!stationMapProjection) return;
+    if (stationDistrictProvince === data.province_adcode) return;
+    const layer = svg("g", { class: "station-district-layer is-visible" });
+    (data.boundaries?.features || []).forEach((feature) => {
+      layer.append(svg("path", {
+        d: geometryPath(feature.geometry, stationMapProjection.project),
+        class: "region-district-boundary",
+      }));
+    });
+    stationDistrictLayer?.remove();
+    regionMap.querySelector(".station-map-contents")?.append(layer);
+    stationDistrictLayer = layer;
+    stationDistrictProvince = data.province_adcode;
+  } catch (error) {
+    console.warn("district boundaries unavailable:", error);
+  } finally {
+    stationDistrictLoading = false;
+  }
 }
 
 function clampStationMapView(view) {
@@ -444,6 +528,13 @@ async function loadChinaStationMap() {
       280 - (latitude - middleLatitude) * scale,
     ];
     const mapContents = svg("g", { class: "station-map-contents" });
+    stationMapProjection = {
+      project,
+      unproject: (px, py) => [
+        middleLongitude + (px - 480) / (longitudeScale * scale),
+        middleLatitude - (py - 280) / scale,
+      ],
+    };
     for (let index = 1; index < 6; index += 1) {
       const longitude = west + index / 5 * (east - west);
       const latitude = south + index / 5 * (north - south);
@@ -452,10 +543,24 @@ async function loadChinaStationMap() {
       mapContents.append(svg("line", { x1: gx, x2: gx, y1: 30, y2: 530, class: "region-grid" }), svg("line", { x1: 30, x2: 930, y1: gy, y2: gy, class: "region-grid" }));
     }
     (data.boundaries?.features || []).forEach((feature) => mapContents.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-boundary" })));
+    // City boundaries appear as the view zooms in (level-of-detail).
+    const cityLayer = svg("g", { class: "station-city-layer" });
+    (data.city_boundaries?.features || []).forEach((feature) => cityLayer.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-city-boundary" })));
+    mapContents.append(cityLayer);
+    stationCityLayer = cityLayer;
+    stationDistrictLayer = null;
+    stationDistrictProvince = null;
+    stationDistrictLoading = false;
     data.stations.forEach((station) => {
       const [cx, cy] = project(station.longitude, station.latitude);
       const group = svg("g", { class: "region-station", tabindex: 0, role: "button", "aria-label": `${station.display_name} ${station.wmo_id}` });
       group.append(svg("circle", { cx, cy, r: 7, class: "region-station-hit" }), svg("circle", { cx, cy, r: 2.8, class: "region-station-dot" }), svg("title", {}, `${station.display_name} · ${station.wmo_id}`));
+      // Station name above the marker, WMO number below; both are revealed by
+      // the level-of-detail pass as the view zooms in.
+      group.append(
+        svg("text", { class: "region-station-label region-station-name", x: cx, y: cy - 13, "text-anchor": "middle" }, station.display_name),
+        svg("text", { class: "region-station-label region-station-wmo", x: cx, y: cy + 16, "text-anchor": "middle" }, station.wmo_id),
+      );
       const showStation = () => {
         regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
       };

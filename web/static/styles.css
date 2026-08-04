@@ -1896,6 +1896,50 @@ a {
   stroke-dasharray: 3 5;
 }
 
+/* Administrative boundary level-of-detail layers (revealed on zoom). */
+#station-region-map .station-city-layer,
+#station-region-map .station-district-layer {
+  display: none;
+}
+#station-region-map .station-city-layer.is-visible,
+#station-region-map .station-district-layer.is-visible {
+  display: block;
+}
+#station-region-map .region-city-boundary {
+  fill: none;
+  stroke: #7fa8a2;
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+#station-region-map .region-district-boundary {
+  fill: none;
+  stroke: #a9c0bd;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Station labels (name above, WMO number below) revealed by zoom level. */
+#station-region-map .region-station-label {
+  display: none;
+  pointer-events: none;
+  font-size: 10px;
+  fill: #263943;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+#station-region-map .region-station-label.is-visible {
+  display: block;
+}
+#station-region-map .region-station-name {
+  font-weight: 650;
+}
+#station-region-map .region-station-wmo {
+  font-size: 9px;
+  fill: #126e68;
+}
+
 #station-region-map .region-station-hit {
   fill: transparent;
   cursor: pointer;
