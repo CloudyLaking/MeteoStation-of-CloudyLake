@@ -2424,7 +2424,7 @@ a {
   }
 
   .header-motto .server-congestion__copy {
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .server-congestion__blocks {
@@ -4572,7 +4572,7 @@ summary:focus-visible {
   }
 
   .header-motto .server-congestion__copy {
-    font-size: 9.5px;
+    font-size: 10px;
   }
 
   .main-nav {
@@ -5169,33 +5169,6 @@ summary:focus-visible {
   }
 }
 
-@media (max-width: 420px) {
-  .header-server-summary {
-    gap: 8px;
-  }
-
-  .monthly-visits small {
-    font-size: 8px;
-  }
-
-  .monthly-visits strong {
-    font-size: 12px;
-  }
-
-  .server-congestion__blocks {
-    gap: 2px;
-  }
-
-  .server-congestion__blocks i {
-    width: 8px;
-    height: 8px;
-  }
-
-  .social-links {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* Keep inline data-source references typographically distinct from actions. */
 #station-image-source a {
   display: inline;
@@ -5292,7 +5265,7 @@ summary:focus-visible {
   }
 
   .header-motto .server-congestion__copy {
-    font-size: 9px;
+    font-size: 10px;
     white-space: nowrap;
   }
 
@@ -5390,5 +5363,38 @@ summary:focus-visible {
 
   .cycle-switch button {
     width: auto;
+  }
+}
+
+/* Tiny screens: keep the header server-state block aligned with the
+   monthly-visits block (same font sizes at every breakpoint). */
+@media (max-width: 420px) {
+  .header-server-summary {
+    gap: 8px;
+  }
+
+  .monthly-visits small {
+    font-size: 8px;
+  }
+
+  .header-motto .server-congestion__copy {
+    font-size: 8px;
+  }
+
+  .monthly-visits strong {
+    font-size: 12px;
+  }
+
+  .server-congestion__blocks {
+    gap: 2px;
+  }
+
+  .server-congestion__blocks i {
+    width: 8px;
+    height: 8px;
+  }
+
+  .social-links {
+    grid-template-columns: 1fr;
   }
 }
