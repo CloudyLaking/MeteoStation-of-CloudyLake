@@ -338,7 +338,7 @@ a {
   opacity: 1 !important;
   grid-column: 2;
   grid-row: 2;
-  justify-self: start;
+  justify-self: end;
 }
 
 .server-congestion__blocks i {
@@ -372,6 +372,7 @@ a {
   white-space: nowrap;
   grid-column: 2;
   grid-row: 1;
+  justify-self: end;
 }
 
 .dashboard {
