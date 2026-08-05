@@ -307,7 +307,7 @@ a {
   grid-template-rows: auto auto;
   column-gap: 18px;
   row-gap: 3px;
-  justify-items: end;
+  justify-items: start;
   align-items: end;
   opacity: 1 !important;
 }
@@ -338,7 +338,7 @@ a {
   opacity: 1 !important;
   grid-column: 2;
   grid-row: 2;
-  justify-self: end;
+  justify-self: start;
 }
 
 .server-congestion__blocks i {
