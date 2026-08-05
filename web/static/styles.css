@@ -257,7 +257,6 @@ a {
 }
 
 .main-nav__status i {
-  grid-row: 1 / 3;
   width: 8px;
   height: 8px;
   border: 2px solid rgba(255, 255, 255, 0.8);
@@ -266,15 +265,26 @@ a {
   box-shadow: 0 0 0 3px rgba(123, 154, 130, 0.16);
 }
 
+.main-nav__status:has(> span) i {
+  grid-row: 1 / 3;
+}
+
 .main-nav__status span {
+  grid-column: 2;
+  grid-row: 1;
   font-size: 12px;
   font-weight: 620;
 }
 
 .main-nav__status small {
+  grid-column: 2;
   letter-spacing: 0.08em;
   font-size: 10px;
   opacity: 0.72;
+}
+
+.main-nav__status:has(> span) small {
+  grid-row: 2;
 }
 
 .header-motto {
@@ -307,7 +317,7 @@ a {
   grid-template-rows: auto auto;
   column-gap: 22px;
   row-gap: 3px;
-  justify-items: start;
+  justify-items: center;
   align-items: center;
   background: rgba(37, 55, 68, 0.045);
   border-radius: 8px;
@@ -330,7 +340,7 @@ a {
 .monthly-visits strong {
   color: #d5aa18;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.02em;
   grid-column: 1;
   grid-row: 2;
@@ -343,7 +353,6 @@ a {
   opacity: 1 !important;
   grid-column: 2;
   grid-row: 2;
-  justify-self: end;
 }
 
 .server-congestion__blocks i {
@@ -377,7 +386,6 @@ a {
   white-space: nowrap;
   grid-column: 2;
   grid-row: 1;
-  justify-self: end;
 }
 
 .dashboard {
@@ -5395,7 +5403,6 @@ summary:focus-visible {
 
   .monthly-visits strong {
     font-size: 14px;
-    font-weight: 700;
   }
 
   .server-congestion__blocks {
