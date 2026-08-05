@@ -305,10 +305,13 @@ a {
   display: grid;
   grid-template-columns: auto auto;
   grid-template-rows: auto auto;
-  column-gap: 18px;
+  column-gap: 22px;
   row-gap: 3px;
   justify-items: start;
   align-items: center;
+  background: rgba(37, 55, 68, 0.045);
+  border-radius: 8px;
+  padding: 6px 11px;
   opacity: 1 !important;
 }
 
@@ -326,7 +329,9 @@ a {
 
 .monthly-visits strong {
   color: #d5aa18;
-  font-size: 15px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   grid-column: 1;
   grid-row: 2;
 }
@@ -334,7 +339,7 @@ a {
 .server-congestion__blocks {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   opacity: 1 !important;
   grid-column: 2;
   grid-row: 2;
@@ -343,10 +348,10 @@ a {
 
 .server-congestion__blocks i {
   display: block;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border: 1px solid rgba(37, 55, 68, 0.16);
-  border-radius: 1px;
+  border-radius: 3px;
   background: #e8eceb;
 }
 
@@ -5375,6 +5380,9 @@ summary:focus-visible {
 @media (max-width: 420px) {
   .header-server-summary {
     gap: 8px;
+    column-gap: 16px;
+    padding: 5px 9px;
+    border-radius: 7px;
   }
 
   .monthly-visits small {
@@ -5386,16 +5394,18 @@ summary:focus-visible {
   }
 
   .monthly-visits strong {
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 700;
   }
 
   .server-congestion__blocks {
-    gap: 2px;
+    gap: 3px;
   }
 
   .server-congestion__blocks i {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
   }
 
   .social-links {
