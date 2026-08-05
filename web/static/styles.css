@@ -425,7 +425,7 @@ a {
 .eyebrow {
   margin: 0 0 8px;
   color: #a77868;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 400;
 }
 
@@ -4007,7 +4007,7 @@ summary:focus-visible {
 .eyebrow {
   margin-bottom: 7px;
   color: var(--teal);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 400;
 }
 
@@ -4446,6 +4446,12 @@ summary:focus-visible {
   margin-top: 7px;
   font-size: 13px;
   line-height: 1.75;
+}
+
+/* Page-translation eyebrow must stay large even inside .product-notes,
+   where the generic p rule would otherwise override it. */
+.product-notes > header .eyebrow {
+  font-size: 14px;
 }
 
 /* About page follows the same page rhythm while retaining its identity area. */
@@ -5418,4 +5424,10 @@ summary:focus-visible {
   .social-links {
     grid-template-columns: 1fr;
   }
+}
+
+/* Page-translation eyebrows stay uniformly large on every page, even when a
+   layout container has a generic p rule that would otherwise shrink them. */
+p.eyebrow {
+  font-size: 14px !important;
 }
