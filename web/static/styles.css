@@ -425,7 +425,7 @@ a {
 .eyebrow {
   margin: 0 0 8px;
   color: var(--teal);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 400;
 }
 
@@ -4007,7 +4007,7 @@ summary:focus-visible {
 .eyebrow {
   margin-bottom: 7px;
   color: var(--teal);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 400;
 }
 
@@ -5430,7 +5430,7 @@ summary:focus-visible {
    layout container has a generic p rule that would otherwise shrink them. */
 p.eyebrow {
   color: var(--teal) !important;
-  font-size: 14px !important;
+  font-size: 16px !important;
   font-weight: 400 !important;
   letter-spacing: normal !important;
   text-transform: none !important;
