@@ -424,7 +424,7 @@ a {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #a77868;
+  color: var(--teal);
   font-size: 14px;
   font-weight: 400;
 }
@@ -5429,5 +5429,9 @@ summary:focus-visible {
 /* Page-translation eyebrows stay uniformly large on every page, even when a
    layout container has a generic p rule that would otherwise shrink them. */
 p.eyebrow {
+  color: var(--teal) !important;
   font-size: 14px !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
