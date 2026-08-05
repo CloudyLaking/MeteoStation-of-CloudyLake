@@ -34,14 +34,14 @@
 
     <main class="translator-page">
       <section class="translator-heading">
-        <p class="eyebrow">COLORBAR TRANSLATOR</p>
+        <p class="eyebrow">Colorbar Translator</p>
         <h1>色条翻译器</h1>
         <p>截取任意色条，框选纯色带区域，转换为可直接使用的配色代码。</p>
       </section>
 
       <section class="translator-workspace" aria-label="色条提取工作区">
         <div class="translator-source-panel">
-          <header><p class="eyebrow">SOURCE IMAGE</p><h2>色条截图</h2></header>
+          <header><p class="eyebrow">Source Image</p><h2>色条截图</h2></header>
           <label class="translator-dropzone" id="colorbar-dropzone">
             <input id="colorbar-file" type="file" accept="image/*" />
             <span>选择图片、拖入图片，或直接粘贴截图</span>
@@ -58,7 +58,7 @@
         </div>
 
         <div class="translator-settings-panel">
-          <header><p class="eyebrow">EXTRACTION</p><h2>提取设置</h2></header>
+          <header><p class="eyebrow">Extraction</p><h2>提取设置</h2></header>
           <div class="translator-settings-grid">
             <label><span>色条方向</span><select id="colorbar-orientation"><option value="auto">自动判断</option><option value="vertical">纵向</option><option value="horizontal">横向</option></select></label>
             <label><span>采样模式</span><select id="colorbar-mode"><option value="continuous">连续渐变</option><option value="discrete">离散分级</option></select></label>
@@ -78,7 +78,7 @@
 
       <section class="translator-output" id="translator-output" hidden>
         <header>
-          <div><p class="eyebrow">TRANSLATED PALETTE</p><h2>提取结果</h2></div>
+          <div><p class="eyebrow">Translated Palette</p><h2>提取结果</h2></div>
           <div><button id="colorbar-copy" type="button">复制代码</button><button id="colorbar-download" type="button">下载代码</button></div>
         </header>
         <div class="translator-palette" id="translator-palette" aria-label="提取后的颜色预览"></div>
@@ -88,7 +88,7 @@
       </section>
 
       <section class="product-notes" aria-labelledby="translator-method-heading">
-        <header><p class="eyebrow">METHOD &amp; LIMITS</p><h2 id="translator-method-heading">使用说明</h2></header>
+        <header><p class="eyebrow">Method &amp; Limits</p><h2 id="translator-method-heading">使用说明</h2></header>
         <div>
           <article><h3>提取方法</h3><p>对框选区域沿色条方向等距采样，并在色条短轴中部取多点中值，以减弱边框、刻度线和压缩噪声影响。</p></article>
           <article><h3>框选建议</h3><p>自动识别后仍可重新拖动框选。尽量只保留有颜色的矩形条，避开数字、标题、三角延伸端和大块背景。</p></article>
