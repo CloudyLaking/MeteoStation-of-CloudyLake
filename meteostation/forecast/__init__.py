@@ -1,6 +1,6 @@
 """ECMWF point forecast services for CloudyLake's Observatory.
 
-Powered with Codex & Deepseek V4 Pro.
+Powered with Codex & Deepseek.
 """
 
 from .models import (

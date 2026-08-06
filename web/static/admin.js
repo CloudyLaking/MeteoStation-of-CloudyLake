@@ -170,7 +170,7 @@ document.querySelectorAll("[data-refresh]").forEach((button) => {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = {
-    version: "V2.1.1",
+    version: "V2.2.1",
     theme: {
       primary: document.querySelector("#theme-primary").value,
       accent: document.querySelector("#theme-accent").value,

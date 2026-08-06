@@ -1,8 +1,18 @@
+let SITE_VERSION = "";
+
+function updateHeaderVersion() {
+  document.querySelectorAll(".header-server-summary .header-version").forEach((element) => {
+    element.textContent = SITE_VERSION;
+  });
+}
+
 async function applySiteConfiguration() {
   try {
     const response = await fetch("/api/v1/site/config", { cache: "no-store" });
     if (!response.ok) return;
     const site = await response.json();
+    SITE_VERSION = site.version || SITE_VERSION;
+    updateHeaderVersion();
     const root = document.documentElement;
     root.style.setProperty("--site-primary", site.theme.primary);
     root.style.setProperty("--site-accent", site.theme.accent);
@@ -37,9 +47,6 @@ async function applySiteConfiguration() {
       }
       if (powered) powered.textContent = site.footer.powered_with;
     });
-    document.querySelectorAll(".main-nav__status small").forEach((element) => {
-      element.textContent = site.version;
-    });
   } catch {}
 }
 
@@ -68,6 +75,10 @@ function renderHeaderSummary(target, stats) {
   blocks.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
   indicator.append(copy, blocks);
   summary.append(visits, indicator);
+  const version = document.createElement("small");
+  version.className = "header-version";
+  version.textContent = SITE_VERSION;
+  summary.append(version);
   target.append(summary);
   const load = Number(congestion?.load_ratio);
   const memory = Number(congestion?.memory_used_percent);

@@ -18,24 +18,21 @@ const stationMapZoomIn = document.querySelector("#station-map-zoom-in");
 const stationMapZoomOut = document.querySelector("#station-map-zoom-out");
 const stationMapReset = document.querySelector("#station-map-reset");
 const SVG_NS = "http://www.w3.org/2000/svg";
-const STATION_MAP_SIZE = { width: 960, height: 560 };
-// Initial view focuses on the main eastern/central station belt of China
-// (roughly 96-130°E, 24-40°N: East, Central, North China and the northern
-// South China coast) so the map opens on the dense station clusters instead of
-// the sparsely instrumented western interior. "全国" resets to the full view.
-const STATION_MAP_INITIAL_VIEW = { x: 415, y: 226, width: 367, height: 214 };
+// The China station picker is a Leaflet map over OSM tiles. Station dots and
+// names appear only after zooming in far enough to separate dense clusters,
+// so the whole-country view stays clean and mis-taps are avoided.
+const CHINA_MAP_MIN_ZOOM = 3;
+const CHINA_MAP_MAX_ZOOM = 13;
+const CHINA_MAP_DOT_ZOOM = 5;
+const CHINA_MAP_NAME_ZOOM = 7;
+const CHINA_MAP_CENTER = [31.5, 105];
+const CHINA_MAP_START_ZOOM = 4;
 
 let stationSearchTimer = null;
 let latestSeries = null;
-let stationMapView = { ...STATION_MAP_INITIAL_VIEW };
-let stationMapDrag = null;
-const stationMapPointers = new Map();
+let chinaLeafletMap = null;
+let chinaMarkerLayer = null;
 let suppressStationClick = false;
-let stationCityLayer = null;
-let stationDistrictLayer = null;
-let stationDistrictProvince = null;
-let stationDistrictLoading = false;
-let stationMapProjection = null;
 
 function localIsoDate(date) {
   const year = date.getFullYear();
@@ -311,6 +308,7 @@ function renderObservationChart(series) {
       precipitation: point.precipitation_1h_mm,
       windSpeed: point.wind_speed_ms,
       windDirection: point.wind_direction_deg,
+      visibility: point.visibility_km,
     }));
   const latest = points.at(-1);
   return window.CloudyLakeWeatherSeriesRenderer.render(chart, {
@@ -344,7 +342,7 @@ async function loadObservationSeries(station, mode) {
     query.set("date", dateInput.value);
     query.set("window", historyWindow);
   }
-  const historyWindowLabel = historyWindow === "20-20" ? "20:00—次日 20:00" : "08:00—次日 08:00";
+  const historyWindowLabel = { "00-00": "00:00—次日 00:00（所选日期全天）", "08-08": "08:00—次日 08:00", "20-20": "20:00—次日 20:00" }[historyWindow] ?? "";
   resultTitle.textContent = mode === "past24h" ? `${station.display_name} · WMO ${station.wmo_id} · 过去 24h` : `${station.display_name} · WMO ${station.wmo_id} · ${dateInput.value} ${historyWindowLabel}`;
   try {
     const response = await fetch(`/api/v1/observations/series/${station.wmo_id}?${query}`);
@@ -446,239 +444,13 @@ async function updateStationSuggestions() {
   } catch { closeSuggestions(); }
 }
 
-function geometryPath(geometry, project) {
-  if (!geometry) return "";
-  const rings = geometry.type === "Polygon" ? geometry.coordinates : geometry.type === "MultiPolygon" ? geometry.coordinates.flat() : [];
-  return rings.map((ring) => ring.map((pair, index) => `${index ? "L" : "M"}${project(pair[0], pair[1]).join(",")}`).join(" ") + " Z").join(" ");
-}
+// ---- China station picker map (Leaflet over OpenStreetMap tiles) ----
+// Province and city boundaries come from the bundled GeoJSON; every national
+// station is a circle marker. Dots and names appear only once the view is
+// zoomed in far enough to separate dense clusters, so the whole-country view
+// stays clean and nearby stations are not mis-tapped.
 
-function applyStationMapView() {
-  regionMap.setAttribute(
-    "viewBox",
-    `${stationMapView.x} ${stationMapView.y} ${stationMapView.width} ${stationMapView.height}`,
-  );
-  updateStationMapLod();
-}
-
-let stationDistrictRequestedLon = null;
-let stationDistrictRequestedLat = null;
-let stationMapLodWidth = -1;
-
-// Level-of-detail: province boundaries always; city boundaries when zooming in;
-// station labels only when the view is close enough to read them; district
-// boundaries are fetched on demand for the province under the view centre.
-// SVG circles and font sizes are user units that grow with the viewBox, so the
-// station markers and labels are re-scaled as the view zooms to keep them at a
-// roughly constant on-screen size instead of becoming oversized.
-function updateStationMapLod() {
-  if (!stationMapProjection) return;
-  const width = stationMapView.width;
-  const showCities = width < 500;
-  // WMO numbers only appear once the view is zoomed in well past the initial
-  // view, and station names only once it is zoomed in much further, so the
-  // map stays clean while browsing the whole country.
-  const showWmo = width < 300 && width >= 150;
-  const showName = width < 150;
-  if (stationCityLayer) {
-    stationCityLayer.classList.toggle("is-visible", showCities);
-  }
-  if (stationDistrictLayer) {
-    stationDistrictLayer.classList.toggle("is-visible", showName);
-  }
-  if (showName) {
-    requestDistrictBoundaries();
-  }
-  // Re-layout labels, re-scale markers and labels only when the zoom level
-  // actually changes. Panning keeps the view width constant, so labels just
-  // follow the map and are clipped by the viewBox — re-laying them out on
-  // every pointermove would make them flicker and feel laggy.
-  if (Math.abs(width - stationMapLodWidth) <= 4) return;
-  stationMapLodWidth = width;
-  layoutStationLabels(showWmo || showName, showName);
-  const k = Math.max(0.16, width / STATION_MAP_SIZE.width);
-  const dotRadius = Math.min(2.6, Math.max(1.2, 2.6 * k));
-  const hitRadius = Math.min(7, Math.max(4.2, 7 * k));
-  const wmoSize = Math.min(9, Math.max(6.5, 9 * k));
-  const nameSize = Math.min(8.5, Math.max(6.5, 8.5 * k));
-  const contents = regionMap.querySelector(".station-map-contents");
-  contents?.querySelectorAll(".region-station-dot").forEach((circle) => {
-    circle.setAttribute("r", dotRadius.toFixed(2));
-  });
-  contents?.querySelectorAll(".region-station-hit").forEach((circle) => {
-    circle.setAttribute("r", hitRadius.toFixed(2));
-  });
-  contents?.querySelectorAll(".region-station-wmo").forEach((label) => {
-    label.setAttribute("font-size", wmoSize.toFixed(1));
-  });
-  contents?.querySelectorAll(".region-station-name").forEach((label) => {
-    label.setAttribute("font-size", nameSize.toFixed(1));
-  });
-}
-
-// Show labels only for stations inside the current viewport and de-duplicate
-// them on a coarse grid so dense clusters stay readable. The marker dots are
-// untouched, so every station remains clickable.
-function layoutStationLabels(showLabels, showNames) {
-  const contents = regionMap.querySelector(".station-map-contents");
-  if (!contents) return;
-  const vx = stationMapView.x;
-  const vy = stationMapView.y;
-  const vw = stationMapView.width;
-  const vh = stationMapView.height;
-  const margin = 32;
-  // Full Chinese station names are wider than a five-digit number, so use a
-  // coarser de-duplication grid in the name mode; both grids are large enough
-  // that adjacent labels cannot touch even in dense station clusters.
-  const grid = showNames ? 68 : 64;
-  const buckets = new Set();
-  const candidates = [];
-  for (const station of contents.querySelectorAll(".region-station")) {
-    const nameLabel = station.querySelector(".region-station-name");
-    const wmoLabel = station.querySelector(".region-station-wmo");
-    if (!showLabels) {
-      nameLabel?.classList.remove("is-visible");
-      wmoLabel?.classList.remove("is-visible");
-      continue;
-    }
-    const dot = station.querySelector(".region-station-dot");
-    const cx = Number(dot.getAttribute("cx"));
-    const cy = Number(dot.getAttribute("cy"));
-    if (
-      cx < vx - margin || cx > vx + vw + margin
-      || cy < vy - margin || cy > vy + vh + margin
-    ) {
-      nameLabel?.classList.remove("is-visible");
-      wmoLabel?.classList.remove("is-visible");
-      continue;
-    }
-    const key = `${Math.floor(cx / grid)},${Math.floor(cy / grid)}`;
-    if (buckets.has(key)) {
-      nameLabel?.classList.remove("is-visible");
-      wmoLabel?.classList.remove("is-visible");
-      continue;
-    }
-    buckets.add(key);
-    // Temporarily reveal the label so its real rendered box can be measured.
-    // This happens synchronously, so the browser never paints the transient
-    // state and there is no flicker.
-    const label = showNames ? nameLabel : wmoLabel;
-    label?.classList.add("is-visible");
-    candidates.push({ label, cx, cy });
-  }
-  const measured = candidates
-    .map((c) => ({ label: c.label, b: c.label?.getBBox() }))
-    .filter((c) => c.b && c.b.width > 0 && c.b.height > 0);
-  // Place labels top-to-bottom, left-to-right so dense clusters get labels
-  // spread evenly instead of whichever station comes first in the DOM.
-  // Collision avoidance uses each label's exact rendered box (getBBox), so
-  // labels can never touch regardless of font size or content width.
-  measured.sort((a, b) => (a.b.y - b.b.y) || (a.b.x - b.b.x));
-  const placed = [];
-  for (const { label, b } of measured) {
-    const pad = 1.5;
-    const x0 = b.x - pad;
-    const y0 = b.y - pad;
-    const x1 = b.x + b.width + pad;
-    const y1 = b.y + b.height + pad;
-    let collides = false;
-    for (const p of placed) {
-      if (x0 < p[2] && x1 > p[0] && y0 < p[3] && y1 > p[1]) {
-        collides = true;
-        break;
-      }
-    }
-    if (collides) {
-      label.classList.remove("is-visible");
-      continue;
-    }
-    placed.push([x0, y0, x1, y1]);
-  }
-  // Hide the label kind that is not active in this zoom mode.
-  contents.querySelectorAll(".region-station-label").forEach((label) => {
-    const wrongKind = showNames
-      ? label.classList.contains("region-station-wmo")
-      : label.classList.contains("region-station-name");
-    if (wrongKind) label.classList.remove("is-visible");
-  });
-}
-
-async function requestDistrictBoundaries() {
-  if (!stationMapProjection || stationDistrictLoading) return;
-  const [lon, lat] = stationMapProjection.unproject(
-    stationMapView.x + stationMapView.width / 2,
-    stationMapView.y + stationMapView.height / 2,
-  );
-  if (
-    stationDistrictRequestedLon !== null
-    && stationDistrictRequestedLat !== null
-    && Math.hypot(lon - stationDistrictRequestedLon, lat - stationDistrictRequestedLat) < 1
-  ) {
-    return;
-  }
-  stationDistrictRequestedLon = lon;
-  stationDistrictRequestedLat = lat;
-  stationDistrictLoading = true;
-  try {
-    const response = await fetch(
-      `/api/v1/stations/district-boundaries?lon=${lon.toFixed(4)}&lat=${lat.toFixed(4)}`,
-    );
-    if (!response.ok) {
-      if (response.status === 404) return;
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = await response.json();
-    if (!stationMapProjection) return;
-    if (stationDistrictProvince === data.province_adcode) return;
-    const layer = svg("g", { class: "station-district-layer is-visible" });
-    (data.boundaries?.features || []).forEach((feature) => {
-      layer.append(svg("path", {
-        d: geometryPath(feature.geometry, stationMapProjection.project),
-        class: "region-district-boundary",
-      }));
-    });
-    stationDistrictLayer?.remove();
-    regionMap.querySelector(".station-map-contents")?.append(layer);
-    stationDistrictLayer = layer;
-    stationDistrictProvince = data.province_adcode;
-  } catch (error) {
-    console.warn("district boundaries unavailable:", error);
-  } finally {
-    stationDistrictLoading = false;
-  }
-}
-
-function clampStationMapView(view) {
-  const width = Math.max(150, Math.min(STATION_MAP_SIZE.width, view.width));
-  const height = width * STATION_MAP_SIZE.height / STATION_MAP_SIZE.width;
-  return {
-    width,
-    height,
-    x: Math.max(0, Math.min(STATION_MAP_SIZE.width - width, view.x)),
-    y: Math.max(0, Math.min(STATION_MAP_SIZE.height - height, view.y)),
-  };
-}
-
-function zoomStationMap(factor, clientX = null, clientY = null) {
-  const rect = regionMap.getBoundingClientRect();
-  const ratioX = clientX === null ? 0.5 : (clientX - rect.left) / rect.width;
-  const ratioY = clientY === null ? 0.5 : (clientY - rect.top) / rect.height;
-  const focusX = stationMapView.x + ratioX * stationMapView.width;
-  const focusY = stationMapView.y + ratioY * stationMapView.height;
-  const width = stationMapView.width * factor;
-  const height = stationMapView.height * factor;
-  stationMapView = clampStationMapView({
-    width,
-    height,
-    x: focusX - ratioX * width,
-    y: focusY - ratioY * height,
-  });
-  applyStationMapView();
-}
-
-function resetStationMap() {
-  stationMapView = { ...STATION_MAP_INITIAL_VIEW };
-  applyStationMapView();
-}
+let chinaMapStations = [];
 
 async function loadChinaStationMap() {
   regionStatus.textContent = "正在读取全国站点……";
@@ -686,167 +458,114 @@ async function loadChinaStationMap() {
     const response = await fetch("/api/v1/stations/china");
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail ?? `HTTP ${response.status}`);
-    regionMap.replaceChildren(svg("rect", { width: 960, height: 560, fill: "#fbfdfc" }));
-    const { west, east, south, north } = data.bounds;
-    const middleLatitude = (south + north) / 2;
-    const middleLongitude = (west + east) / 2;
-    const longitudeScale = Math.cos(middleLatitude * Math.PI / 180);
-    const scale = Math.min(880 / ((east - west) * longitudeScale), 480 / (north - south));
-    const project = (longitude, latitude) => [
-      480 + (longitude - middleLongitude) * longitudeScale * scale,
-      280 - (latitude - middleLatitude) * scale,
-    ];
-    const mapContents = svg("g", { class: "station-map-contents" });
-    stationMapProjection = {
-      project,
-      unproject: (px, py) => [
-        middleLongitude + (px - 480) / (longitudeScale * scale),
-        middleLatitude - (py - 280) / scale,
-      ],
-    };
-    for (let index = 1; index < 6; index += 1) {
-      const longitude = west + index / 5 * (east - west);
-      const latitude = south + index / 5 * (north - south);
-      const gx = project(longitude, middleLatitude)[0];
-      const gy = project(middleLongitude, latitude)[1];
-      mapContents.append(svg("line", { x1: gx, x2: gx, y1: 30, y2: 530, class: "region-grid" }), svg("line", { x1: 30, x2: 930, y1: gy, y2: gy, class: "region-grid" }));
-    }
-    (data.boundaries?.features || []).forEach((feature) => mapContents.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-boundary" })));
-    // City boundaries appear as the view zooms in (level-of-detail).
-    const cityLayer = svg("g", { class: "station-city-layer" });
-    (data.city_boundaries?.features || []).forEach((feature) => cityLayer.append(svg("path", { d: geometryPath(feature.geometry, project), class: "region-city-boundary" })));
-    mapContents.append(cityLayer);
-    stationCityLayer = cityLayer;
-    stationDistrictLayer = null;
-    stationDistrictProvince = null;
-    stationDistrictLoading = false;
-    data.stations.forEach((station) => {
-      const [cx, cy] = project(station.longitude, station.latitude);
-      const group = svg("g", { class: "region-station", tabindex: 0, role: "button", "aria-label": `${station.display_name} ${station.wmo_id}` });
-      group.append(svg("circle", { cx, cy, r: 7, class: "region-station-hit" }), svg("circle", { cx, cy, r: 2.8, class: "region-station-dot" }), svg("title", {}, `${station.display_name} · ${station.wmo_id}`));
-      // Station name above the marker, WMO number below; both are revealed by
-      // the level-of-detail pass as the view zooms in.
-      group.append(
-        svg("text", { class: "region-station-label region-station-name", x: cx, y: cy - 13, "text-anchor": "middle" }, station.display_name),
-        svg("text", { class: "region-station-label region-station-wmo", x: cx, y: cy + 16, "text-anchor": "middle" }, station.wmo_id),
-      );
-      const showStation = () => {
-        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
-      };
-      const select = () => {
-        if (suppressStationClick) return;
-        regionMap.querySelectorAll(".region-station").forEach((item) => item.classList.remove("is-selected"));
-        group.classList.add("is-selected");
-        stationInput.value = station.display_name;
-        showStation();
-        queryForm.requestSubmit();
-      };
-      group.addEventListener("pointerenter", showStation);
-      group.addEventListener("focus", showStation);
-      group.addEventListener("click", select);
-      group.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") select(); });
-      mapContents.append(group);
+    if (chinaLeafletMap) chinaLeafletMap.remove();
+    chinaLeafletMap = window.L.map(regionMap, {
+      minZoom: CHINA_MAP_MIN_ZOOM,
+      maxZoom: CHINA_MAP_MAX_ZOOM,
+      scrollWheelZoom: true,
+      wheelPxPerZoomLevel: 110,
+      touchZoom: true,
+      zoomSnap: 0.5,
+      zoomDelta: 0.5,
+      attributionControl: true,
     });
-    regionMap.append(mapContents);
-    resetStationMap();
-    regionStatus.textContent = `全国国家站 · ${data.stations.length} 站 · 可拖动缩放`;
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: CHINA_MAP_MAX_ZOOM,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+    }).addTo(chinaLeafletMap);
+
+    if (data.boundaries?.features?.length) {
+      window.L.geoJSON(data.boundaries, {
+        style: { color: "#3e7f79", weight: 1.1, fillColor: "#f3f8f6", fillOpacity: 0.35 },
+      }).addTo(chinaLeafletMap);
+    }
+    if (data.city_boundaries?.features?.length) {
+      window.L.geoJSON(data.city_boundaries, {
+        style: { color: "#7fa8a2", weight: 0.6, fillOpacity: 0 },
+      }).addTo(chinaLeafletMap);
+    }
+
+    chinaMapStations = data.stations || [];
+    chinaMarkerLayer = window.L.layerGroup().addTo(chinaLeafletMap);
+    chinaMapStations.forEach((station) => {
+      const marker = window.L.circleMarker([station.latitude, station.longitude], {
+        radius: 4.2,
+        color: "#ffffff",
+        weight: 1.1,
+        fillColor: "#126e68",
+        fillOpacity: 1,
+      });
+      marker.bindTooltip(`${station.display_name} · ${station.wmo_id}`, {
+        direction: "top",
+        offset: [0, -7],
+        opacity: 1,
+      });
+      marker.on("click", () => {
+        chinaMarkerLayer.eachLayer((item) => item.setStyle({ fillColor: "#126e68" }));
+        marker.setStyle({ fillColor: "#f2c94c" });
+        stationInput.value = station.display_name;
+        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
+        queryForm.requestSubmit();
+      });
+      marker.on("mouseover", () => {
+        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
+      });
+      chinaMarkerLayer.addLayer(marker);
+    });
+    chinaLeafletMap.on("zoomend", () => updateStationMapLod());
+    if (data.bounds) {
+      chinaLeafletMap.fitBounds(
+        [[data.bounds.south, data.bounds.west], [data.bounds.north, data.bounds.east]],
+        { padding: [14, 14] },
+      );
+    } else {
+      chinaLeafletMap.setView(CHINA_MAP_CENTER, CHINA_MAP_START_ZOOM);
+    }
+    updateStationMapLod();
+    regionStatus.textContent = `全国国家站 · ${chinaMapStations.length} 站 · 可拖动缩放`;
   } catch (error) {
     regionStatus.textContent = `站点地图读取失败：${error.message}`;
   }
 }
 
-regionMap.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  zoomStationMap(event.deltaY < 0 ? 0.82 : 1.22, event.clientX, event.clientY);
-}, { passive: false });
-regionMap.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0) return;
-  regionMap.setPointerCapture(event.pointerId);
-  stationMapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (stationMapPointers.size === 1) {
-    stationMapDrag = {
-      type: "pan",
-      pointerId: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-      originX: stationMapView.x,
-      originY: stationMapView.y,
-      moved: false,
-    };
-  } else if (stationMapPointers.size === 2) {
-    const [first, second] = [...stationMapPointers.values()];
-    const rect = regionMap.getBoundingClientRect();
-    const centerX = (first.x + second.x) / 2;
-    const centerY = (first.y + second.y) / 2;
-    stationMapDrag = {
-      type: "pinch",
-      distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
-      focusX: stationMapView.x + (centerX - rect.left) / rect.width * stationMapView.width,
-      focusY: stationMapView.y + (centerY - rect.top) / rect.height * stationMapView.height,
-      viewWidth: stationMapView.width,
-      viewHeight: stationMapView.height,
-      moved: false,
-    };
-  }
-});
-regionMap.addEventListener("pointermove", (event) => {
-  if (!stationMapPointers.has(event.pointerId) || !stationMapDrag) return;
-  stationMapPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  const rect = regionMap.getBoundingClientRect();
-  if (stationMapDrag.type === "pinch" && stationMapPointers.size >= 2) {
-    const [first, second] = [...stationMapPointers.values()];
-    const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
-    const centerX = (first.x + second.x) / 2;
-    const centerY = (first.y + second.y) / 2;
-    const width = stationMapDrag.viewWidth * stationMapDrag.distance / distance;
-    const height = stationMapDrag.viewHeight * stationMapDrag.distance / distance;
-    stationMapDrag.moved = true;
-    stationMapView = clampStationMapView({
-      width,
-      height,
-      x: stationMapDrag.focusX - (centerX - rect.left) / rect.width * width,
-      y: stationMapDrag.focusY - (centerY - rect.top) / rect.height * height,
-    });
-    applyStationMapView();
-    return;
-  }
-  if (stationMapDrag.pointerId !== event.pointerId) return;
-  const dx = event.clientX - stationMapDrag.clientX;
-  const dy = event.clientY - stationMapDrag.clientY;
-  stationMapDrag.moved ||= Math.hypot(dx, dy) > 4;
-  stationMapView = clampStationMapView({
-    ...stationMapView,
-    x: stationMapDrag.originX - dx * stationMapView.width / rect.width,
-    y: stationMapDrag.originY - dy * stationMapView.height / rect.height,
+// Level-of-detail: hide all station dots until the view is close enough to
+// separate them, then reveal station names once it is much closer. Keeps the
+// whole-country view clean and avoids mis-tapping a nearby station.
+function updateStationMapLod() {
+  if (!chinaLeafletMap || !chinaMarkerLayer) return;
+  const zoom = chinaLeafletMap.getZoom();
+  const showDots = zoom >= CHINA_MAP_DOT_ZOOM;
+  const showNames = zoom >= CHINA_MAP_NAME_ZOOM;
+  chinaMarkerLayer.eachLayer((marker) => {
+    if (showDots) {
+      if (!chinaLeafletMap.hasLayer(marker)) chinaMarkerLayer.addLayer(marker);
+      if (showNames) marker.openTooltip();
+      else marker.closeTooltip();
+    } else {
+      marker.closeTooltip();
+      chinaMarkerLayer.removeLayer(marker);
+    }
   });
-  applyStationMapView();
-});
-function finishStationMapDrag(event) {
-  if (!stationMapPointers.has(event.pointerId)) return;
-  const moved = Boolean(stationMapDrag?.moved);
-  stationMapPointers.delete(event.pointerId);
-  suppressStationClick = moved;
-  if (stationMapPointers.size === 1) {
-    const [pointerId, point] = [...stationMapPointers.entries()][0];
-    stationMapDrag = {
-      type: "pan",
-      pointerId,
-      clientX: point.x,
-      clientY: point.y,
-      originX: stationMapView.x,
-      originY: stationMapView.y,
-      moved,
-    };
-  } else {
-    stationMapDrag = null;
-  }
-  window.setTimeout(() => { suppressStationClick = false; }, 0);
 }
-regionMap.addEventListener("pointerup", finishStationMapDrag);
-regionMap.addEventListener("pointercancel", finishStationMapDrag);
-stationMapZoomIn.addEventListener("click", () => zoomStationMap(0.78));
-stationMapZoomOut.addEventListener("click", () => zoomStationMap(1.28));
+
+function zoomStationMap(delta) {
+  if (!chinaLeafletMap) return;
+  chinaLeafletMap.setZoom(Math.min(
+    CHINA_MAP_MAX_ZOOM,
+    Math.max(CHINA_MAP_MIN_ZOOM, chinaLeafletMap.getZoom() + delta),
+  ));
+}
+
+function resetStationMap() {
+  if (!chinaLeafletMap) return;
+  chinaLeafletMap.setView(CHINA_MAP_CENTER, CHINA_MAP_START_ZOOM);
+  updateStationMapLod();
+}
+
+stationMapZoomIn.addEventListener("click", () => zoomStationMap(1));
+stationMapZoomOut.addEventListener("click", () => zoomStationMap(-1));
 stationMapReset.addEventListener("click", resetStationMap);
+
 
 async function exportPng() {
   if (!latestSeries) return;
@@ -924,7 +643,7 @@ if (initialQuery.get("station")) {
   if (initialQuery.get("mode") === "history" && initialQuery.get("date")) {
     queryForm.elements.mode.value = "history";
     dateInput.value = initialQuery.get("date");
-    if (["08-08", "20-20"].includes(initialQuery.get("window"))) {
+    if (["00-00", "08-08", "20-20"].includes(initialQuery.get("window"))) {
       queryForm.elements.history_window.value = initialQuery.get("window");
     }
     updateMode();

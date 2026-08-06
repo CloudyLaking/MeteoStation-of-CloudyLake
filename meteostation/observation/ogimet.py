@@ -317,8 +317,8 @@ def _precipitation(group: str | None) -> float | None:
     return None
 
 
-def _visibility(code: str) -> float | None:
-    if not code.isdigit():
+def _visibility(code: str | None) -> float | None:
+    if code is None or not code.isdigit():
         return None
     value = int(code)
     if value <= 50:

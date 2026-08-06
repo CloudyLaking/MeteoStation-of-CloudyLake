@@ -1,5 +1,5 @@
 {
-  "version": "V2.1.1",
+  "version": "V2.2.1",
   "theme": {
     "primary": "#126E68",
     "accent": "#F2C94C",
@@ -14,6 +14,6 @@
   "footer": {
     "copyright": "Copyright © 2026- CloudyLake. All Rights Reserved.",
     "contact": "cloudylaking@outlook.com",
-    "powered_with": "Powered with Codex & Deepseek V4 Pro"
+    "powered_with": "Powered with Codex & Deepseek"
   }
 }

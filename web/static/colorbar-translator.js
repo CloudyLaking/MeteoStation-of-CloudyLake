@@ -33,6 +33,11 @@ const state = {
   dragStart: null,
   colors: [],
   orientation: "vertical",
+  // Real tick labels read by the OCR stage: [{ value, position, text }] sorted
+  // by position. When present in discrete mode, sampling uses these boundaries
+  // instead of assuming equally spaced bins, and the generated code uses the
+  // real values as non-uniform bounds.
+  ticks: null,
 };
 
 function clamp(value, minimum, maximum) {
@@ -559,16 +564,27 @@ function readTicks() {
 function applyReadTicks() {
   const result = readTicks();
   if (!result.ticks.length) {
+    state.ticks = null;
     ticksNote.textContent = "未识别到刻度数字；可手动输入最小/最大值。";
+    generatePalette();
     return;
   }
-  const values = result.ticks.map((tick) => tick.value);
+  // Keep every recognised tick (value + axis position) so discrete sampling
+  // and the generated bounds follow the real scale instead of a uniform grid.
+  state.ticks = [...result.ticks].sort((a, b) => a.position - b.position);
+  const values = state.ticks.map((tick) => tick.value);
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   minimumInput.value = minimum;
   maximumInput.value = maximum;
+  // For a discrete bar the number of colour bands equals ticks - 1 (the real
+  // boundaries between consecutive labels), so update the count to match.
+  if (modeInput.value === "discrete" && state.ticks.length >= 2) {
+    countInput.value = String(state.ticks.length - 1);
+  }
   const sideText = { left: "左侧", right: "右侧", top: "上方", bottom: "下方" }[result.side] || "";
-  ticksNote.textContent = `${sideText}识别到刻度：${result.ticks.map((tick) => tick.text).join(", ")} → 自动填入 ${minimum} ~ ${maximum}。`;
+  const boundaryValues = state.ticks.map((tick) => tick.value).join(", ");
+  ticksNote.textContent = `${sideText}识别到刻度：${boundaryValues}（${state.ticks.length} 个边界）→ 离散模式按真实边界采样并生成不等距 bounds。`;
   generatePalette();
 }
 
@@ -594,8 +610,8 @@ function sampleColors() {
   const colors = [];
   const axisLength = orientation === "vertical" ? crop.height : crop.width;
   const crossLength = orientation === "vertical" ? crop.width : crop.height;
-  for (let index = 0; index < count; index += 1) {
-    const position = mode === "discrete" ? (index + 0.5) / count : index / Math.max(count - 1, 1);
+
+  const sampleAt = (position) => {
     const axisCenter = clamp(Math.round(position * (axisLength - 1)), 0, axisLength - 1);
     const reds = [];
     const greens = [];
@@ -611,7 +627,22 @@ function sampleColors() {
         reds.push(data[offset]); greens.push(data[offset + 1]); blues.push(data[offset + 2]);
       }
     }
-    colors.push(rgbToHex(median(reds), median(greens), median(blues)));
+    return rgbToHex(median(reds), median(greens), median(blues));
+  };
+
+  if (mode === "discrete" && state.ticks && state.ticks.length >= 2) {
+    // Use the real tick positions as colour-band boundaries: sample the centre
+    // of each interval so the colours match the actual scale even when the
+    // bands are non-uniform (logarithmic axes, custom breakpoints, ...).
+    const boundaries = state.ticks.map((tick) => clamp(tick.position, 0, 1));
+    for (let index = 0; index < boundaries.length - 1; index += 1) {
+      colors.push(sampleAt((boundaries[index] + boundaries[index + 1]) / 2));
+    }
+  } else {
+    for (let index = 0; index < count; index += 1) {
+      const position = mode === "discrete" ? (index + 0.5) / count : index / Math.max(count - 1, 1);
+      colors.push(sampleAt(position));
+    }
   }
   state.orientation = orientation;
   return reverseInput.checked ? colors.reverse() : colors;
@@ -631,9 +662,20 @@ function generatedCode(colors) {
   const format = formatInput.value;
   const [minimum, maximum] = numericRange();
   const positions = colors.map((_, index) => index / Math.max(colors.length - 1, 1));
+  // When real tick labels were read, use them as the discrete boundaries so
+  // the generated code carries the actual values of the original colorbar.
+  const realBoundaries = (mode === "discrete" && state.ticks && state.ticks.length >= 2)
+    ? state.ticks.map((tick) => tick.value)
+    : null;
   if (format === "matplotlib") {
     const colorList = colors.map((color) => `    "${color}",`).join("\n");
     if (mode === "discrete") {
+      if (realBoundaries) {
+        const bounds = realBoundaries
+          .map((value) => `    ${Number.isInteger(value) ? value : value.toFixed(6)},`)
+          .join("\n");
+        return `import numpy as np\nfrom matplotlib.colors import ListedColormap, BoundaryNorm\n\ncolors = [\n${colorList}\n]\nbounds = np.array([\n${bounds}\n])\ncmap = ListedColormap(colors, name="translated_colorbar")\nnorm = BoundaryNorm(bounds, cmap.N)`;
+      }
       return `import numpy as np\nfrom matplotlib.colors import ListedColormap, BoundaryNorm\n\ncolors = [\n${colorList}\n]\nbounds = np.linspace(${minimum}, ${maximum}, ${colors.length + 1})\ncmap = ListedColormap(colors, name="translated_colorbar")\nnorm = BoundaryNorm(bounds, cmap.N)`;
     }
     return `from matplotlib.colors import LinearSegmentedColormap\n\ncolors = [\n${colorList}\n]\ncmap = LinearSegmentedColormap.from_list(\n    "translated_colorbar", colors, N=256\n)`;
@@ -646,6 +688,23 @@ function generatedCode(colors) {
     const direction = state.orientation === "vertical" ? "to bottom" : "to right";
     const stops = colors.map((color, index) => `${color} ${(positions[index] * 100).toFixed(1)}%`).join(", ");
     return `background: linear-gradient(${direction}, ${stops});`;
+  }
+  // Discrete mode with real ticks: emit the actual boundary values next to
+  // each colour so consumers can rebuild the exact scale.
+  if (mode === "discrete" && realBoundaries && colors.length + 1 === realBoundaries.length) {
+    return JSON.stringify({
+      name: "translated_colorbar",
+      mode,
+      orientation: state.orientation,
+      minimum,
+      maximum,
+      bounds: realBoundaries.map((value) => Number(value.toFixed(6))),
+      colors: colors.map((color, index) => ({
+        lower: Number(realBoundaries[index].toFixed(6)),
+        upper: Number(realBoundaries[index + 1].toFixed(6)),
+        color,
+      })),
+    }, null, 2);
   }
   return JSON.stringify({
     name: "translated_colorbar",
@@ -721,7 +780,14 @@ resetButton.addEventListener("click", () => {
 generateButton.addEventListener("click", generatePalette);
 ticksButton.addEventListener("click", applyReadTicks);
 [orientationInput, modeInput, countInput, formatInput, minimumInput, maximumInput, reverseInput].forEach((input) => {
-  input.addEventListener("change", generatePalette);
+  input.addEventListener("change", () => {
+    // A manual edit invalidates the previously read tick boundaries (the user
+    // is overriding the scale by hand), so fall back to uniform handling.
+    if (input === countInput || input === minimumInput || input === maximumInput || input === modeInput) {
+      state.ticks = null;
+    }
+    generatePalette();
+  });
 });
 copyButton.addEventListener("click", async () => {
   try {

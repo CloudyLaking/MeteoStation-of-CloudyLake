@@ -116,20 +116,22 @@ def history_window_bounds(
     """Return the selected Beijing-time 24-hour interval as [start, end)."""
 
     try:
-        hour = {"08-08": 8, "20-20": 20}[history_window]
+        hour = {"00-00": 0, "08-08": 8, "20-20": 20}[history_window]
     except KeyError as exc:
-        raise QWeatherError("history window must be 08-08 or 20-20") from exc
+        raise QWeatherError("history window must be 00-00, 08-08 or 20-20") from exc
     zone = ZoneInfo("Asia/Shanghai")
     start = datetime.combine(observation_date, time(hour=hour), tzinfo=zone)
     return start, start + timedelta(days=1)
 
 
 def history_window_label(history_window: str) -> str:
+    if history_window == "00-00":
+        return "00:00—次日 00:00（所选日期全天）"
     if history_window == "08-08":
         return "08:00—次日 08:00"
     if history_window == "20-20":
         return "20:00—次日 20:00"
-    raise QWeatherError("history window must be 08-08 or 20-20")
+    raise QWeatherError("history window must be 00-00, 08-08 or 20-20")
 
 
 def _qweather_daily_url(

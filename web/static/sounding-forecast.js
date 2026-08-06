@@ -40,10 +40,17 @@ function initializeWorldMap() {
   worldMap = window.L.map(worldMapElement, {
     worldCopyJump: true,
     minZoom: 2,
-    maxZoom: 12,
+    maxZoom: 8,
+    scrollWheelZoom: true,
+    // A higher wheel threshold makes trackpad gestures zoom smoothly instead
+    // of jumping several levels per scroll tick.
+    wheelPxPerZoomLevel: 140,
+    zoomSnap: 0.5,
+    zoomDelta: 0.5,
+    touchZoom: true,
   }).setView([28, 105], 2);
   window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 12,
+    maxZoom: 18,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
   }).addTo(worldMap);
   worldMap.on("click", (event) => {

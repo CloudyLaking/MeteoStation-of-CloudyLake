@@ -257,7 +257,7 @@ if __name__ == "__main__":
     # ==========================================
     config_example = {
         # --- 基础设置 ---
-        "date_str": "2024072400",       # 时间字符串 (YYYYMMDDHH)
+        "date_str": "2025070700",       # 时间字符串 (YYYYMMDDHH)
         "data_source": "ERA5",          # 数据源名称，用于标题和保存文件名
         "lon_min": 80, "lon_max": 140,  # 经度范围 (默认 80~140)
         "lat_min": 20, "lat_max": 55,   # 纬度范围 (默认 20~55)
@@ -295,9 +295,9 @@ if __name__ == "__main__":
         #   [特设参数]: "Geopotential" (位势高度), "SLP" (海平面气压)
         #   [通用参数]: (参考上方的可用列表。高空用高空参数，单层用单层参数)
         #   [不等值线]: None
-        "contour_type": None,          
+        "contour_type": "Geopotential",          
         # "contour_level": 气压层高度。仅在 "Geopotential" 时必须指定(如 500)，SLP不需要传None即可。
-        "contour_level": None,          
+        "contour_level": 500,          
         
         # --- 风场矢量点层 (Wind) ---
         "show_wind": True,              # 是否绘制风羽

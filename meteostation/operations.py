@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, Field, field_validator
 
 
-VERSION = "V2.1.1"
+VERSION = "V2.2.1"
 DEFAULT_SITE_CONFIG = {
     "version": VERSION,
     "theme": {
@@ -33,7 +33,7 @@ DEFAULT_SITE_CONFIG = {
     "footer": {
         "copyright": "Copyright © 2026- CloudyLake. All Rights Reserved.",
         "contact": "cloudylaking@outlook.com",
-        "powered_with": "Powered with Codex & Deepseek V4 Pro",
+        "powered_with": "Powered with Codex & Deepseek",
     },
 }
 

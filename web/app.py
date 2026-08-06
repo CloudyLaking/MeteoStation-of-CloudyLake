@@ -145,7 +145,7 @@ async def _warm_primary_observation() -> None:
 
 app = FastAPI(
     title="云海观象台 API",
-    description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek V4 Pro.",
+    description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek.",
     version="2.1.1",
     lifespan=application_lifespan,
 )
@@ -845,7 +845,7 @@ async def observation_series(
     station_id: str,
     mode: Literal["past24h", "history"] = Query(default="past24h"),
     historical_date: date | None = Query(default=None, alias="date"),
-    history_window: Literal["08-08", "20-20"] = Query(
+    history_window: Literal["00-00", "08-08", "20-20"] = Query(
         default="08-08",
         alias="window",
     ),

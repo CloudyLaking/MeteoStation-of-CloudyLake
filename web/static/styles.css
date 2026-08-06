@@ -90,7 +90,14 @@ a {
 
 .brand span {
   display: grid;
-  gap: 2px;
+  gap: 3px;
+}
+
+.brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
 }
 
 .brand strong {
@@ -104,6 +111,15 @@ a {
   color: #63717b;
   letter-spacing: 0.03em;
   font-size: 12px;
+}
+
+.brand-slogan {
+  color: var(--teal);
+  font-family: "Segoe Script", "Brush Script MT", "Comic Sans MS", cursive;
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .main-nav {
@@ -386,6 +402,16 @@ a {
   white-space: nowrap;
   grid-column: 2;
   grid-row: 1;
+}
+
+.header-version {
+  color: var(--ink-soft);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  grid-column: 1 / -1;
+  justify-self: center;
+  margin-top: 2px;
 }
 
 .dashboard {
@@ -1937,106 +1963,44 @@ a {
 }
 
 #station-region-map {
-  display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 12 / 7;
+  height: 480px;
+  z-index: 1;
   cursor: grab;
-  touch-action: none;
-  user-select: none;
+  background: #eef5f3;
 }
 
 #station-region-map:active {
   cursor: grabbing;
 }
 
-#station-region-map .region-boundary {
-  fill: #f3f8f6;
-  stroke: #3e7f79;
-  stroke-width: 1.1;
-  vector-effect: non-scaling-stroke;
-}
-
-#station-region-map .region-grid {
-  stroke: #dce7e4;
-  stroke-width: 0.8;
-  stroke-dasharray: 3 5;
-}
-
-/* Administrative boundary level-of-detail layers (revealed on zoom). */
-#station-region-map .station-city-layer,
-#station-region-map .station-district-layer {
-  display: none;
-}
-#station-region-map .station-city-layer.is-visible,
-#station-region-map .station-district-layer.is-visible {
-  display: block;
-}
-#station-region-map .region-city-boundary {
-  fill: none;
-  stroke: #7fa8a2;
-  stroke-width: 0.7;
-  vector-effect: non-scaling-stroke;
-}
-#station-region-map .region-district-boundary {
-  fill: none;
-  stroke: #a9c0bd;
-  stroke-width: 0.6;
-  vector-effect: non-scaling-stroke;
-}
-
-/* Station labels (name above, WMO number below) revealed by zoom level. */
-#station-region-map .region-station-label {
-  display: none;
-  pointer-events: none;
-  font-size: 10px;
-  fill: #263943;
-  paint-order: stroke;
-  stroke: #ffffff;
-  stroke-width: 2.5;
-  vector-effect: non-scaling-stroke;
-  stroke-linejoin: round;
-}
-#station-region-map .region-station-label.is-visible {
-  display: block;
-}
-#station-region-map .region-station-name {
-  font-weight: 650;
-}
-#station-region-map .region-station-wmo {
+#station-region-map .leaflet-control-attribution {
   font-size: 9px;
-  fill: #126e68;
 }
 
-#station-region-map .region-station-hit {
-  fill: transparent;
-  cursor: pointer;
-}
-
-#station-region-map .region-station-dot {
-  fill: #126e68;
-  stroke: #fff;
-  stroke-width: 1.1;
-  vector-effect: non-scaling-stroke;
-  pointer-events: none;
-}
-
-#station-region-map .region-station:hover .region-station-dot,
-#station-region-map .region-station:focus .region-station-dot,
-#station-region-map .region-station.is-selected .region-station-dot {
-  fill: #f2c94c;
-  stroke: #253744;
+#station-region-map .leaflet-tooltip {
+  padding: 3px 7px;
+  border: 1px solid rgba(47, 129, 121, 0.35);
+  border-radius: 4px;
+  color: #263943;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(37, 55, 68, 0.18);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .station-region-map-shell > p {
   position: absolute;
   right: 10px;
   bottom: 8px;
+  z-index: 400;
   margin: 0;
   padding: 5px 8px;
   color: var(--ink-soft);
   background: rgba(255, 255, 255, 0.9);
   font-size: 9px;
+  pointer-events: none;
 }
 
 .station-image-state {
@@ -2457,6 +2421,10 @@ a {
     height: 44px;
   }
 
+  .brand-slogan {
+    font-size: 10.5px;
+  }
+
   .main-nav__inner {
     width: 100%;
   }
@@ -2736,18 +2704,18 @@ a {
   }
 
   .station-region-map-shell {
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
   }
 
   #station-region-map {
-    width: 760px;
-    max-width: none;
+    width: 100%;
+    height: 360px;
   }
 
   .station-region-map-shell > p {
-    position: sticky;
-    left: 8px;
+    position: absolute;
+    right: 8px;
+    left: auto;
     width: max-content;
   }
 
@@ -3152,9 +3120,9 @@ a {
 
 /* ---- About ------------------------------------------------------------ */
 .about-page {
-  width: min(100%, 1180px);
+  width: min(100%, var(--content-width));
   margin: 0 auto;
-  padding: 48px clamp(20px, 5vw, 72px) 76px;
+  padding: 48px var(--page-gutter) 76px;
 }
 
 .about-hero {
@@ -3963,9 +3931,9 @@ a {
    ====================================================================== */
 
 :root {
-  --content-width: 1180px;
+  --content-width: 1440px;
   --reading-width: 1100px;
-  --page-gutter: clamp(20px, 4vw, 40px);
+  --page-gutter: clamp(20px, 4vw, 64px);
   --section-space: 20px;
   --control-height: 42px;
   --radius: 6px;
@@ -4591,7 +4559,11 @@ summary:focus-visible {
   }
 
   .brand small {
-    display: none;
+    font-size: 10.5px;
+  }
+
+  .brand-slogan {
+    font-size: 11px;
   }
 
   .header-motto .server-congestion__copy {
@@ -4640,7 +4612,8 @@ summary:focus-visible {
   .station-query-page,
   .forecast-page,
   .about-page--expanded,
-  .admin-page {
+  .admin-page,
+  .translator-page {
     width: 100%;
     padding: 28px 14px 48px;
   }
@@ -4854,9 +4827,9 @@ summary:focus-visible {
 
 /* Experimental colorbar translator */
 .translator-page {
-  width: min(1360px, calc(100% - 32px));
+  width: min(100%, var(--content-width));
   margin: 0 auto;
-  padding: 34px 0 40px;
+  padding: 36px var(--page-gutter) 64px;
 }
 
 .translator-heading {
@@ -5154,7 +5127,6 @@ summary:focus-visible {
 
 @media (max-width: 860px) {
   .translator-page {
-    width: min(100% - 24px, 700px);
     padding-top: 24px;
   }
 
@@ -5279,8 +5251,13 @@ summary:focus-visible {
   }
 
   .brand small {
-    display: block;
-    max-width: 170px;
+    display: inline;
+    font-size: 9.5px;
+    white-space: nowrap;
+  }
+
+  .brand-slogan {
+    max-width: 180px;
     overflow: hidden;
     font-size: 9.5px;
     text-overflow: ellipsis;
