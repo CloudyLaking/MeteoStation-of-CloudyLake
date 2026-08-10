@@ -333,6 +333,7 @@ form.addEventListener("submit", async (event) => {
     model,
     horizon: "72",
   });
+  const requestedInitialization = `${dateInput.value}T${cycle}:00:00Z`;
   status.textContent = `正在读取 ${model.toUpperCase()} 三天单点预报……`;
   section.hidden = true;
 
@@ -352,7 +353,20 @@ form.addEventListener("submit", async (event) => {
     source.textContent =
       `${payload.source} · ${payload.latitude.toFixed(3)}, ${payload.longitude.toFixed(3)}`;
     section.hidden = false;
-    status.textContent = "";
+    const actualInitialization = new Date(payload.initialized_at);
+    if (
+      Number.isFinite(actualInitialization.valueOf())
+      && payload.initialized_at !== requestedInitialization
+    ) {
+      dateInput.value = actualInitialization.toISOString().slice(0, 10);
+      const actualCycle = String(actualInitialization.getUTCHours()).padStart(2, "0");
+      const actualCycleInput = [...form.querySelectorAll('input[name="cycle"]')]
+        .find((input) => input.value === actualCycle);
+      if (actualCycleInput) actualCycleInput.checked = true;
+      status.textContent = `所选起报已退出服务器缓存，已自动使用 ${dateInput.value} ${actualCycle} UTC 的最近完整资料。`;
+    } else {
+      status.textContent = "";
+    }
   } catch (error) {
     status.textContent = `单点预报读取失败：${error.message}`;
   }

@@ -32,7 +32,7 @@ def _province_features() -> list[dict[str, object]]:
     try:
         request = urllib.request.Request(
             PROVINCES_URL,
-            headers={"User-Agent": "MeteoStation/2.1.1"},
+            headers={"User-Agent": "MeteoStation/2.2.1"},
         )
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode("utf-8"))

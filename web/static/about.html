@@ -6,9 +6,9 @@
     <meta name="description" content="云海观象台、项目更新日志、私密信箱与气象友情链接。" />
     <title>关于 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/about.js?v=2.2.1-0807a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/about.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -24,7 +24,7 @@
           <div class="main-nav__links">
             <details class="nav-menu"><summary class="nav-menu__trigger">实况分析</summary><div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div></details>
             <details class="nav-menu"><summary class="nav-menu__trigger">模式预报</summary><div class="nav-menu__panel"><a href="/forecast">单点预报</a><a href="/sounding-forecast">探空预报</a></div></details>
-            <details class="nav-menu"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
+            <details class="nav-menu"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
             <a class="main-nav__direct is-active" href="/about">关于</a>
           </div>
           <div class="main-nav__status"><i aria-hidden="true"></i></div>
@@ -49,6 +49,7 @@
       <section class="about-section" aria-labelledby="changelog-heading">
         <header><p class="eyebrow">Changelog</p><h2 id="changelog-heading">网页更新日志</h2></header>
         <div class="changelog-list">
+          <article><time>V2.2.1 · 2026-08-10</time><h3>资料链路与查询工作台增强</h3><p>天气图自动选择最近完成时次并加强平滑与站点显示；探空支持站名检索和全球地图选站；24 小时实况补齐跨日序列；色条翻译器增加离散边界、采样位置与 GMT/CPT 输出；历史再分析开放区域框选、悬停读值和按需制图。</p></article>
           <article><time>V2.1.1 · 2026-08</time><h3>服务器正式部署与专业图形增强</h3><p>新增运维监视器、流量统计、天气图自动任务、全球探空归档；完善 Hodograph、风羽、强对流诊断、固定层标注、产品署名与统一配色；气象站页增加七区可点击站点地图和历史 08—08、20—20 查询；实验性功能增加色条翻译器。</p></article>
           <article><time>V2.0.1 · 2026-07</time><h3>网页化与交互探空</h3><p>建立中国天气主页、实况查询、Skew-T / Stüve 交互廓线、地面订正、单点预报和探空预报基础流程。</p></article>
         </div>

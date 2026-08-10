@@ -10,11 +10,11 @@
     <title>气象站实况查询 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
-    <script src="/static/weather-series-chart.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/observations.js?v=2.2.1-0807a" defer></script>
+    <script src="/static/weather-series-chart.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/observations.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -45,7 +45,7 @@
             </details>
             <details class="nav-menu">
               <summary class="nav-menu__trigger">实验性功能</summary>
-              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
             </details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
@@ -186,7 +186,7 @@
       </section>
 
       <section class="product-notes" aria-labelledby="obs-method-heading">
-        <header><p class="eyebrow">Method &amp; Sources</p><h2 id="obs-method-heading">实况产品说明</h2></header>
+        <header><h2 id="obs-method-heading">实况产品说明</h2></header>
         <div>
           <article><h3>处理方法</h3><p>按观测时刻排列温度、露点、体感温度、相对湿度、气压、降水和风。历史产品可选择北京时间 08—次日 08 或 20—次日 20，跨日资料合并后按精确时段裁切；缺测项保持空缺。</p></article>
           <article><h3>资料来源</h3><p>逐小时与实时观测来自 <a href="https://q-weather.info/" target="_blank" rel="noopener">q-weather</a>；站号、站名和所属地区依据全国气象站目录匹配。</p></article>

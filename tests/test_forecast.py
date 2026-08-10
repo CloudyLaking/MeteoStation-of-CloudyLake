@@ -257,6 +257,27 @@ def test_latest_cached_cycle_falls_back_to_previous_complete_run(
     assert result == datetime(2026, 8, 2, 18, tzinfo=timezone.utc)
 
 
+def test_latest_cached_cycle_can_ignore_an_expired_request(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setattr(web_app, "FORECAST_CACHE_ROOT", tmp_path)
+    directory = tmp_path / "ecmwf_forecast" / "ifs" / "2026" / "08" / "09"
+    directory.mkdir(parents=True)
+    cached = directory / (
+        "ifs_20260809_12z_forecast_surface_144h_3hourly.fast.nc"
+    )
+    cached.write_bytes(b"cached")
+
+    result = web_app._latest_cached_forecast_cycle(
+        model="ifs",
+        requested_at=None,
+        field_type="surface",
+    )
+
+    assert result == datetime(2026, 8, 9, 12, tzinfo=timezone.utc)
+
+
 def test_collector_interleaves_models_for_latest_cycle(
     monkeypatch,
     tmp_path,

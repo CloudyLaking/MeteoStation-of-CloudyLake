@@ -1,5 +1,5 @@
 {
-  "version": "V2.1.1",
+  "version": "V2.2.1",
   "region": "china-and-neighbours",
   "cycles": ["00", "12"],
   "domain": {
@@ -56,14 +56,14 @@
     "smoothing": {
       "method": "NaN-aware Gaussian",
       "sigma_gridpoints": {
-        "surface_mslp": 2.25,
-        "surface_wind_speed": 1.25,
-        "850_humidity": 1.5,
-        "850_height": 1.5,
-        "500_height_anomaly": 2.0,
-        "500_height": 1.5,
-        "200_wind_speed": 1.5,
-        "200_height": 1.5
+        "surface_mslp": 3.0,
+        "surface_wind_speed": 1.75,
+        "850_humidity": 2.0,
+        "850_height": 2.0,
+        "500_height_anomaly": 2.5,
+        "500_height": 2.0,
+        "200_wind_speed": 2.0,
+        "200_height": 2.0
       },
       "wind_barbs": "unsmoothed observations/model vectors"
     },
@@ -362,6 +362,13 @@
       "latitude": 28.1167,
       "longitude": 112.7833,
       "priority": 20
+    },
+    {
+      "wmo_id": "57749",
+      "name": "怀化",
+      "latitude": 27.5700,
+      "longitude": 110.0000,
+      "priority": 30
     },
     {
       "wmo_id": "57816",

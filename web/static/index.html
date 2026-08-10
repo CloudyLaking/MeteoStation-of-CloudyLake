@@ -9,9 +9,9 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/app.js?v=2.2.1-0807a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/app.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -43,7 +43,7 @@
             </details>
             <details class="nav-menu">
               <summary class="nav-menu__trigger">实验性功能</summary>
-              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
             </details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
@@ -86,6 +86,14 @@
           <button type="button" data-map-layer="850">850 hPa</button>
           <button type="button" data-map-layer="500">500 hPa</button>
           <button type="button" data-map-layer="200">200 hPa</button>
+        </div>
+        <div class="station-display-dock" aria-label="探空站数据显示方式">
+          <span>站点</span>
+          <button type="button" class="is-active" data-station-display="composite">综合站模</button>
+          <button type="button" data-station-display="temperature">温度</button>
+          <button type="button" data-station-display="dewpoint">露点</button>
+          <button type="button" data-station-display="height">气压 / 高度</button>
+          <button type="button" data-station-display="wind">风速</button>
         </div>
 
         <div class="map-stage">
@@ -154,20 +162,19 @@
         </div>
 
         <form class="station-form">
-          <label for="station-search">WMO 站号</label>
+          <label for="station-search">探空站号或站名</label>
           <div class="search-control">
             <input
               id="station-search"
               name="station"
               type="search"
               value="58362"
-              placeholder="宝山：58362"
+              placeholder="例如：58362、上海宝山"
               autocomplete="off"
-              inputmode="numeric"
-              pattern="[0-9]{5}"
             />
             <button type="submit" aria-label="搜索站点">→</button>
           </div>
+          <div class="station-suggestions" id="sounding-station-options" hidden></div>
         </form>
 
         <div class="viewer-settings">
@@ -316,7 +323,7 @@
     </section>
 
     <section class="product-notes" aria-labelledby="home-method-heading">
-      <header><p class="eyebrow">Method &amp; Sources</p><h2 id="home-method-heading">中国天气分析说明</h2></header>
+      <header><h2 id="home-method-heading">中国天气分析说明</h2></header>
       <div>
         <article><h3>处理方法</h3><p>以 ECMWF IFS 场为连续背景，对海平面气压和等高线作尺度受控的平滑；地面锋面由热力锋参数、锋生、形变/辐合和温度平流联合识别，500 hPa 槽脊轴由位势高度曲率、地转风零线及连续性筛选。探空点独立显示实测资料是否已经更新。</p></article>
         <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>、<a href="https://weather.uwyo.edu/upperair/sounding.html" target="_blank" rel="noopener">University of Wyoming</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">WMO WIS 2.0</a> 与天地图标准地图服务。</p></article>

@@ -6,7 +6,7 @@
     <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 单点预报。" />
     <title>单点预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
   </head>
   <body>
     <header class="site-header">
@@ -36,7 +36,7 @@
             </details>
             <details class="nav-menu">
               <summary class="nav-menu__trigger">实验性功能</summary>
-              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
             </details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
@@ -125,7 +125,7 @@
       <div class="forecast-status" id="forecast-status" aria-live="polite"></div>
 
       <section class="product-notes" aria-labelledby="forecast-method-heading">
-        <header><p class="eyebrow">Method &amp; Sources</p><h2 id="forecast-method-heading">单点预报说明</h2></header>
+        <header><h2 id="forecast-method-heading">单点预报说明</h2></header>
         <div>
           <article><h3>处理方法</h3><p>按输入位置匹配最近的模式格点，给出温度、露点、海平面气压、降水、风和总云量的时序变化。IFS 间隔为 3 h，AIFS 间隔为 6 h，未作站点统计订正。</p></article>
           <article><h3>资料来源</h3><p>资料来自 <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>。图内标注实际模式、起报时次、格点位置与有效时刻。</p></article>
@@ -139,9 +139,9 @@
       <a href="mailto:cloudylaking@outlook.com">Contact: cloudylaking@outlook.com</a>
       <span>Powered with Codex &amp; Deepseek</span>
     </footer>
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/weather-series-chart.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/location-suggest.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/forecast.js?v=2.2.1-0807a" defer></script>
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/weather-series-chart.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/location-suggest.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/forecast.js?v=2.2.1-0810a" defer></script>
   </body>
 </html>

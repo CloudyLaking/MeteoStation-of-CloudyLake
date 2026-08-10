@@ -66,6 +66,24 @@ class WeatherMapCatalog:
             and str(item.get("valid_at", "")).startswith(prefix)
         ]
 
+    def latest_product(self, *, layer_id: str) -> WeatherMapProduct | None:
+        """Return the newest complete product for a layer, if one exists."""
+        if not self.catalog_path.exists():
+            return None
+        try:
+            payload = json.loads(self.catalog_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        products: list[WeatherMapProduct] = []
+        for item in payload.get("products", []):
+            if not isinstance(item, dict) or item.get("layer_id") != layer_id:
+                continue
+            try:
+                products.append(WeatherMapProduct.model_validate(item))
+            except ValueError:
+                continue
+        return max(products, key=lambda product: product.valid_at, default=None)
+
     def jobs(
         self,
         *,

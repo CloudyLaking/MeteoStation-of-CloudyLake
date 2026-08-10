@@ -20,6 +20,7 @@ const levelHeight = document.querySelector("#level-height");
 const levelValues = document.querySelector("#level-values");
 const exportButtons = document.querySelectorAll("[data-export]");
 const weatherMapButtons = document.querySelectorAll("[data-map-layer]");
+const stationDisplayButtons = document.querySelectorAll("[data-station-display]");
 const weatherMapImage = document.querySelector("#weather-map-image");
 const weatherMapBadge = document.querySelector("#weather-map-badge");
 const weatherMapPlaceholder = document.querySelector(".map-placeholder");
@@ -36,6 +37,7 @@ const correctionTime = document.querySelector("#correction-time");
 const correctionRealtime = document.querySelector("#correction-realtime");
 const correctionReset = document.querySelector("#correction-reset");
 const correctionStatus = document.querySelector("#correction-status");
+const soundingStationOptions = document.querySelector("#sounding-station-options");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const STANDARD_LEVELS = [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100];
@@ -71,6 +73,7 @@ let chartProjection = null;
 let exportFontDataPromise = null;
 let weatherMapConfig = null;
 let selectedWeatherLayer = "composite";
+let selectedStationDisplay = "composite";
 let mapStationProfiles = new Map();
 let weatherMapPlotBounds = null;
 let weatherMapMetadataUrl = null;
@@ -138,10 +141,37 @@ async function loadWeatherMapConfig() {
       ? `底图：${attribution}`
       : "";
     renderMapSoundingStations();
+    const initialParameters = new URLSearchParams(window.location.search);
+    if (!initialParameters.has("date") && !initialParameters.has("cycle")) {
+      await selectLatestWeatherMapCycle();
+    }
     await loadWeatherMapProduct();
   } catch (error) {
     weatherMapStatus.textContent = "天气图配置读取失败";
     weatherMapDescription.textContent = error.message;
+  }
+}
+
+async function selectLatestWeatherMapCycle() {
+  try {
+    const response = await fetch(
+      `/api/v1/weather-maps/latest?layer=${encodeURIComponent(selectedWeatherLayer)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!response.ok) return;
+    const payload = await response.json();
+    const validAt = payload.product?.valid_at;
+    if (!validAt) return;
+    const instant = new Date(validAt);
+    if (Number.isNaN(instant.getTime())) return;
+    archiveDate.value = instant.toISOString().slice(0, 10);
+    const cycle = String(instant.getUTCHours()).padStart(2, "0");
+    cycleButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.cycle === cycle);
+    });
+    archiveNote.textContent = `${archiveDate.value} ${cycle} UTC · 最近完整分析`;
+  } catch {
+    // Exact-date loading below still provides an explicit status on failure.
   }
 }
 
@@ -424,6 +454,42 @@ function updateMapStationLabels() {
       button.setAttribute("aria-label", `${detail}；点击查看探空`);
       continue;
     }
+    if (selectedStationDisplay !== "composite") {
+      const displayValues = {
+        temperature: {
+          value: formatValue(level?.temperature_c),
+          unit: "°C",
+          className: "station-value--temperature",
+        },
+        dewpoint: {
+          value: formatValue(level?.dewpoint_c),
+          unit: "°C",
+          className: "station-value--dewpoint",
+        },
+        height: {
+          value: secondaryValue,
+          unit: ["850", "500", "200"].includes(selectedWeatherLayer) ? "dam" : "hPa",
+          className: "station-value--height",
+        },
+        wind: {
+          value: Number.isFinite(level?.wind_speed_ms)
+            ? Number(level.wind_speed_ms).toFixed(1)
+            : "—",
+          unit: "m/s",
+          className: "station-value--wind",
+        },
+      };
+      const item = displayValues[selectedStationDisplay];
+      button.innerHTML = `
+        <svg class="station-value-model ${item.className}" viewBox="0 0 74 74" aria-hidden="true">
+          <circle cx="37" cy="54" r="2.5" fill="${statusColor}"></circle>
+          <text x="37" y="34" text-anchor="middle" font-size="16" font-weight="800">${item.value}</text>
+          <text x="37" y="47" text-anchor="middle" font-size="6.5" font-weight="650">${item.unit}</text>
+        </svg>
+      `;
+      button.title = `${station?.name ?? ""} ${station?.wmo_id ?? button.dataset.stationId} · ${levelLabel} · ${item.value} ${item.unit}`;
+      continue;
+    }
     const windBarb = weatherStationBarbSvg(
       level?.wind_direction_deg,
       level?.wind_speed_ms,
@@ -566,13 +632,29 @@ function shiftArchiveDate(dayDelta) {
 stationForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = stationForm.elements.station;
-  const stationId = input.value.trim();
+  const stationQuery = input.value.trim();
+  let stationId = stationQuery.match(/(?:^|·\s*)(\d{5})$/)?.[1] ?? stationQuery;
+  let resolvedStation = null;
 
   if (!/^\d{5}$/.test(stationId)) {
-    input.setCustomValidity("请输入五位 WMO 探空站号。");
-    input.reportValidity();
-    window.setTimeout(() => input.setCustomValidity(""), 1800);
-    return;
+    try {
+      const stationResponse = await fetch(
+        `/api/v1/stations/resolve?q=${encodeURIComponent(stationId)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      const stationPayload = await stationResponse.json();
+      if (!stationResponse.ok) {
+        throw new Error(stationPayload.detail ?? "找不到该探空站");
+      }
+      resolvedStation = stationPayload;
+      stationId = stationPayload.wmo_id;
+      input.value = `${stationPayload.display_name} · ${stationId}`;
+    } catch (error) {
+      input.setCustomValidity(error.message);
+      input.reportValidity();
+      window.setTimeout(() => input.setCustomValidity(""), 2200);
+      return;
+    }
   }
 
   const cycle = selectedCycle();
@@ -615,7 +697,7 @@ stationForm?.addEventListener("submit", async (event) => {
     const diagnostics = diagnosticsResponse.ok
       ? await diagnosticsResponse.json()
       : null;
-    const station = stationResponse.ok ? await stationResponse.json() : null;
+    const station = resolvedStation ?? (stationResponse.ok ? await stationResponse.json() : null);
 
     currentSounding = {
       data,
@@ -638,6 +720,51 @@ stationForm?.addEventListener("submit", async (event) => {
       <strong>${stationId}</strong>
       <p>${escapeHtml(error.message)}</p>
     `;
+  }
+});
+
+let soundingStationSearchTimer = null;
+stationForm?.elements.station?.addEventListener("input", () => {
+  window.clearTimeout(soundingStationSearchTimer);
+  soundingStationSearchTimer = window.setTimeout(async () => {
+    if (!soundingStationOptions) return;
+    const query = stationForm.elements.station.value.trim();
+    if (!query || query.includes(" · ")) {
+      soundingStationOptions.hidden = true;
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/v1/stations/search?q=${encodeURIComponent(query)}&limit=10`,
+        { headers: { Accept: "application/json" } },
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload.stations?.length) {
+        soundingStationOptions.hidden = true;
+        return;
+      }
+      soundingStationOptions.replaceChildren(...payload.stations.map((station) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "station-suggestion";
+        button.innerHTML = `<strong>${escapeHtml(station.display_name)}</strong><small>WMO ${escapeHtml(station.wmo_id)} · ${Number(station.latitude).toFixed(2)}, ${Number(station.longitude).toFixed(2)}</small>`;
+        button.addEventListener("click", () => {
+          stationForm.elements.station.value = station.wmo_id;
+          soundingStationOptions.hidden = true;
+          stationForm.requestSubmit();
+        });
+        return button;
+      }));
+      soundingStationOptions.hidden = false;
+    } catch {
+      soundingStationOptions.hidden = true;
+    }
+  }, 160);
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (soundingStationOptions && !event.target.closest(".station-form")) {
+    soundingStationOptions.hidden = true;
   }
 });
 
@@ -2973,6 +3100,16 @@ weatherMapButtons.forEach((button) => {
     url.searchParams.set("map", selectedWeatherLayer);
     window.history.replaceState({}, "", url);
     void loadWeatherMapProduct();
+  });
+});
+
+stationDisplayButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedStationDisplay = button.dataset.stationDisplay;
+    stationDisplayButtons.forEach((item) => {
+      item.classList.toggle("is-active", item === button);
+    });
+    updateMapStationLabels();
   });
 });
 

@@ -85,6 +85,7 @@
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
+      hourCycle: "h23",
       timeZone: "Asia/Shanghai",
     }).format(date);
   }
@@ -356,11 +357,9 @@
     // ---- Precipitation band ----
     const rainMaximum = Math.max(...rain, 0.1);
     const rainBarWidth = Math.max(8, (plot.right - plot.left) / points.length * 0.7);
-    let cumulativeRain = 0;
     points.forEach((point, index) => {
-      cumulativeRain += rain[index];
       const height = rain[index] / rainMaximum * 88;
-      if (height > 0) svg.append(node("rect", { x: x(index) - rainBarWidth / 2, y: 662 - height, width: rainBarWidth, height, fill: precipitationColour(cumulativeRain) }));
+      if (height > 0) svg.append(node("rect", { x: x(index) - rainBarWidth / 2, y: 662 - height, width: rainBarWidth, height, fill: precipitationColour(rain[index]) }));
       svg.append(node("text", { x: x(index), y: 676, "text-anchor": "middle", "font-size": 11.5 }, format(rain[index], 1)));
     });
     svg.append(

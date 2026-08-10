@@ -578,7 +578,7 @@ async function exportPng() {
     const image = new Image();
     await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
     const canvas = document.createElement("canvas");
-    canvas.width = 2400; canvas.height = 1520;
+    canvas.width = 2400; canvas.height = 1470;
     const context = canvas.getContext("2d");
     context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="云海观象台 ERA5 历史再分析区域查询与交互制图。" />
+    <title>历史再分析 · 云海观象台</title>
+    <link rel="icon" href="/brand/logo-cn-blue.png" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+    <script src="/static/reanalysis.js?v=2.2.1-0810a" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand-row">
+        <a class="brand" href="/" aria-label="云海观象台首页">
+          <img src="/brand/logo-cn-blue.png" alt="" />
+          <span><span class="brand-title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span><em class="brand-slogan">Make Ensemble Forecast Great Again！</em></span>
+        </a>
+        <a class="header-motto" href="/admin" title="打开运维监视器"><strong>服务器状态读取中</strong><span>SERVER STATUS</span></a>
+      </div>
+      <nav class="main-nav" aria-label="主导航">
+        <div class="main-nav__inner">
+          <div class="main-nav__links">
+            <details class="nav-menu"><summary class="nav-menu__trigger">实况分析</summary><div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div></details>
+            <details class="nav-menu"><summary class="nav-menu__trigger">模式预报</summary><div class="nav-menu__panel"><a href="/forecast">单点预报</a><a href="/sounding-forecast">探空预报</a></div></details>
+            <details class="nav-menu is-active"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a class="is-current" href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
+            <a class="main-nav__direct" href="/about">关于</a>
+          </div>
+          <div class="main-nav__status"><i aria-hidden="true"></i></div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="reanalysis-page">
+      <section class="reanalysis-heading">
+        <p class="eyebrow">ERA5 Historical Analysis</p>
+        <h1>历史再分析</h1>
+        <p>选择历史时次和要素，用地图视野限定查询范围；结果可悬停读值并继续框选放大。</p>
+      </section>
+
+      <section class="reanalysis-workbench">
+        <form id="reanalysis-form" class="reanalysis-form">
+          <header><h2>查询条件</h2><span id="reanalysis-area-label">中国及邻近区域</span></header>
+          <div class="reanalysis-fields">
+            <label><span>日期 / UTC</span><input id="reanalysis-date" type="date" required /></label>
+            <label><span>时次 / UTC</span><select id="reanalysis-hour"></select></label>
+            <label><span>分析要素</span><select id="reanalysis-field">
+              <option value="temperature_2m">2 m 温度</option>
+              <option value="mean_sea_level_pressure">海平面气压</option>
+              <option value="cape">对流有效位能 CAPE</option>
+              <option value="temperature">等压面温度</option>
+              <option value="relative_humidity">等压面相对湿度</option>
+              <option value="geopotential_height" selected>位势高度</option>
+              <option value="wind_speed">等压面风速</option>
+            </select></label>
+            <label id="reanalysis-level-wrap"><span>等压面</span><select id="reanalysis-level"><option>1000</option><option>925</option><option>850</option><option>700</option><option selected>500</option><option>300</option><option>250</option><option>200</option><option>100</option></select></label>
+          </div>
+          <div class="reanalysis-bounds" aria-label="查询边界">
+            <label><span>西界</span><input id="reanalysis-west" type="number" min="-180" max="180" step="0.25" value="70" /></label>
+            <label><span>东界</span><input id="reanalysis-east" type="number" min="-180" max="180" step="0.25" value="145" /></label>
+            <label><span>南界</span><input id="reanalysis-south" type="number" min="-90" max="90" step="0.25" value="15" /></label>
+            <label><span>北界</span><input id="reanalysis-north" type="number" min="-90" max="90" step="0.25" value="60" /></label>
+          </div>
+          <button class="reanalysis-submit" type="submit">查询并绘制</button>
+        </form>
+        <div class="reanalysis-map-panel">
+          <header><h2>范围选取</h2><p>平移、滚轮或双指缩放；当前视野即查询框。</p></header>
+          <div id="reanalysis-map" role="application" aria-label="ERA5 查询范围地图"></div>
+        </div>
+      </section>
+
+      <section class="reanalysis-result" id="reanalysis-result" hidden>
+        <header><div><p class="eyebrow">Interactive Field</p><h2 id="reanalysis-result-title">ERA5 历史场</h2></div><p id="reanalysis-result-meta"></p></header>
+        <div id="reanalysis-plot" role="img" aria-label="可缩放并悬停读值的 ERA5 历史场"></div>
+      </section>
+      <div class="reanalysis-status" id="reanalysis-status" aria-live="polite">等待查询。</div>
+
+      <section class="product-notes" aria-labelledby="reanalysis-notes-title">
+        <header><h2 id="reanalysis-notes-title">历史再分析说明</h2></header>
+        <div>
+          <article><h3>资料来源</h3><p><a href="https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels" target="_blank" rel="noopener">Copernicus Climate Data Store · ERA5</a>，水平分辨率 0.25°、逐小时。</p></article>
+          <article><h3>查询方式</h3><p>每次仅请求所选时次、变量、层面和地图范围，完成解码后清理临时源文件。大范围查询可能需要数分钟。</p></article>
+          <article><h3>交互阅读</h3><p>悬停图面读取经纬度和数值；工具栏支持框选放大、平移、复位和导出当前图。</p></article>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer"><span>Copyright © 2026- CloudyLake. All Rights Reserved.</span><a href="mailto:cloudylaking@outlook.com">Contact: cloudylaking@outlook.com</a><span>Powered with Codex &amp; Deepseek</span></footer>
+  </body>
+</html>

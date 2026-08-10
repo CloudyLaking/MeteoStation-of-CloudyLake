@@ -6,9 +6,9 @@
     <meta name="description" content="从色条截图提取配色并转换为 Matplotlib、Plotly、CSS 或 JSON 代码。" />
     <title>色条翻译器 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/colorbar-translator.js?v=2.2.1-0807a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/colorbar-translator.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -24,7 +24,7 @@
           <div class="main-nav__links">
             <details class="nav-menu"><summary class="nav-menu__trigger">实况分析</summary><div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div></details>
             <details class="nav-menu"><summary class="nav-menu__trigger">模式预报</summary><div class="nav-menu__panel"><a href="/forecast">单点预报</a><a href="/sounding-forecast">探空预报</a></div></details>
-            <details class="nav-menu is-active"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a class="is-current" href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
+            <details class="nav-menu is-active"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a class="is-current" href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
           <div class="main-nav__status"><i aria-hidden="true"></i></div>
@@ -63,13 +63,19 @@
             <label><span>色条方向</span><select id="colorbar-orientation"><option value="auto">自动判断</option><option value="vertical">纵向</option><option value="horizontal">横向</option></select></label>
             <label><span>采样模式</span><select id="colorbar-mode"><option value="continuous">连续渐变</option><option value="discrete">离散分级</option></select></label>
             <label><span>颜色数量</span><input id="colorbar-count" type="number" min="2" max="64" value="12" /></label>
-            <label><span>代码格式</span><select id="colorbar-format"><option value="matplotlib">Matplotlib</option><option value="plotly">Plotly</option><option value="css">CSS</option><option value="json">通用 JSON</option></select></label>
+            <label><span>代码格式</span><select id="colorbar-format"><option value="matplotlib">Matplotlib</option><option value="plotly">Plotly</option><option value="cpt">GMT / CPT</option><option value="css">CSS</option><option value="json">通用 JSON</option></select></label>
             <label><span>最小值</span><input id="colorbar-min" type="number" step="any" value="0" /></label>
             <label><span>最大值</span><input id="colorbar-max" type="number" step="any" value="1" /></label>
+            <label><span>横向取样内缩</span><input id="colorbar-inset" type="number" min="0" max="45" step="1" value="24" /></label>
+            <label><span>相邻色合并阈值</span><input id="colorbar-distance" type="number" min="0" max="80" step="1" value="8" /></label>
           </div>
           <div class="translator-ticks-row">
             <button id="colorbar-ticks" type="button" disabled>读取刻度数字</button>
             <p id="translator-ticks-note">识别色条旁边的刻度数字并自动填入最小/最大值。</p>
+          </div>
+          <div class="translator-manual-bounds">
+            <label for="colorbar-boundaries"><span>手动分级边界（逗号分隔）</span><input id="colorbar-boundaries" type="text" placeholder="例如：0, 5, 10, 20, 35" /></label>
+            <button id="colorbar-apply-boundaries" type="button">应用边界</button>
           </div>
           <label class="translator-check"><input id="colorbar-reverse" type="checkbox" /><span>反转颜色顺序</span></label>
           <button class="translator-generate" id="colorbar-generate" type="button" disabled>提取并生成代码</button>
@@ -88,7 +94,7 @@
       </section>
 
       <section class="product-notes" aria-labelledby="translator-method-heading">
-        <header><p class="eyebrow">Method &amp; Limits</p><h2 id="translator-method-heading">使用说明</h2></header>
+        <header><h2 id="translator-method-heading">使用说明</h2></header>
         <div>
           <article><h3>提取方法</h3><p>对框选区域沿色条方向等距采样，并在色条短轴中部取多点中值，以减弱边框、刻度线和压缩噪声影响。</p></article>
           <article><h3>框选建议</h3><p>自动识别后仍可重新拖动框选。尽量只保留有颜色的矩形条，避开数字、标题、三角延伸端和大块背景。</p></article>

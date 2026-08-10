@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -78,16 +79,26 @@ def retrieve_ecmwf_input(
         retrieval["param"] = request.parameters
 
     try:
-        try:
-            client.retrieve(request=retrieval, target=str(temporary))
-        except Exception as exc:
-            response = getattr(exc, "response", None)
-            if getattr(response, "status_code", None) == 404:
-                raise EcmwfProductNotAvailable(
-                    f"{request.id} is not available for "
-                    f"{request.valid_date} {request.cycle} UTC"
-                ) from exc
-            raise
+        last_error: Exception | None = None
+        for attempt in range(3):
+            if temporary.exists():
+                temporary.unlink()
+            try:
+                client.retrieve(request=retrieval, target=str(temporary))
+                last_error = None
+                break
+            except Exception as exc:
+                response = getattr(exc, "response", None)
+                if getattr(response, "status_code", None) == 404:
+                    raise EcmwfProductNotAvailable(
+                        f"{request.id} is not available for "
+                        f"{request.valid_date} {request.cycle} UTC"
+                    ) from exc
+                last_error = exc
+                if attempt < 2:
+                    time.sleep(4 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
         if not temporary.exists() or temporary.stat().st_size == 0:
             raise RuntimeError("ECMWF retrieval returned an empty file")
         os.replace(temporary, target)

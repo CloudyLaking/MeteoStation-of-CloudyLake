@@ -30,22 +30,22 @@ from .models import (
 
 WIND_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-wind",
-    ["#ffffff", "#f3eadf", "#ead8bd", "#dcb49a", "#a68b99"],
+    ["#ffffff", "#d9eff0", "#98d5d0", "#f6dc79", "#126e68"],
 )
 HUMIDITY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-humidity",
-    ["#b9957d", "#eee1cf", "#ffffff", "#b8d6ce", "#5f928c"],
+    ["#285f9c", "#a9d2e3", "#ffffff", "#f7e7a4", "#16867b"],
 )
 HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-height-anomaly",
     [
-        "#557f98",
-        "#9dbfcb",
-        "#dce9e7",
+        "#225ea8",
+        "#91c4d8",
+        "#e1f1f2",
         "#ffffff",
-        "#f5e8bc",
-        "#dda96c",
-        "#b86450",
+        "#fff1ae",
+        "#f2c94c",
+        "#126e68",
     ],
 )
 FIGURE_SIZE_INCHES = (11.5, 8.7)
@@ -57,14 +57,14 @@ MAP_FIGURE_BOUNDS = {
 }
 COLORBAR_FIGURE_BOUNDS = [0.885, 0.100, 0.025, 0.760]
 SMOOTHING_SIGMA_GRIDPOINTS = {
-    "surface_mslp": 2.25,
-    "surface_wind_speed": 1.25,
-    "850_humidity": 1.50,
-    "850_height": 1.50,
-    "500_height_anomaly": 2.00,
-    "500_height": 1.50,
-    "200_wind_speed": 1.50,
-    "200_height": 1.50,
+    "surface_mslp": 3.00,
+    "surface_wind_speed": 1.75,
+    "850_humidity": 2.00,
+    "850_height": 2.00,
+    "500_height_anomaly": 2.50,
+    "500_height": 2.00,
+    "200_wind_speed": 2.00,
+    "200_height": 2.00,
 }
 
 
@@ -610,7 +610,7 @@ def draw_surface(
         levels=np.linspace(0, maximum, 17),
         cmap=WIND_COLORS,
         extend="max",
-        alpha=0.76,
+        alpha=0.66,
     )
     contour_levels = np.arange(
         np.floor(np.nanmin(mslp) / 4) * 4,
@@ -623,7 +623,7 @@ def draw_surface(
         mslp,
         levels=contour_levels,
         colors="#263238",
-        linewidths=0.62,
+        linewidths=0.54,
     )
     axis.clabel(contours, inline=True, fontsize=7, fmt="%.0f")
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
@@ -786,7 +786,7 @@ def draw_pressure_level(
             levels=np.arange(10, 101, 10),
             cmap=HUMIDITY_COLORS,
             extend="both",
-            alpha=0.76,
+            alpha=0.66,
         )
         colorbar_label = "Relative humidity (%)"
     elif shade == "height_anomaly":
@@ -819,7 +819,7 @@ def draw_pressure_level(
             levels=np.linspace(-maximum, maximum, 17),
             cmap=HEIGHT_ANOMALY_COLORS,
             extend="both",
-            alpha=0.76,
+            alpha=0.66,
         )
         colorbar_label = "500 hPa height anomaly (gpm)"
     else:
@@ -843,7 +843,7 @@ def draw_pressure_level(
             levels=np.linspace(0, maximum, 17),
             cmap=WIND_COLORS,
             extend="max",
-            alpha=0.76,
+            alpha=0.66,
         )
         colorbar_label = f"{pressure_hpa} hPa wind speed (m/s)"
     height = smooth_field(
@@ -882,7 +882,7 @@ def draw_pressure_level(
         height,
         levels=height_levels,
         colors="#263238",
-        linewidths=0.62,
+        linewidths=0.54,
     )
     # Match the pressure-level station model convention: 588 dagpm instead
     # of 5880 gpm. The decoded field remains in geopotential metres.

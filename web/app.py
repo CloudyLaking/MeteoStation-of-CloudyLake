@@ -5,7 +5,7 @@ import os
 import re
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from time import monotonic
@@ -50,6 +50,7 @@ from meteostation.observation import (
     search_world_stations,
     station_records,
     stations_in_region,
+    world_station_records,
 )
 from meteostation.sounding import (
     CorrectedSounding,
@@ -76,6 +77,11 @@ from meteostation.forecast import (
     extract_sounding_forecast,
     extract_surface_forecast,
     retrieve_ecmwf_forecast,
+)
+from meteostation.reanalysis import (
+    FIELDS as REANALYSIS_FIELDS,
+    ReanalysisUnavailable,
+    retrieve_reanalysis_grid,
 )
 
 
@@ -113,6 +119,12 @@ observation_series_cache: dict[
 ] = {}
 observation_series_locks: dict[tuple[str, str, str, str], asyncio.Lock] = {}
 guestbook_lock = asyncio.Lock()
+weather_map_station_cache: dict[
+    tuple[date, str], tuple[float, tuple[dict[str, object], ...]]
+] = {}
+reanalysis_jobs: dict[str, dict[str, object]] = {}
+reanalysis_job_lock = asyncio.Lock()
+reanalysis_worker_slots = asyncio.Semaphore(2)
 traffic = RuntimeTraffic(TRAFFIC_STATE_PATH)
 admin_security = HTTPBasic(auto_error=False)
 PRODUCT_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -146,7 +158,7 @@ async def _warm_primary_observation() -> None:
 app = FastAPI(
     title="云海观象台 API",
     description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek.",
-    version="2.1.1",
+    version="2.2.1",
     lifespan=application_lifespan,
 )
 
@@ -182,6 +194,11 @@ async def sounding_forecast_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "sounding-forecast.html")
 
 
+@app.get("/reanalysis", include_in_schema=False)
+async def reanalysis_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "reanalysis.html")
+
+
 @app.get("/about", include_in_schema=False)
 async def about_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "about.html")
@@ -190,6 +207,113 @@ async def about_page() -> FileResponse:
 @app.get("/colorbar-translator", include_in_schema=False)
 async def colorbar_translator_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "colorbar-translator.html")
+
+
+class ReanalysisRequest(BaseModel):
+    valid_date: date
+    hour: int = Field(ge=0, le=23)
+    field: str = Field(min_length=1, max_length=40)
+    pressure_hpa: int | None = Field(default=500, ge=1, le=1000)
+    north: float = Field(ge=-90, le=90)
+    west: float = Field(ge=-180, le=180)
+    south: float = Field(ge=-90, le=90)
+    east: float = Field(ge=-180, le=180)
+
+    @field_validator("field")
+    @classmethod
+    def known_field(cls, value: str) -> str:
+        if value not in REANALYSIS_FIELDS:
+            raise ValueError("unknown ERA5 field")
+        return value
+
+
+@app.post("/api/v1/reanalysis/jobs", summary="提交临时 ERA5 区域查询")
+async def create_reanalysis_job(query: ReanalysisRequest) -> dict[str, object]:
+    if query.north <= query.south or query.east <= query.west:
+        raise HTTPException(status_code=422, detail="区域边界顺序不正确")
+    if query.north - query.south > 75 or query.east - query.west > 120:
+        raise HTTPException(status_code=422, detail="单次查询范围过大，请缩小框选区域")
+    valid_at = datetime(
+        query.valid_date.year,
+        query.valid_date.month,
+        query.valid_date.day,
+        query.hour,
+        tzinfo=timezone.utc,
+    )
+    if valid_at > datetime.now(timezone.utc) - timedelta(days=5):
+        raise HTTPException(
+            status_code=422,
+            detail="ERA5 通常延迟约 5 天，请选择更早的历史时次",
+        )
+    job_id = secrets.token_urlsafe(12)
+    now = datetime.now(timezone.utc)
+    async with reanalysis_job_lock:
+        _expire_reanalysis_jobs(now)
+        reanalysis_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "created_at": now.isoformat(),
+            "query": query.model_dump(mode="json"),
+        }
+    asyncio.create_task(_run_reanalysis_job(job_id, query, valid_at))
+    return reanalysis_jobs[job_id]
+
+
+@app.get("/api/v1/reanalysis/jobs/{job_id}", summary="读取 ERA5 查询状态")
+async def reanalysis_job(job_id: str) -> dict[str, object]:
+    async with reanalysis_job_lock:
+        _expire_reanalysis_jobs(datetime.now(timezone.utc))
+        payload = reanalysis_jobs.get(job_id)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="查询任务不存在或已经过期")
+        return dict(payload)
+
+
+async def _run_reanalysis_job(
+    job_id: str,
+    query: ReanalysisRequest,
+    valid_at: datetime,
+) -> None:
+    async with reanalysis_worker_slots:
+        async with reanalysis_job_lock:
+            reanalysis_jobs[job_id]["status"] = "retrieving"
+            reanalysis_jobs[job_id]["started_at"] = datetime.now(timezone.utc).isoformat()
+        try:
+            result = await asyncio.to_thread(
+                retrieve_reanalysis_grid,
+                valid_at=valid_at,
+                field_id=query.field,
+                pressure_hpa=query.pressure_hpa,
+                north=query.north,
+                west=query.west,
+                south=query.south,
+                east=query.east,
+            )
+        except ReanalysisUnavailable as exc:
+            async with reanalysis_job_lock:
+                reanalysis_jobs[job_id].update(
+                    status="failed",
+                    detail=str(exc),
+                    completed_at=datetime.now(timezone.utc).isoformat(),
+                )
+            return
+        async with reanalysis_job_lock:
+            reanalysis_jobs[job_id].update(
+                status="complete",
+                result=result,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
+
+
+def _expire_reanalysis_jobs(now: datetime) -> None:
+    cutoff = now - timedelta(hours=1)
+    for job_id, payload in list(reanalysis_jobs.items()):
+        try:
+            created_at = datetime.fromisoformat(str(payload["created_at"]))
+        except (KeyError, ValueError):
+            created_at = cutoff - timedelta(seconds=1)
+        if created_at < cutoff:
+            reanalysis_jobs.pop(job_id, None)
 
 
 class GuestbookSubmission(BaseModel):
@@ -218,9 +342,9 @@ async def health() -> dict[str, str]:
 @app.get("/api/v1/status")
 async def project_status() -> dict[str, object]:
     return {
-        "version": "V2.1.1",
-        "stage": "china-weather-map-input-pipeline",
-        "updated_at": "2026-08-01",
+        "version": "V2.2.1",
+        "stage": "interactive-analysis-workbench",
+        "updated_at": "2026-08-10",
         "archive_policy": "soundings-saved-surface-query-no-store",
         "modules": [
             {
@@ -228,7 +352,7 @@ async def project_status() -> dict[str, object]:
                 "label": "中国天气主页",
                 "status": "automatic-analysis-running",
             },
-            {"id": "historical-reanalysis", "label": "历史再分析", "status": "planned"},
+            {"id": "historical-reanalysis", "label": "历史再分析", "status": "query-on-demand"},
             {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "planned"},
             {
                 "id": "sounding",
@@ -560,6 +684,41 @@ async def weather_map_products(
 
 
 @app.get(
+    "/api/v1/weather-maps/latest",
+    summary="读取最近完成的中国天气图产品",
+)
+async def latest_weather_map_product(
+    layer: str = Query(default="composite", min_length=1, max_length=40),
+) -> dict[str, object]:
+    configuration = weather_map_catalog.configuration()
+    known_layers = {item.id for item in configuration.layers}
+    if layer not in known_layers:
+        raise HTTPException(status_code=422, detail="unknown weather-map layer")
+
+    preview_layer = "surface" if layer == "composite" else layer
+    previews = [
+        item
+        for item in read_preview_catalog(WEATHER_MAP_PREVIEW_CATALOG_PATH)
+        if item.layer_id == preview_layer
+    ]
+    preview = max(previews, key=lambda item: item.valid_at, default=None)
+    product = weather_map_catalog.latest_product(layer_id=layer)
+    if product is not None and (
+        preview is None or product.valid_at >= preview.valid_at
+    ):
+        return {
+            "layer": layer,
+            "product": product.model_dump(mode="json"),
+            "kind": "product",
+        }
+    return {
+        "layer": layer,
+        "product": preview.model_dump(mode="json") if preview else None,
+        "kind": "preview" if preview else None,
+    }
+
+
+@app.get(
     "/api/v1/weather-maps/sounding-stations",
     summary="读取中国天气图探空站及本地归档状态",
 )
@@ -567,6 +726,31 @@ async def weather_map_sounding_stations(
     sounding_date: date = Query(alias="date"),
     cycle: Literal["00", "12"] = Query(default="00"),
 ) -> dict[str, object]:
+    profiles = await asyncio.to_thread(
+        _weather_map_station_profiles,
+        sounding_date,
+        cycle,
+    )
+    configuration = weather_map_catalog.configuration()
+    return {
+        "date": sounding_date,
+        "cycle": cycle,
+        "station_count": len(configuration.sounding_stations),
+        "updated_count": len(profiles),
+        "profiles": profiles,
+    }
+
+
+def _weather_map_station_profiles(
+    sounding_date: date,
+    cycle: Literal["00", "12"],
+) -> tuple[dict[str, object], ...]:
+    """Build a compact payload with a short cache for minute-level updates."""
+    cache_key = (sounding_date, cycle)
+    cached = weather_map_station_cache.get(cache_key)
+    now = monotonic()
+    if cached is not None and cached[0] > now:
+        return cached[1]
     profiles: list[dict[str, object]] = []
     configuration = weather_map_catalog.configuration()
     for station in configuration.sounding_stations:
@@ -578,19 +762,38 @@ async def weather_map_sounding_stations(
             )
         except WyomingSoundingNotFound:
             continue
+        ordered = sorted(
+            profile.levels,
+            key=lambda level: level.pressure_hpa,
+            reverse=True,
+        )
+        selected: list[SoundingLevel] = []
+        for target_pressure in (None, 850.0, 500.0, 200.0):
+            candidate = (
+                ordered[0]
+                if target_pressure is None
+                else min(
+                    ordered,
+                    key=lambda level: abs(level.pressure_hpa - target_pressure),
+                )
+            )
+            if all(
+                abs(candidate.pressure_hpa - item.pressure_hpa) > 0.01
+                for item in selected
+            ):
+                selected.append(candidate)
         profiles.append(
             {
                 "wmo_id": station.wmo_id,
-                "profile": profile.model_dump(mode="json"),
+                "profile": {
+                    "valid_at": profile.valid_at.isoformat(),
+                    "levels": [item.model_dump(mode="json") for item in selected],
+                },
             }
         )
-    return {
-        "date": sounding_date,
-        "cycle": cycle,
-        "station_count": len(configuration.sounding_stations),
-        "updated_count": len(profiles),
-        "profiles": profiles,
-    }
+    result = tuple(profiles)
+    weather_map_station_cache[cache_key] = (now + 30.0, result)
+    return result
 
 
 @app.get(
@@ -653,6 +856,32 @@ def _observation_station_payload(station: object, source: str) -> dict[str, obje
     return payload
 
 
+def _sounding_station_matches(query: str) -> list[dict[str, object]]:
+    """Search the configured China upper-air inventory, including Chinese names."""
+    normalized = query.strip().casefold()
+    if not normalized:
+        return []
+    exact: list[dict[str, object]] = []
+    partial: list[dict[str, object]] = []
+    for station in weather_map_catalog.configuration().sounding_stations:
+        payload = {
+            "wmo_id": station.wmo_id,
+            "name": station.name,
+            "display_name": station.name,
+            "country_code": "CN",
+            "latitude": station.latitude,
+            "longitude": station.longitude,
+            "elevation_m": None,
+            "source": "sounding",
+        }
+        keys = (station.wmo_id.casefold(), station.name.casefold())
+        if normalized in keys:
+            exact.append(payload)
+        elif any(normalized in key for key in keys):
+            partial.append(payload)
+    return [*exact, *partial]
+
+
 @app.get(
     "/api/v1/stations/search",
     summary="按 WMO 站号或中文站名检索内置气象站表（含国外站）",
@@ -665,13 +894,24 @@ async def station_search(
         _observation_station_payload(station, "qweather")
         for station in search_stations(q, limit=limit)
     ]
+    sounding = _sounding_station_matches(q)
     world = [
         station.as_dict()
         for station in search_world_stations(q, limit=limit)
     ]
+    combined: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for station in [*china, *sounding, *world]:
+        station_id = str(station["wmo_id"])
+        if station_id in seen:
+            continue
+        seen.add(station_id)
+        combined.append(station)
+        if len(combined) >= limit:
+            break
     return {
         "query": q,
-        "stations": [*china, *world],
+        "stations": combined,
     }
 
 
@@ -697,10 +937,34 @@ async def place_search(
 async def station_resolve(
     q: str = Query(min_length=1, max_length=40),
 ) -> dict[str, object]:
+    sounding = _sounding_station_matches(q)
+    normalized = q.strip().casefold()
+    exact_sounding = [
+        item
+        for item in sounding
+        if normalized in {
+            str(item["wmo_id"]).casefold(),
+            str(item["name"]).casefold(),
+            str(item["display_name"]).casefold(),
+        }
+    ]
+    if len(exact_sounding) == 1:
+        return exact_sounding[0]
     try:
         station, source = resolve_observation_station(q)
         return _observation_station_payload(station, source)
     except StationLookupError as exc:
+        if len(sounding) == 1:
+            return sounding[0]
+        if len(sounding) > 1:
+            options = "、".join(
+                f"{item['display_name']} {item['wmo_id']}"
+                for item in sounding[:6]
+            )
+            raise HTTPException(
+                status_code=422,
+                detail=f"请输入更完整的高空站名或站号：{options}",
+            ) from exc
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -721,6 +985,18 @@ async def station_region_map(region: str) -> dict[str, object]:
 )
 async def station_china_map() -> dict[str, object]:
     return _station_china_payload()
+
+
+@app.get(
+    "/api/v1/stations/world",
+    summary="读取全球高空气象站目录，供世界地图选站使用",
+)
+async def station_world_map() -> dict[str, object]:
+    stations = world_station_records()
+    return {
+        "station_count": len(stations),
+        "stations": [station.as_dict() for station in stations],
+    }
 
 
 async def _ogimet_realtime(
@@ -1165,10 +1441,10 @@ FORECAST_MODELS = ("ifs", "aifs")
 def _latest_cached_forecast_cycle(
     *,
     model: str,
-    requested_at: datetime,
+    requested_at: datetime | None,
     field_type: Literal["surface", "pressure"],
 ) -> datetime | None:
-    """Find the newest complete local field at or before a requested cycle."""
+    """Find the newest complete local field, optionally bounded by a cycle."""
     model_root = FORECAST_CACHE_ROOT / "ecmwf_forecast" / model
     pattern = re.compile(
         rf"^{re.escape(model)}_(\d{{8}})_(\d{{2}})z_"
@@ -1187,7 +1463,7 @@ def _latest_cached_forecast_cycle(
             match.group(1) + match.group(2),
             "%Y%m%d%H",
         ).replace(tzinfo=timezone.utc)
-        if initialized_at <= requested_at:
+        if requested_at is None or initialized_at <= requested_at:
             candidates.append(initialized_at)
     return max(candidates, default=None)
 
@@ -1245,7 +1521,16 @@ async def surface_forecast(
             requested_at=initialized_at,
             field_type="surface",
         )
-        if fallback is None or fallback == initialized_at:
+        # This is a latest operational product, not a forecast archive.  Old
+        # bookmarked URLs can outlive the rotating cache, so fall forward to
+        # the newest complete cycle rather than returning a stale-cycle 503.
+        if fallback is None:
+            fallback = _latest_cached_forecast_cycle(
+                model=model,
+                requested_at=None,
+                field_type="surface",
+            )
+        if fallback is None:
             raise HTTPException(
                 status_code=503,
                 detail=(
@@ -1620,7 +1905,7 @@ def _download_geojson(url: str) -> dict[str, object]:
 
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "MeteoStation/2.1.1"},
+        headers={"User-Agent": "MeteoStation/2.2.1"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))

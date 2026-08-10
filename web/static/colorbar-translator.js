@@ -25,6 +25,10 @@ const copyButton = document.querySelector("#colorbar-copy");
 const downloadButton = document.querySelector("#colorbar-download");
 const ticksButton = document.querySelector("#colorbar-ticks");
 const ticksNote = document.querySelector("#translator-ticks-note");
+const insetInput = document.querySelector("#colorbar-inset");
+const distanceInput = document.querySelector("#colorbar-distance");
+const boundariesInput = document.querySelector("#colorbar-boundaries");
+const applyBoundariesButton = document.querySelector("#colorbar-apply-boundaries");
 
 const state = {
   loaded: false,
@@ -597,6 +601,27 @@ function rgbToHex(red, green, blue) {
   return `#${[red, green, blue].map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 }
 
+function hexChannels(hex) {
+  return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+}
+
+function mergeNearDuplicateColors(colors) {
+  if (modeInput.value === "discrete" && state.ticks?.length === colors.length + 1) return colors;
+  const threshold = clamp(Number(distanceInput.value) || 0, 0, 80);
+  if (!threshold) return colors;
+  const merged = [];
+  for (const color of colors) {
+    const channels = hexChannels(color);
+    const previous = merged.length ? hexChannels(merged.at(-1)) : null;
+    const distance = previous
+      ? Math.hypot(...channels.map((value, index) => value - previous[index]))
+      : Infinity;
+    if (distance >= threshold || !merged.length) merged.push(color);
+  }
+  if (merged.length === 1 && colors.length > 1) merged.push(colors.at(-1));
+  return merged;
+}
+
 function sampleColors() {
   if (!state.crop) return [];
   const crop = state.crop;
@@ -610,6 +635,7 @@ function sampleColors() {
   const colors = [];
   const axisLength = orientation === "vertical" ? crop.height : crop.width;
   const crossLength = orientation === "vertical" ? crop.width : crop.height;
+  const inset = clamp((Number(insetInput.value) || 0) / 100, 0, 0.45);
 
   const sampleAt = (position) => {
     const axisCenter = clamp(Math.round(position * (axisLength - 1)), 0, axisLength - 1);
@@ -619,7 +645,7 @@ function sampleColors() {
     for (let axisOffset = -2; axisOffset <= 2; axisOffset += 1) {
       const axis = clamp(axisCenter + axisOffset, 0, axisLength - 1);
       for (let sample = 0; sample < 11; sample += 1) {
-        const cross = clamp(Math.round((0.22 + sample / 10 * 0.56) * (crossLength - 1)), 0, crossLength - 1);
+        const cross = clamp(Math.round((inset + sample / 10 * (1 - inset * 2)) * (crossLength - 1)), 0, crossLength - 1);
         const x = orientation === "vertical" ? cross : axis;
         const y = orientation === "vertical" ? axis : cross;
         const offset = (y * crop.width + x) * 4;
@@ -645,7 +671,8 @@ function sampleColors() {
     }
   }
   state.orientation = orientation;
-  return reverseInput.checked ? colors.reverse() : colors;
+  const ordered = reverseInput.checked ? colors.reverse() : colors;
+  return mergeNearDuplicateColors(ordered);
 }
 
 function numericRange() {
@@ -683,6 +710,17 @@ function generatedCode(colors) {
   if (format === "plotly") {
     const stops = colors.map((color, index) => `    [${positions[index].toFixed(4)}, "${color}"],`).join("\n");
     return `colorscale = [\n${stops}\n]\n\n# Example: px.imshow(data, color_continuous_scale=colorscale, range_color=[${minimum}, ${maximum}])`;
+  }
+  if (format === "cpt") {
+    const boundaries = realBoundaries && realBoundaries.length === colors.length + 1
+      ? realBoundaries
+      : colors.map((_, index) => minimum + index / colors.length * (maximum - minimum)).concat(maximum);
+    const rows = colors.map((color, index) => {
+      const [red, green, blue] = hexChannels(color);
+      const next = hexChannels(colors[Math.min(index + 1, colors.length - 1)]);
+      return `${boundaries[index]} ${red} ${green} ${blue} ${boundaries[index + 1]} ${next[0]} ${next[1]} ${next[2]}`;
+    });
+    return [`# COLOR_MODEL = RGB`, ...rows, "B 255 255 255", "F 18 110 104", "N 180 190 190"].join("\n");
   }
   if (format === "css") {
     const direction = state.orientation === "vertical" ? "to bottom" : "to right";
@@ -789,6 +827,28 @@ ticksButton.addEventListener("click", applyReadTicks);
     generatePalette();
   });
 });
+applyBoundariesButton.addEventListener("click", () => {
+  const values = boundariesInput.value
+    .split(/[，,;\s]+/)
+    .map(Number)
+    .filter(Number.isFinite);
+  if (values.length < 2 || values.length > 65) {
+    ticksNote.textContent = "手动边界至少需要 2 个、最多 65 个有效数字。";
+    return;
+  }
+  state.ticks = values.map((value, index) => ({
+    value,
+    text: String(value),
+    position: index / (values.length - 1),
+  }));
+  modeInput.value = "discrete";
+  countInput.value = String(values.length - 1);
+  minimumInput.value = String(Math.min(...values));
+  maximumInput.value = String(Math.max(...values));
+  ticksNote.textContent = `已应用 ${values.length} 个手动边界；颜色将在相邻边界中央取样。`;
+  generatePalette();
+});
+[insetInput, distanceInput].forEach((input) => input.addEventListener("input", generatePalette));
 copyButton.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(codeOutput.value);
@@ -800,7 +860,7 @@ copyButton.addEventListener("click", async () => {
   window.setTimeout(() => { copyButton.textContent = "复制代码"; }, 1400);
 });
 downloadButton.addEventListener("click", () => {
-  const extensions = { matplotlib: "py", plotly: "py", css: "css", json: "json" };
+  const extensions = { matplotlib: "py", plotly: "py", cpt: "cpt", css: "css", json: "json" };
   const blob = new Blob([codeOutput.value], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

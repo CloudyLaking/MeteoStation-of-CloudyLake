@@ -407,6 +407,11 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
         self.assertIn("58362", station_ids)
         self.assertIn("59316", station_ids)
         self.assertIn("59981", station_ids)
+        station_names = {
+            station.wmo_id: station.name
+            for station in configuration.sounding_stations
+        }
+        self.assertEqual(station_names["57749"], "怀化")
 
     def test_analysis_cycle_uses_previous_ecmwf_cycle_step_12(self) -> None:
         configuration = WeatherMapCatalog(

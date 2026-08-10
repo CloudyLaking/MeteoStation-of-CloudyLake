@@ -14,6 +14,7 @@ const worldCoordinate = document.querySelector("#forecast-world-coordinate");
 let latestForecast = null;
 let worldMap = null;
 let worldMarker = null;
+let worldStationLayer = null;
 
 function setWorldPoint(latitude, longitude, { move = true, updateInput = true } = {}) {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !worldMap) return;
@@ -57,6 +58,50 @@ function initializeWorldMap() {
     setWorldPoint(event.latlng.lat, event.latlng.lng, { move: false, updateInput: true });
   });
   setWorldPoint(31.65, 121.75, { move: false, updateInput: false });
+  void loadWorldSoundingStations();
+}
+
+async function loadWorldSoundingStations() {
+  if (!worldMap) return;
+  try {
+    const response = await fetch("/api/v1/stations/world", {
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail ?? `HTTP ${response.status}`);
+    const renderer = window.L.canvas({ padding: 0.35 });
+    worldStationLayer = window.L.layerGroup().addTo(worldMap);
+    for (const station of payload.stations ?? []) {
+      if (!Number.isFinite(station.latitude) || !Number.isFinite(station.longitude)) continue;
+      const marker = window.L.circleMarker(
+        [station.latitude, station.longitude],
+        {
+          renderer,
+          radius: 2.7,
+          stroke: false,
+          fillColor: "#126e68",
+          fillOpacity: 0.82,
+        },
+      );
+      marker.bindTooltip(`${station.display_name} · WMO ${station.wmo_id}`, {
+        direction: "top",
+        offset: [0, -4],
+      });
+      marker.on("click", (event) => {
+        window.L.DomEvent.stopPropagation(event);
+        forecastLocation.value = station.wmo_id;
+        setWorldPoint(station.latitude, station.longitude, {
+          move: false,
+          updateInput: false,
+        });
+        worldCoordinate.textContent = `${station.display_name} · WMO ${station.wmo_id} · 已选择探空站`;
+      });
+      worldStationLayer.addLayer(marker);
+    }
+    worldCoordinate.textContent = `全球 ${payload.station_count ?? worldStationLayer.getLayers().length} 个高空站 · 青色圆点可直接选择；空白处可选模式格点`;
+  } catch (error) {
+    worldCoordinate.textContent = `全球站点目录读取失败：${error.message}；仍可点击地图选取模式格点。`;
+  }
 }
 
 function selectedModel() {

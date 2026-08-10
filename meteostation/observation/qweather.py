@@ -54,13 +54,38 @@ async def fetch_qweather_series(
     china_time = ZoneInfo("Asia/Shanghai")
     if mode == "past24h":
         observation_date = datetime.now(china_time).date()
-        source_url = f"https://q-weather.info/weather/{station.wmo_id}/today/"
-        html = await _fetch_qweather_html(source_url)
-        return parse_qweather_series_html(
-            html,
-            station=station,
-            source_url=source_url,
-            observation_date=observation_date,
+        dates = (observation_date - timedelta(days=1), observation_date)
+        source_urls = tuple(
+            _qweather_daily_url(station.wmo_id, item, china_time)
+            for item in dates
+        )
+        html_pages = await asyncio.gather(
+            *(_fetch_qweather_html(url) for url in source_urls)
+        )
+        daily_series = [
+            parse_qweather_series_html(
+                html,
+                station=station,
+                source_url=url,
+                observation_date=day,
+                limit=None,
+            )
+            for html, url, day in zip(html_pages, source_urls, dates)
+        ]
+        merged = {
+            observation.observed_at: observation
+            for series in daily_series
+            for observation in series.observations
+        }
+        observations = [merged[key] for key in sorted(merged)][-24:]
+        if not observations:
+            raise QWeatherError("过去 24 小时没有可用的逐小时资料")
+        return daily_series[-1].model_copy(
+            update={
+                "source_url": source_urls[-1],
+                "fetched_at": datetime.now(timezone.utc),
+                "observations": observations,
+            }
         )
     elif mode == "history" and historical_date is not None:
         observation_date = historical_date

@@ -7,12 +7,12 @@
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0807a" />
-    <script src="/static/site.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/app.js?v=2.2.1-0807a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0810a" />
+    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/app.js?v=2.2.1-0810a" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
-    <script src="/static/location-suggest.js?v=2.2.1-0807a" defer></script>
-    <script src="/static/sounding-forecast.js?v=2.2.1-0807a" defer></script>
+    <script src="/static/location-suggest.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/sounding-forecast.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -42,7 +42,7 @@
             </details>
             <details class="nav-menu">
               <summary class="nav-menu__trigger">实验性功能</summary>
-              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><button type="button" disabled>历史再分析<small>敬请期待</small></button><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
+              <div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div>
             </details>
             <a class="main-nav__direct" href="/about">关于</a>
           </div>
@@ -63,7 +63,7 @@
       <section class="forecast-world-picker" aria-labelledby="forecast-world-picker-title">
         <header>
           <div><p class="eyebrow">World Map</p><h2 id="forecast-world-picker-title">世界地图选点</h2></div>
-          <p id="forecast-world-coordinate">点击地图后自动填写纬度、经度；可拖动并滚轮或双指缩放。</p>
+          <p id="forecast-world-coordinate">正在读取全球探空站；也可点击任意位置选取模式格点。</p>
         </header>
         <div id="sounding-world-map" role="application" aria-label="探空预报世界地图选点"></div>
       </section>
@@ -140,7 +140,7 @@
       <div class="forecast-status" id="sounding-status" aria-live="polite"></div>
 
       <section class="product-notes" aria-labelledby="sounding-forecast-method-heading">
-        <header><p class="eyebrow">Method &amp; Sources</p><h2 id="sounding-forecast-method-heading">探空预报说明</h2></header>
+        <header><h2 id="sounding-forecast-method-heading">探空预报说明</h2></header>
         <div>
           <article><h3>处理方法</h3><p>按输入位置匹配最近的模式格点，由各等压面的温度、湿度、位势高度和风构成垂直廓线，并计算气块路径、不稳定能量、对流层结及风暴运动诊断。</p></article>
           <article><h3>资料来源</h3><p>IFS / AIFS 模式资料来自 <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>；页面显示起报时次、预报时效和有效时刻。</p></article>
