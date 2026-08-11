@@ -402,12 +402,12 @@ a {
   object-fit: contain;
 }
 
-.brand span {
+.brand > span {
   display: grid;
   gap: 3px;
 }
 
-.brand-title {
+.brand .brand-title {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -5761,6 +5761,93 @@ html body .station-display-dock {
   border: 2px solid var(--block-border);
   border-radius: 4px;
   background: #fff;
+}
+
+/* Masthead lock-up: keep both names on one line and preserve the handwritten
+   service slogan at compact widths without clipping it. */
+.brand > span {
+  min-width: 0;
+}
+
+.brand .brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.brand .brand-title strong,
+.brand .brand-title small {
+  white-space: nowrap;
+}
+
+.brand-slogan {
+  font-family: "Segoe Script", "Brush Script MT", "Comic Sans MS", cursive;
+  font-size: 13.5px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .brand-row {
+    gap: 8px;
+    padding: 9px 11px;
+  }
+
+  .brand {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .brand img {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+  }
+
+  .brand .brand-title {
+    gap: 5px;
+  }
+
+  .brand .brand-title strong {
+    font-size: clamp(11.5px, 3.35vw, 14px);
+    letter-spacing: 0.07em;
+  }
+
+  .brand .brand-title small {
+    display: inline;
+    font-size: clamp(7.5px, 2.25vw, 9.5px);
+    letter-spacing: 0;
+  }
+
+  .brand-slogan {
+    max-width: none;
+    overflow: visible;
+    font-size: clamp(8.5px, 2.55vw, 10.5px);
+    line-height: 1.1;
+    text-overflow: clip;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand-row {
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .brand {
+    gap: 6px;
+  }
+
+  .brand img {
+    width: 33px;
+    height: 33px;
+  }
+
+  .brand .brand-title {
+    gap: 4px;
+  }
 }
 
 @media (max-width: 820px) {
