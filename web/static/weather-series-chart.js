@@ -128,7 +128,7 @@
         x: cx,
         y: stripTop + 18,
         "text-anchor": "middle",
-        "font-size": 10.5,
+        "font-size": 13,
         "font-weight": 650,
         fill: humidity !== null && humidity < 56 ? "#fff" : "#17323a",
       }, humidity === null ? "—" : humidity.toFixed(0)));
@@ -189,7 +189,7 @@
     const group = node("g", { visibility: "hidden", "pointer-events": "none" });
     const line = node("line", { y1: plot.temperatureTop, y2: plot.windBottom, stroke: "#176f9e", "stroke-width": 1.2, "stroke-dasharray": "5 5" });
     const box = node("rect", { width: 320, height: 106, fill: "#fff", stroke: "#333", "stroke-width": 1, opacity: 0.97 });
-    const labels = [0, 1, 2, 3, 4].map((index) => node("text", { "font-size": index === 0 ? 15 : 13, "font-weight": index === 0 ? 650 : 400, fill: "#111" }));
+    const labels = [0, 1, 2, 3, 4].map((index) => node("text", { "font-size": index === 0 ? 16 : 14, "font-weight": index === 0 ? 650 : 400, fill: "#111" }));
     group.append(line, box, ...labels);
     svg.append(group);
     const overlay = node("rect", { x: plot.left, y: plot.temperatureTop, width: plot.right - plot.left, height: plot.windBottom - plot.temperatureTop, fill: "transparent", cursor: "crosshair" });
@@ -275,7 +275,7 @@
         x: WIDTH - 20,
         y: 28 + index * 20,
         "text-anchor": "end",
-        "font-size": index < 2 ? 14 : 12.5,
+        "font-size": index < 2 ? 15 : 14,
         "font-weight": index === 0 ? 650 : 400,
         fill: "#111",
       }, text));
@@ -315,7 +315,7 @@
       const y = yTemperature(value);
       svg.append(
         node("line", { x1: plot.left, x2: plot.right, y1: y, y2: y, stroke: "#e3e3e3", "stroke-width": 0.8 }),
-        node("text", { x: plot.left - 12, y: y + 5, "text-anchor": "end", "font-size": 13 }, value.toFixed(0)),
+        node("text", { x: plot.left - 12, y: y + 5, "text-anchor": "end", "font-size": 14 }, value.toFixed(0)),
       );
     }
     const temperatureMiddle = (plot.temperatureTop + plot.temperatureBottom) / 2;
@@ -336,11 +336,11 @@
       if (temperature !== null) {
         svg.append(
           node("circle", { cx: x(index), cy: yTemperature(temperature), r: 3.4, fill: "#ef1f1f" }),
-          node("text", { x: x(index), y: yTemperature(temperature) - 14, "text-anchor": "middle", "font-size": 12 }, format(temperature, 1)),
+          node("text", { x: x(index), y: yTemperature(temperature) - 14, "text-anchor": "middle", "font-size": 13.5 }, format(temperature, 1)),
         );
       }
       if (dewpoint !== null) {
-        svg.append(node("text", { x: x(index), y: yTemperature(dewpoint) + 24, "text-anchor": "middle", "font-size": 12 }, format(dewpoint, 1)));
+        svg.append(node("text", { x: x(index), y: yTemperature(dewpoint) + 24, "text-anchor": "middle", "font-size": 13.5 }, format(dewpoint, 1)));
       }
     });
 
@@ -362,9 +362,9 @@
     );
     points.forEach((point, index) => {
       const value = number(point.pressure);
-      if (value !== null) svg.append(node("text", { x: x(index), y: yPressure(value) - 5, "text-anchor": "middle", "font-size": 11.5 }, format(value, 1)));
+      if (value !== null) svg.append(node("text", { x: x(index), y: yPressure(value) - 5, "text-anchor": "middle", "font-size": 13 }, format(value, 1)));
       const seaLevel = number(point.seaLevelPressure);
-      if (seaLevel !== null) svg.append(node("text", { x: x(index), y: yPressure(value ?? pressureMin) + 15, "text-anchor": "middle", "font-size": 10.5, fill: "#415d91" }, format(seaLevel, 1)));
+      if (seaLevel !== null) svg.append(node("text", { x: x(index), y: yPressure(value ?? pressureMin) + 15, "text-anchor": "middle", "font-size": 12, fill: "#415d91" }, format(seaLevel, 1)));
     });
 
     // ---- Visibility band (restored) ----
@@ -383,7 +383,7 @@
         if (value !== null) {
           svg.append(
             node("circle", { cx: x(index), cy: yVisibility(value), r: 2.6, fill: "#5a7fa3" }),
-            node("text", { x: x(index), y: yVisibility(value) - 6, "text-anchor": "middle", "font-size": 10.5, fill: "#415d91" }, format(value, 1)),
+            node("text", { x: x(index), y: yVisibility(value) - 6, "text-anchor": "middle", "font-size": 12, fill: "#415d91" }, format(value, 1)),
           );
         }
       });
@@ -395,7 +395,7 @@
     points.forEach((point, index) => {
       const height = rain[index] / rainMaximum * (plot.rainBottom - plot.rainTop - 22);
       if (height > 0) svg.append(node("rect", { x: x(index) - rainBarWidth / 2, y: plot.rainBottom - height, width: rainBarWidth, height, fill: precipitationColour(rain[index]) }));
-      svg.append(node("text", { x: x(index), y: plot.rainTop + 14, "text-anchor": "middle", "font-size": 11.5 }, format(rain[index], 1)));
+      svg.append(node("text", { x: x(index), y: plot.rainTop + 14, "text-anchor": "middle", "font-size": 13 }, format(rain[index], 1)));
     });
     svg.append(
       node("text", { x: plot.left - 10, y: (plot.rainTop + plot.rainBottom) / 2 + 5, "text-anchor": "end", "font-size": 13 }, "小时降水(mm)"),
@@ -415,8 +415,8 @@
       const speed = number(point.windSpeed) ?? 0;
       addWindArrow(svg, x(index), yWind(speed), point.windDirection, speed);
       svg.append(
-        node("text", { x: x(index), y: yWind(speed) - 18, "text-anchor": "middle", "font-size": 11.5 }, format(speed, 1)),
-        node("text", { x: x(index), y: 916, "text-anchor": "middle", "font-size": points.length > 24 ? 10.5 : 12.5 }, timeLabel(point.time, false)),
+        node("text", { x: x(index), y: yWind(speed) - 18, "text-anchor": "middle", "font-size": 13 }, format(speed, 1)),
+        node("text", { x: x(index), y: 916, "text-anchor": "middle", "font-size": points.length > 24 ? 12 : 13.5 }, timeLabel(point.time, false)),
       );
       if (configuration.includeDateLabels) {
         const previousDate = index ? dateLabel(points[index - 1].time) : null;
@@ -424,7 +424,7 @@
         if (index === 0 || currentDate !== previousDate) {
           svg.append(node("text", {
             x: x(index), y: 940, "text-anchor": index === 0 ? "start" : "middle",
-            "font-size": 12.5, "font-weight": 650, fill: "#315d73",
+            "font-size": 13.5, "font-weight": 650, fill: "#315d73",
           }, currentDate));
         }
       }

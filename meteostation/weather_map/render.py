@@ -225,7 +225,7 @@ def render_weather_map_preview(
     axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
     axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
     axis.tick_params(
-        labelsize=7.5,
+        labelsize=10.2,
         colors="#31464d",
         length=3.2,
         width=0.7,
@@ -243,7 +243,7 @@ def render_weather_map_preview(
     axis.set_title(
         f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
         loc="left",
-        fontsize=12.5,
+        fontsize=17,
         fontweight=650,
         fontproperties=font,
         color="#263943",
@@ -266,7 +266,7 @@ def render_weather_map_preview(
         MAP_FIGURE_BOUNDS["left"],
         0.035,
         f"Source: {source_note} · CloudyLake's Observatory · meteostation.top",
-        fontsize=7.2,
+        fontsize=9.5,
         color="#607176",
         fontproperties=font,
     )
@@ -276,7 +276,7 @@ def render_weather_map_preview(
         "@CloudyLake",
         ha="right",
         va="top",
-        fontsize=9.5,
+        fontsize=11,
         fontweight=700,
         color="#126e68",
         fontproperties=font,
@@ -501,7 +501,7 @@ def draw_synoptic_features(
             label,
             ha="center",
             va="bottom",
-            fontsize=6.8,
+            fontsize=9.5,
             fontweight="bold",
             color=color,
             fontproperties=font,
@@ -649,7 +649,7 @@ def draw_south_china_sea_inset(
         spine.set_linewidth(0.72)
     inset.set_title(
         "SOUTH CHINA SEA",
-        fontsize=5.2,
+        fontsize=7.5,
         fontweight=650,
         fontproperties=font,
         color="#41645f",
@@ -709,7 +709,7 @@ def draw_surface(
         contours,
         inline=True,
         inline_spacing=4,
-        fontsize=7,
+        fontsize=9.8,
         fmt="%.0f",
     )
     style_contour_labels(contour_labels)
@@ -768,7 +768,7 @@ def draw_surface_objective_features(
             alpha=0.68,
             zorder=4.8,
         )
-        axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=6.5)
+        axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=9.2)
 
     _draw_temperature_extrema(axis, longitude, latitude, temperature)
 
@@ -831,7 +831,7 @@ def _draw_temperature_extrema(
                 f"{label}\n{value:.0f}°C",
                 ha="center",
                 va="center",
-                fontsize=7,
+                fontsize=10,
                 fontweight="bold",
                 color=color,
                 path_effects=[
@@ -985,7 +985,7 @@ def draw_pressure_level(
         contours,
         inline=True,
         inline_spacing=4,
-        fontsize=7,
+        fontsize=9.8,
         fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
@@ -1059,7 +1059,7 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="right",
                 va="bottom",
-                fontsize=7.5,
+                fontsize=10,
                 fontweight="bold",
                 fontproperties=font,
                 color="#126e68",
@@ -1074,7 +1074,7 @@ def draw_cyclone_markers(
             "H" if is_high else "L",
             ha="center",
             va="center",
-            fontsize=16,
+            fontsize=19,
             fontweight=850,
             fontproperties=font,
             color=centre_color,
@@ -1099,7 +1099,7 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=6.7,
+                fontsize=9.5,
                 fontweight="bold",
                 fontproperties=font,
                 color=centre_color,
@@ -1172,9 +1172,9 @@ def add_weather_colorbar(
     colorbar.ax.yaxis.set_major_formatter(
         FuncFormatter(lambda value, _: f"{value:g}")
     )
-    colorbar.set_label(label, fontsize=7.7, color="#31464d", labelpad=8)
+    colorbar.set_label(label, fontsize=10.5, color="#31464d", labelpad=9)
     colorbar.ax.tick_params(
-        labelsize=7.2,
+        labelsize=9.8,
         colors="#31464d",
         length=3,
         width=0.65,

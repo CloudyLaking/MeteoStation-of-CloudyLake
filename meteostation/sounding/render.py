@@ -23,7 +23,7 @@ from .diagnostics import calculate_sounding_diagnostics
 from .models import SoundingDiagnostics, SoundingProduct, SoundingProfile
 
 
-RENDERER_VERSION = "sounding-images-V2.1.1"
+RENDERER_VERSION = "sounding-images-V2.2.1-large-type"
 STANDARD_PRESSURE_LEVELS = [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100]
 MAIN_RECT = (0.20, 0.09, 0.56, 0.83)
 HUMIDITY_RECT = (0.075, 0.09, 0.052, 0.83)
@@ -382,7 +382,7 @@ def plot_lcl_line(
         ha="right",
         va="bottom",
         color="#98612b",
-        fontsize=7,
+        fontsize=8.5,
         fontproperties=font_properties,
     )
 
@@ -415,7 +415,7 @@ def configure_pressure_axis(axis: object) -> None:
     axis.set_yticks(STANDARD_PRESSURE_LEVELS)
     axis.yaxis.set_major_formatter(ScalarFormatter())
     axis.minorticks_off()
-    axis.tick_params(axis="both", colors="#667276", labelsize=8)
+    axis.tick_params(axis="both", colors="#667276", labelsize=9.5)
     for level in STANDARD_PRESSURE_LEVELS:
         is_primary = level in {1000, 850, 700, 500, 300, 200, 100}
         axis.axhline(
@@ -500,11 +500,11 @@ def draw_scalar_band(
     axis.minorticks_off()
     axis.tick_params(axis="y", length=0)
     axis.set_xticks([0, 0.5, 1])
-    axis.set_xticklabels(tick_labels, fontsize=6, color="#748084")
+    axis.set_xticklabels(tick_labels, fontsize=7.5, color="#748084")
     axis.set_title(
         title,
         color="#5f6e72",
-        fontsize=7,
+        fontsize=8.5,
         pad=6,
         fontproperties=font_properties,
     )
@@ -570,7 +570,7 @@ def add_english_header(
         y=0.984,
         ha="left",
         color="#253744",
-        fontsize=18,
+        fontsize=20,
         fontweight=700,
         **font_options,
     )
@@ -582,7 +582,7 @@ def add_english_header(
             f"{profile.level_count} levels  |  {profile.source}"
         ),
         color="#7a7069",
-        fontsize=9,
+        fontsize=10.5,
         **font_options,
     )
     figure.text(
@@ -592,7 +592,7 @@ def add_english_header(
         ha="right",
         va="top",
         color="#126e68",
-        fontsize=10,
+        fontsize=11,
         fontweight=700,
         **font_options,
     )
@@ -606,7 +606,7 @@ def add_english_header(
         ),
         ha="right",
         color="#7a7069",
-        fontsize=8,
+        fontsize=9.5,
         **font_options,
     )
     figure.text(
@@ -614,7 +614,7 @@ def add_english_header(
         0.025,
         "CloudyLake's Observatory V2.1.1 | Automatically generated quicklook",
         color="#8a817b",
-        fontsize=8,
+        fontsize=9,
         **font_options,
     )
 
@@ -624,6 +624,12 @@ def add_figure_legend(
     *,
     font_properties: FontProperties | None,
 ) -> None:
+    legend_font = (
+        font_properties.copy()
+        if font_properties is not None
+        else FontProperties()
+    )
+    legend_font.set_size(9)
     handles = [
         Line2D([], [], color="#df2727", linewidth=2.2, label="Temperature"),
         Line2D([], [], color="#287c70", linewidth=2.2, label="Dew Point"),
@@ -654,8 +660,7 @@ def add_figure_legend(
         frameon=False,
         handlelength=2.0,
         columnspacing=1.2,
-        fontsize=7,
-        prop=font_properties,
+        prop=legend_font,
     )
 
 
