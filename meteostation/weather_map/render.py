@@ -11,6 +11,7 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.font_manager import FontProperties
 from matplotlib.collections import LineCollection
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy.ndimage import maximum_filter, minimum_filter
 
 from .analysis import (
@@ -30,41 +31,41 @@ from .models import (
 
 WIND_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-wind",
-    ["#ffffff", "#d9eff0", "#98d5d0", "#f6dc79", "#126e68"],
+    ["#ffffff", "#e8f4f4", "#c2e3e1", "#f7e8a5", "#5ba99f", "#126e68"],
 )
 HUMIDITY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-humidity",
-    ["#285f9c", "#a9d2e3", "#ffffff", "#f7e7a4", "#16867b"],
+    ["#356ea6", "#b9d7e4", "#ffffff", "#f8edbd", "#9bc9bd", "#16867b"],
 )
 HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-height-anomaly",
     [
-        "#225ea8",
-        "#91c4d8",
-        "#e1f1f2",
+        "#2f67a2",
+        "#9dc9dc",
+        "#e8f3f4",
         "#ffffff",
-        "#fff1ae",
-        "#f2c94c",
-        "#126e68",
+        "#fff4c7",
+        "#f4d66d",
+        "#c69a1b",
     ],
 )
-FIGURE_SIZE_INCHES = (11.5, 8.7)
+FIGURE_SIZE_INCHES = (12.0, 8.5)
 MAP_FIGURE_BOUNDS = {
     "left": 0.075,
     "right": 0.860,
     "bottom": 0.100,
     "top": 0.860,
 }
-COLORBAR_FIGURE_BOUNDS = [0.885, 0.100, 0.025, 0.760]
+COLORBAR_FIGURE_BOUNDS = [0.885, 0.115, 0.017, 0.730]
 SMOOTHING_SIGMA_GRIDPOINTS = {
-    "surface_mslp": 3.00,
-    "surface_wind_speed": 1.75,
-    "850_humidity": 2.00,
-    "850_height": 2.00,
-    "500_height_anomaly": 2.50,
-    "500_height": 2.00,
-    "200_wind_speed": 2.00,
-    "200_height": 2.00,
+    "surface_mslp": 3.60,
+    "surface_wind_speed": 2.30,
+    "850_humidity": 3.00,
+    "850_height": 2.50,
+    "500_height_anomaly": 3.00,
+    "500_height": 2.50,
+    "200_wind_speed": 2.60,
+    "200_height": 2.50,
 }
 
 
@@ -111,7 +112,7 @@ def render_weather_map_preview(
         )
     if layer_id in {"surface", "composite"}:
         draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "Surface Analysis Background"
+        title = "Surface · MSLP / 10 m Wind / Features"
     elif layer_id == "850":
         draw_pressure_level(
             axis,
@@ -122,7 +123,7 @@ def render_weather_map_preview(
             pressure_hpa=850,
             shade="humidity",
         )
-        title = "850 hPa Analysis Background"
+        title = "850 hPa · Humidity / Height / Wind"
     elif layer_id == "500":
         draw_pressure_level(
             axis,
@@ -133,7 +134,7 @@ def render_weather_map_preview(
             pressure_hpa=500,
             shade="height_anomaly",
         )
-        title = "500 hPa Height Anomaly / Height / Wind"
+        title = "500 hPa · Height Anomaly / Height / Wind"
     elif layer_id == "200":
         draw_pressure_level(
             axis,
@@ -144,10 +145,17 @@ def render_weather_map_preview(
             pressure_hpa=200,
             shade="wind",
         )
-        title = "200 hPa Analysis Background"
+        title = "200 hPa · Wind / Height"
     else:
         plt.close(figure)
         raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
+
+    # Lock the published domain before selecting annotations. Contour artists
+    # are decoded on a slightly larger retrieval area; using their temporary
+    # autoscale limits used to admit labels that were clipped at the final
+    # China-domain edge.
+    axis.set_xlim(domain.west, domain.east)
+    axis.set_ylim(domain.south, domain.north)
 
     diagnosed_features = synoptic_features
     if diagnosed_features is None:
@@ -197,8 +205,6 @@ def render_weather_map_preview(
         cyclone_markers or [],
         font=font,
     )
-    axis.set_xlim(domain.west, domain.east)
-    axis.set_ylim(domain.south, domain.north)
     # At the domain midpoint, one degree of longitude is about cos(latitude)
     # times one degree of latitude. This keeps China from looking either
     # vertically squeezed or unnaturally narrow.
@@ -208,23 +214,41 @@ def render_weather_map_preview(
         adjustable="box",
     )
     axis.set_facecolor("#ffffff")
-    axis.set_xlabel("Longitude", fontproperties=font, fontsize=8)
-    axis.set_ylabel("Latitude", fontproperties=font, fontsize=8)
-    axis.tick_params(labelsize=7.5)
-    axis.grid(
-        color="#958a80",
-        linestyle="--",
-        linewidth=0.5,
-        alpha=0.28,
+    axis.set_xlabel("")
+    axis.set_ylabel("")
+    axis.xaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: f"{value:.0f}°E")
     )
+    axis.yaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: f"{value:.0f}°N")
+    )
+    axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
+    axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
+    axis.tick_params(
+        labelsize=7.5,
+        colors="#31464d",
+        length=3.2,
+        width=0.7,
+        direction="out",
+    )
+    axis.grid(
+        color="#728b8b",
+        linestyle="--",
+        linewidth=0.42,
+        alpha=0.20,
+    )
+    for spine in axis.spines.values():
+        spine.set_color("#264b4a")
+        spine.set_linewidth(0.85)
     axis.set_title(
         f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
         loc="left",
-        fontsize=14,
-        fontweight="bold",
+        fontsize=12.5,
+        fontweight=650,
         fontproperties=font,
         color="#263943",
-        pad=16,
+        linespacing=1.35,
+        pad=14,
     )
     source_note = subset.source
     if layer_id == "500":
@@ -242,8 +266,8 @@ def render_weather_map_preview(
         MAP_FIGURE_BOUNDS["left"],
         0.035,
         f"Source: {source_note} · CloudyLake's Observatory · meteostation.top",
-        fontsize=7.5,
-        color="#687579",
+        fontsize=7.2,
+        color="#607176",
         fontproperties=font,
     )
     figure.text(
@@ -252,8 +276,8 @@ def render_weather_map_preview(
         "@CloudyLake",
         ha="right",
         va="top",
-        fontsize=9,
-        fontweight="bold",
+        fontsize=9.5,
+        fontweight=700,
         color="#126e68",
         fontproperties=font,
     )
@@ -380,13 +404,44 @@ def draw_synoptic_features(
         "trough-axis": ("#1769aa", "--", "TROUGH"),
         "ridge-axis": ("#d6a313", "--", "RIDGE"),
     }
-    for feature in features:
+    x_min, x_max = sorted(axis.get_xlim())
+    y_min, y_max = sorted(axis.get_ylim())
+    visible_features: list[SynopticFeature] = []
+    for kind in styles:
+        candidates = [
+            item
+            for item in features
+            if item.kind == kind
+            and _synoptic_feature_midpoint_inside(
+                item,
+                x_min=x_min + 2.5,
+                x_max=x_max - 2.5,
+                y_min=y_min + 2.0,
+                y_max=y_max - 2.0,
+            )
+        ]
+        if not candidates:
+            continue
+        high_confidence = [
+            item for item in candidates if item.confidence == "high"
+        ]
+        pool = high_confidence or candidates
+        pool.sort(
+            key=lambda item: _synoptic_feature_length(item),
+            reverse=True,
+        )
+        # A homepage background should expose the dominant systems without
+        # turning every objective candidate into an annotation.
+        limit = 2 if kind in {"trough-axis", "ridge-axis"} else 1
+        visible_features.extend(pool[:limit])
+
+    for feature in visible_features:
         coordinates = np.asarray(feature.coordinates, dtype=float)
         if coordinates.ndim != 2 or len(coordinates) < 2:
             continue
         color, linestyle, label = styles[feature.kind]
         alpha = 0.95 if feature.confidence == "high" else 0.78
-        linewidth = 1.65 if feature.confidence == "high" else 1.25
+        linewidth = 1.55 if feature.confidence == "high" else 1.15
         longitude = coordinates[:, 0]
         latitude = coordinates[:, 1]
         if feature.kind == "stationary-front":
@@ -446,7 +501,7 @@ def draw_synoptic_features(
             label,
             ha="center",
             va="bottom",
-            fontsize=6.2,
+            fontsize=6.8,
             fontweight="bold",
             color=color,
             fontproperties=font,
@@ -458,6 +513,29 @@ def draw_synoptic_features(
                 path_effects.Normal(),
             ]
         )
+
+
+def _synoptic_feature_length(feature: SynopticFeature) -> float:
+    coordinates = np.asarray(feature.coordinates, dtype=float)
+    if coordinates.ndim != 2 or len(coordinates) < 2:
+        return 0.0
+    differences = np.diff(coordinates[:, :2], axis=0)
+    return float(np.nansum(np.hypot(differences[:, 0], differences[:, 1])))
+
+
+def _synoptic_feature_midpoint_inside(
+    feature: SynopticFeature,
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+) -> bool:
+    coordinates = np.asarray(feature.coordinates, dtype=float)
+    if coordinates.ndim != 2 or len(coordinates) < 2:
+        return False
+    longitude, latitude = coordinates[len(coordinates) // 2, :2]
+    return bool(x_min <= longitude <= x_max and y_min <= latitude <= y_max)
 
 
 def _draw_front_symbols(
@@ -514,9 +592,9 @@ def draw_local_boundaries(
 ) -> None:
     province_collection = LineCollection(
         boundary_layer.province_lines,
-        colors="#41645f",
-        linewidths=0.58,
-        alpha=0.9,
+        colors="#54746f",
+        linewidths=0.52,
+        alpha=0.82,
         zorder=6.5,
     )
     province_collection.set_clip_on(True)
@@ -524,7 +602,7 @@ def draw_local_boundaries(
     boundary_collection = LineCollection(
         boundary_layer.boundary_lines,
         colors="#163f3c",
-        linewidths=1.35,
+        linewidths=1.18,
         alpha=1.0,
         zorder=6.8,
     )
@@ -539,19 +617,19 @@ def draw_south_china_sea_inset(
     font: FontProperties | None,
 ) -> None:
     """Draw the standard South China Sea islands inset from the same source."""
-    inset = figure.add_axes([0.705, 0.125, 0.125, 0.235])
+    inset = figure.add_axes([0.727, 0.132, 0.105, 0.195])
     inset.set_facecolor("#ffffff")
     province_collection = LineCollection(
         boundary_layer.province_lines,
-        colors="#41645f",
-        linewidths=0.48,
-        alpha=0.9,
+        colors="#5d7b76",
+        linewidths=0.42,
+        alpha=0.82,
         zorder=2,
     )
     boundary_collection = LineCollection(
         boundary_layer.boundary_lines,
         colors="#163f3c",
-        linewidths=0.9,
+        linewidths=0.82,
         alpha=1.0,
         zorder=3,
     )
@@ -568,10 +646,11 @@ def draw_south_china_sea_inset(
     inset.tick_params(length=0)
     for spine in inset.spines.values():
         spine.set_color("#41645f")
-        spine.set_linewidth(0.65)
+        spine.set_linewidth(0.72)
     inset.set_title(
-        "South China Sea Islands",
-        fontsize=5.5,
+        "SOUTH CHINA SEA",
+        fontsize=5.2,
+        fontweight=650,
         fontproperties=font,
         color="#41645f",
         pad=2,
@@ -607,10 +686,10 @@ def draw_surface(
         longitude,
         latitude,
         speed,
-        levels=np.linspace(0, maximum, 17),
+        levels=np.linspace(0, maximum, 13),
         cmap=WIND_COLORS,
         extend="max",
-        alpha=0.66,
+        alpha=0.52,
     )
     contour_levels = np.arange(
         np.floor(np.nanmin(mslp) / 4) * 4,
@@ -622,10 +701,18 @@ def draw_surface(
         latitude,
         mslp,
         levels=contour_levels,
-        colors="#263238",
-        linewidths=0.54,
+        colors="#243e44",
+        linewidths=0.68,
+        alpha=0.86,
     )
-    axis.clabel(contours, inline=True, fontsize=7, fmt="%.0f")
+    contour_labels = axis.clabel(
+        contours,
+        inline=True,
+        inline_spacing=4,
+        fontsize=7,
+        fmt="%.0f",
+    )
+    style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
     draw_surface_objective_features(
         axis,
@@ -667,7 +754,7 @@ def draw_surface_objective_features(
             water_vapour,
             levels=[wet_threshold, wet_maximum + 0.01],
             colors=["#168a7c"],
-            alpha=0.11,
+            alpha=0.075,
             zorder=2.6,
         )
         wet_outline = axis.contour(
@@ -676,9 +763,9 @@ def draw_surface_objective_features(
             water_vapour,
             levels=[wet_threshold],
             colors="#168a7c",
-            linewidths=0.72,
+            linewidths=0.64,
             linestyles="--",
-            alpha=0.74,
+            alpha=0.68,
             zorder=4.8,
         )
         axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=6.5)
@@ -692,6 +779,8 @@ def _draw_temperature_extrema(
     latitude: np.ndarray,
     temperature: np.ndarray,
 ) -> None:
+    x_min, x_max = sorted(axis.get_xlim())
+    y_min, y_max = sorted(axis.get_ylim())
     neighbourhood = max(9, int(round(min(temperature.shape) / 9)))
     if neighbourhood % 2 == 0:
         neighbourhood += 1
@@ -713,7 +802,7 @@ def _draw_temperature_extrema(
     )
     selected: list[tuple[float, float]] = []
     for candidates, label, color, reverse in (
-        (high_candidates, "HOT", "#d97521", True),
+        (high_candidates, "HOT", "#b77900", True),
         (low_candidates, "COLD", "#2563a9", False),
     ):
         ranked = sorted(
@@ -725,6 +814,11 @@ def _draw_temperature_extrema(
         for lat_index, lon_index in ranked:
             marker_latitude = float(latitude[lat_index, lon_index])
             marker_longitude = float(longitude[lat_index, lon_index])
+            if not (
+                x_min + 2.5 <= marker_longitude <= x_max - 2.5
+                and y_min + 2.0 <= marker_latitude <= y_max - 2.0
+            ):
+                continue
             if any(
                 np.hypot(marker_latitude - previous_lat, marker_longitude - previous_lon) < 7
                 for previous_lat, previous_lon in selected
@@ -786,7 +880,7 @@ def draw_pressure_level(
             levels=np.arange(10, 101, 10),
             cmap=HUMIDITY_COLORS,
             extend="both",
-            alpha=0.66,
+            alpha=0.50,
         )
         colorbar_label = "Relative humidity (%)"
     elif shade == "height_anomaly":
@@ -816,10 +910,10 @@ def draw_pressure_level(
             longitude,
             latitude,
             shaded_values,
-            levels=np.linspace(-maximum, maximum, 17),
+            levels=np.linspace(-maximum, maximum, 13),
             cmap=HEIGHT_ANOMALY_COLORS,
             extend="both",
-            alpha=0.66,
+            alpha=0.54,
         )
         colorbar_label = "500 hPa height anomaly (gpm)"
     else:
@@ -840,10 +934,10 @@ def draw_pressure_level(
             longitude,
             latitude,
             shaded_values,
-            levels=np.linspace(0, maximum, 17),
+            levels=np.linspace(0, maximum, 13),
             cmap=WIND_COLORS,
             extend="max",
-            alpha=0.66,
+            alpha=0.52,
         )
         colorbar_label = f"{pressure_hpa} hPa wind speed (m/s)"
     height = smooth_field(
@@ -881,17 +975,20 @@ def draw_pressure_level(
         latitude,
         height,
         levels=height_levels,
-        colors="#263238",
-        linewidths=0.54,
+        colors="#243e44",
+        linewidths=0.68,
+        alpha=0.84,
     )
     # Match the pressure-level station model convention: 588 dagpm instead
     # of 5880 gpm. The decoded field remains in geopotential metres.
-    axis.clabel(
+    contour_labels = axis.clabel(
         contours,
         inline=True,
+        inline_spacing=4,
         fontsize=7,
         fmt=format_geopotential_height_dagpm,
     )
+    style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
     add_weather_colorbar(figure, shaded, colorbar_label)
 
@@ -902,7 +999,40 @@ def draw_cyclone_markers(
     *,
     font: FontProperties | None,
 ) -> None:
-    for marker in markers:
+    x_min, x_max = sorted(axis.get_xlim())
+    y_min, y_max = sorted(axis.get_ylim())
+    tropical_markers = [
+        marker
+        for marker in markers
+        if marker.kind == "tropical"
+        and x_min <= marker.longitude <= x_max
+        and y_min <= marker.latitude <= y_max
+    ]
+    visible_markers: list[CycloneMarker] = []
+    for kind in ("low-pressure", "high-pressure"):
+        candidates = [
+            marker
+            for marker in markers
+            if marker.kind == kind
+            and x_min + 2.0 <= marker.longitude <= x_max - 2.0
+            and y_min + 2.0 <= marker.latitude <= y_max - 2.0
+        ]
+        high_confidence = [
+            marker for marker in candidates if marker.confidence == "high"
+        ]
+        pool = high_confidence or candidates
+        reverse = kind == "high-pressure"
+        pool.sort(
+            key=lambda marker: (
+                marker.central_pressure_hpa
+                if marker.central_pressure_hpa is not None
+                else marker.central_height_dam or 0.0
+            ),
+            reverse=reverse,
+        )
+        visible_markers.extend(pool[:2])
+
+    for marker in [*tropical_markers, *visible_markers]:
         if marker.kind == "tropical":
             axis.scatter(
                 [marker.longitude],
@@ -910,7 +1040,7 @@ def draw_cyclone_markers(
                 marker="x",
                 s=74,
                 linewidths=1.8,
-                color="#b83b32",
+                color="#126e68",
                 zorder=8,
             )
             name = " ".join(
@@ -932,26 +1062,27 @@ def draw_cyclone_markers(
                 fontsize=7.5,
                 fontweight="bold",
                 fontproperties=font,
-                color="#8f3029",
+                color="#126e68",
                 zorder=9,
             )
             continue
         is_high = marker.kind == "high-pressure"
+        centre_color = "#ad7d00" if is_high else "#245a8d"
         centre_label = axis.text(
             marker.longitude,
             marker.latitude,
             "H" if is_high else "L",
             ha="center",
             va="center",
-            fontsize=18,
+            fontsize=16,
             fontweight=850,
             fontproperties=font,
-            color="#9b493c" if is_high else "#245a8d",
+            color=centre_color,
             zorder=8,
         )
         centre_label.set_path_effects(
             [
-                path_effects.Stroke(linewidth=3.2, foreground="white"),
+                path_effects.Stroke(linewidth=2.8, foreground="white"),
                 path_effects.Normal(),
             ]
         )
@@ -968,10 +1099,10 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=7,
+                fontsize=6.7,
                 fontweight="bold",
                 fontproperties=font,
-                color="#9b493c" if is_high else "#245a8d",
+                color=centre_color,
                 zorder=9,
             )
 
@@ -983,8 +1114,8 @@ def draw_wind_barbs(
     u_wind: np.ndarray,
     v_wind: np.ndarray,
 ) -> None:
-    longitude_step = max(1, longitude.shape[1] // 28)
-    latitude_step = max(1, latitude.shape[0] // 18)
+    longitude_step = max(1, longitude.shape[1] // 25)
+    latitude_step = max(1, latitude.shape[0] // 16)
     selection = (
         slice(None, None, latitude_step),
         slice(None, None, longitude_step),
@@ -1009,19 +1140,19 @@ def draw_wind_barbs(
         sampled_latitude[moving],
         sampled_u[moving],
         sampled_v[moving],
-        color="#747b79",
-        linewidth=0.36,
-        length=4.0,
-        alpha=0.48,
+        color="#667c7a",
+        linewidth=0.34,
+        length=3.8,
+        alpha=0.36,
     )
     axis.scatter(
         sampled_longitude[calm],
         sampled_latitude[calm],
         s=1.7,
         marker="o",
-        color="#929997",
+        color="#8d9b99",
         linewidths=0,
-        alpha=0.72,
+        alpha=0.58,
         zorder=4.2,
     )
 
@@ -1033,8 +1164,39 @@ def add_weather_colorbar(
 ) -> None:
     colorbar_axis = figure.add_axes(COLORBAR_FIGURE_BOUNDS)
     colorbar = figure.colorbar(shaded, cax=colorbar_axis)
-    colorbar.set_label(label, fontsize=8)
-    colorbar.ax.tick_params(labelsize=7.5)
+    colorbar.locator = MaxNLocator(
+        nbins=6,
+        steps=[1, 2, 2.5, 5, 10],
+    )
+    colorbar.update_ticks()
+    colorbar.ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda value, _: f"{value:g}")
+    )
+    colorbar.set_label(label, fontsize=7.7, color="#31464d", labelpad=8)
+    colorbar.ax.tick_params(
+        labelsize=7.2,
+        colors="#31464d",
+        length=3,
+        width=0.65,
+    )
+    colorbar.outline.set_linewidth(0.7)
+    colorbar.outline.set_edgecolor("#31464d")
+
+
+def style_contour_labels(labels: list[object]) -> None:
+    """Keep contour values legible without opaque boxes or heavy halos."""
+    for label in labels:
+        label.set_color("#243e44")
+        label.set_path_effects(
+            [
+                path_effects.Stroke(
+                    linewidth=1.65,
+                    foreground="white",
+                    alpha=0.88,
+                ),
+                path_effects.Normal(),
+            ]
+        )
 
 
 def require_field(grid: WeatherGrid, name: str) -> np.ndarray:
