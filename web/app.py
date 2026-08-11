@@ -981,7 +981,7 @@ async def station_region_map(region: str) -> dict[str, object]:
 
 @app.get(
     "/api/v1/stations/china",
-    summary="读取全国国家站与省级边界，供可拖动站点地图使用",
+    summary="读取全国国家站，供可拖动站点地图使用",
 )
 async def station_china_map() -> dict[str, object]:
     return _station_china_payload()
@@ -1857,16 +1857,6 @@ def _station_region_payload(region: str) -> dict[str, object]:
 @lru_cache(maxsize=1)
 def _station_china_payload() -> dict[str, object]:
     stations = list(station_records())
-    geojson_path = PROJECT_ROOT / "中国_省.geojson"
-    features: list[dict[str, object]] = []
-    if geojson_path.exists():
-        payload = json.loads(geojson_path.read_text(encoding="utf-8"))
-        features = list(payload.get("features", []))
-    city_geojson_path = PROJECT_ROOT / "中国_市.geojson"
-    city_features: list[dict[str, object]] = []
-    if city_geojson_path.exists():
-        payload = json.loads(city_geojson_path.read_text(encoding="utf-8"))
-        city_features = list(payload.get("features", []))
     return {
         "bounds": {
             "west": 73.0,
@@ -1874,8 +1864,7 @@ def _station_china_payload() -> dict[str, object]:
             "south": 18.0,
             "north": 54.0,
         },
-        "boundaries": {"type": "FeatureCollection", "features": features},
-        "city_boundaries": {"type": "FeatureCollection", "features": city_features},
+        "station_count": len(stations),
         "stations": [station.as_dict() for station in stations],
     }
 
