@@ -842,7 +842,7 @@ def _draw_temperature_extrema(
             )
             selected.append((marker_latitude, marker_longitude))
             count += 1
-            if count >= 2:
+            if count >= 1:
                 break
 
 
