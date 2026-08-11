@@ -316,7 +316,10 @@ function renderObservationChart(series) {
     locationLine: `${series.latitude.toFixed(2)}°N  ${series.longitude.toFixed(2)}°E`,
     timeLine: latest ? `查询时次: ${timeLabelForHeader(latest.time)}` : "",
     points,
-    includeDateLabels: false,
+    // A rolling 24-hour series normally crosses midnight. Date transition
+    // labels prevent two identical-looking hour sequences and make the
+    // plotted interval unambiguous.
+    includeDateLabels: true,
   });
 }
 

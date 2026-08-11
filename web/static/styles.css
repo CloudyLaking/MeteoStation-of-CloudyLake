@@ -2359,7 +2359,7 @@ a {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 1600 / 930;
+  aspect-ratio: 1600 / 980;
   background: #fff;
   touch-action: pan-x pan-y pinch-zoom;
 }
@@ -3292,7 +3292,7 @@ a {
   width: 100%;
   min-width: 760px;
   height: auto;
-  aspect-ratio: 1600 / 930;
+  aspect-ratio: 1600 / 980;
   font-family: "MiSans", sans-serif;
 }
 

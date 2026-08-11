@@ -13,6 +13,10 @@
   }
 
   function number(value) {
+    // Keep missing observations missing. Number(null) and Number("") both
+    // evaluate to zero, which would otherwise create false calm winds and
+    // zero-pressure/visibility points and corrupt the plotted ranges.
+    if (value === null || value === undefined || value === "") return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -98,45 +102,43 @@
     }).format(date);
   }
 
-  // Humidity squares: one square cell per time step, small gaps between cells
-  // and a shared outline so the strip reads as a clean row of blocks.
+  // This is a time series rather than a horizontal 0--100% scale: label every
+  // cell with the humidity measured at that observation time.
   function addHumidityStrip(svg, points, x, plot) {
-    const stripTop = 100;
-    const cell = 24;
+    const stripTop = 105;
+    const cell = 27;
     const gap = 4;
     const totalWidth = plot.right - plot.left;
-    const step = totalWidth / points.length;
-    const cellWidth = Math.min(cell, step - gap);
+    const step = totalWidth / Math.max(points.length - 1, 1);
+    const cellWidth = Math.max(12, Math.min(42, step - gap));
     points.forEach((point, index) => {
       const cx = x(index);
+      const humidity = number(point.humidity);
       svg.append(node("rect", {
         x: cx - cellWidth / 2,
         y: stripTop,
         width: cellWidth,
         height: cell,
-        fill: humidityColour(point.humidity),
+        fill: humidity === null ? "#f1f2ef" : humidityColour(humidity),
         stroke: "#ffffff",
         "stroke-width": 1,
-        rx: 2,
+        rx: 1,
       }));
+      svg.append(node("text", {
+        x: cx,
+        y: stripTop + 18,
+        "text-anchor": "middle",
+        "font-size": 10.5,
+        "font-weight": 650,
+        fill: humidity !== null && humidity < 56 ? "#fff" : "#17323a",
+      }, humidity === null ? "—" : humidity.toFixed(0)));
     });
-    svg.append(node("rect", {
-      x: plot.left,
-      y: stripTop - 3,
-      width: totalWidth,
-      height: cell + 6,
-      fill: "none",
-      stroke: "#222",
-      "stroke-width": 1,
-    }));
     svg.append(node("text", {
       x: plot.left - 10,
       y: stripTop + cell / 2 + 5,
       "text-anchor": "end",
       "font-size": 13,
-    }, "湿度(%)"));
-    svg.append(node("text", { x: plot.left, y: stripTop - 9, "font-size": 12, fill: "#777" }, "0%"));
-    svg.append(node("text", { x: plot.right, y: stripTop - 9, "text-anchor": "end", "font-size": 12, fill: "#777" }, "100%"));
+    }, "相对湿度(%)"));
   }
 
   function addLegends(svg) {
@@ -185,12 +187,12 @@
 
   function addInspection(svg, points, x, plot) {
     const group = node("g", { visibility: "hidden", "pointer-events": "none" });
-    const line = node("line", { y1: plot.top, y2: plot.windBottom, stroke: "#176f9e", "stroke-width": 1.2, "stroke-dasharray": "5 5" });
+    const line = node("line", { y1: plot.temperatureTop, y2: plot.windBottom, stroke: "#176f9e", "stroke-width": 1.2, "stroke-dasharray": "5 5" });
     const box = node("rect", { width: 320, height: 106, fill: "#fff", stroke: "#333", "stroke-width": 1, opacity: 0.97 });
     const labels = [0, 1, 2, 3, 4].map((index) => node("text", { "font-size": index === 0 ? 15 : 13, "font-weight": index === 0 ? 650 : 400, fill: "#111" }));
     group.append(line, box, ...labels);
     svg.append(group);
-    const overlay = node("rect", { x: plot.left, y: plot.top, width: plot.right - plot.left, height: plot.windBottom - plot.top, fill: "transparent", cursor: "crosshair" });
+    const overlay = node("rect", { x: plot.left, y: plot.temperatureTop, width: plot.right - plot.left, height: plot.windBottom - plot.temperatureTop, fill: "transparent", cursor: "crosshair" });
     const inspect = (event) => {
       const pointer = svg.createSVGPoint();
       pointer.x = event.clientX;
@@ -200,7 +202,7 @@
       const item = points[index];
       const px = x(index);
       const boxX = px > 1120 ? px - 330 : px + 10;
-      const boxY = Math.max(plot.top + 8, Math.min(local.y - 38, plot.windBottom - 114));
+      const boxY = Math.max(plot.temperatureTop + 8, Math.min(local.y - 38, plot.windBottom - 114));
       line.setAttribute("x1", px); line.setAttribute("x2", px);
       box.setAttribute("x", boxX); box.setAttribute("y", boxY);
       labels.forEach((label, labelIndex) => {
@@ -231,10 +233,27 @@
     svg.setAttribute("viewBox", `0 0 ${WIDTH} ${HEIGHT}`);
     svg.replaceChildren(node("rect", { width: WIDTH, height: HEIGHT, fill: "#fff" }));
 
-    // Symmetric left/right gutters: labels and legend sit outside the plotted
-    // bands and the header block is right-aligned on a single edge.
-    const plot = { left: 250, right: 1360, top: 150, bottom: 690, windTop: 740, windBottom: 890 };
-    const x = (index) => plot.left + index / Math.max(points.length - 1, 1) * (plot.right - plot.left);
+    // Each variable has a non-overlapping band.  Keeping the same time axis
+    // makes vertical inspection useful without letting pressure, visibility
+    // and precipitation labels overwrite one another.
+    const plot = {
+      left: 180,
+      right: 1320,
+      temperatureTop: 170,
+      temperatureBottom: 385,
+      pressureTop: 425,
+      pressureBottom: 505,
+      visibilityTop: 545,
+      visibilityBottom: 620,
+      rainTop: 660,
+      rainBottom: 735,
+      windTop: 785,
+      windBottom: 895,
+    };
+    const dataInset = 20;
+    const x = (index) => plot.left + dataInset
+      + index / Math.max(points.length - 1, 1)
+      * (plot.right - plot.left - dataInset * 2);
     const title = configuration.title || "24h实况序列";
     svg.append(
       node("text", { x: WIDTH / 2, y: 45, "text-anchor": "middle", "font-size": 31, "font-weight": 400, fill: "#111" }, title),
@@ -264,20 +283,33 @@
 
     addHumidityStrip(svg, points, x, plot);
     addLegends(svg);
-    svg.append(
-      node("rect", { x: plot.left, y: plot.top, width: plot.right - plot.left, height: plot.bottom - plot.top, fill: "none", stroke: "#222" }),
-      node("rect", { x: plot.left, y: plot.windTop, width: plot.right - plot.left, height: plot.windBottom - plot.windTop, fill: "none", stroke: "#222" }),
-    );
+    [
+      [plot.temperatureTop, plot.temperatureBottom],
+      [plot.pressureTop, plot.pressureBottom],
+      [plot.visibilityTop, plot.visibilityBottom],
+      [plot.rainTop, plot.rainBottom],
+      [plot.windTop, plot.windBottom],
+    ].forEach(([top, bottom]) => svg.append(node("rect", {
+      x: plot.left,
+      y: top,
+      width: plot.right - plot.left,
+      height: bottom - top,
+      fill: "#fff",
+      stroke: "#29373d",
+      "stroke-width": 0.9,
+    })));
 
     // Soft vertical grid shared by the main and wind bands.
     points.forEach((point, index) => {
-      svg.append(node("line", { x1: x(index), x2: x(index), y1: plot.top, y2: plot.windBottom, stroke: "#eef4f6", "stroke-width": 1, "stroke-dasharray": "2 5" }));
+      svg.append(node("line", { x1: x(index), x2: x(index), y1: plot.temperatureTop, y2: plot.windBottom, stroke: "#e4ecec", "stroke-width": 0.8, "stroke-dasharray": "2 5" }));
     });
 
     // ---- Temperature band: temperature / apparent / dewpoint ----
     const temperatures = points.flatMap((point) => [point.temperature, point.dewpoint, point.apparent]);
     const [temperatureMin, temperatureMax] = extent(temperatures, 4);
-    const yTemperature = (value) => 380 - (value - temperatureMin) / (temperatureMax - temperatureMin) * 185;
+    const yTemperature = (value) => plot.temperatureBottom
+      - (value - temperatureMin) / (temperatureMax - temperatureMin)
+      * (plot.temperatureBottom - plot.temperatureTop);
     for (let index = 0; index <= 4; index += 1) {
       const value = temperatureMin + index / 4 * (temperatureMax - temperatureMin);
       const y = yTemperature(value);
@@ -286,7 +318,8 @@
         node("text", { x: plot.left - 12, y: y + 5, "text-anchor": "end", "font-size": 13 }, value.toFixed(0)),
       );
     }
-    svg.append(node("text", { x: 148, y: 290, transform: "rotate(-90 148 290)", "text-anchor": "middle", "font-size": 15 }, "温度(°C)"));
+    const temperatureMiddle = (plot.temperatureTop + plot.temperatureBottom) / 2;
+    svg.append(node("text", { x: 80, y: temperatureMiddle, transform: `rotate(-90 80 ${temperatureMiddle})`, "text-anchor": "middle", "font-size": 15 }, "温度 / 露点 / 体感 (°C)"));
 
     svg.append(
       node("path", { d: linePath(points, "apparent", x, yTemperature), fill: "none", stroke: "#f39a17", "stroke-width": 2.5 }),
@@ -314,17 +347,18 @@
     // ---- Pressure band ----
     const pressures = points.map((point) => number(point.pressure)).filter((value) => value !== null);
     const [pressureMin, pressureMax] = extent(pressures, 2);
-    const yPressure = (value) => 482 - (value - pressureMin) / (pressureMax - pressureMin) * 70;
-    let pressureArea = `M${x(0)},482 `;
+    const yPressure = (value) => plot.pressureBottom
+      - (value - pressureMin) / (pressureMax - pressureMin)
+      * (plot.pressureBottom - plot.pressureTop);
+    let pressureArea = `M${x(0)},${plot.pressureBottom} `;
     points.forEach((point, index) => {
       const value = number(point.pressure);
       pressureArea += value === null ? "" : `L${x(index)},${yPressure(value)} `;
     });
-    pressureArea += `L${x(points.length - 1)},482 Z`;
+    pressureArea += `L${x(points.length - 1)},${plot.pressureBottom} Z`;
     svg.append(
       node("path", { d: pressureArea, fill: "#dbdbff", opacity: 0.85 }),
-      node("line", { x1: plot.left, x2: plot.right, y1: 482, y2: 482, stroke: "#b9b9e8", "stroke-width": 1 }),
-      node("text", { x: plot.left - 8, y: 488, "text-anchor": "end", "font-size": 13 }, "气压(hPa):"),
+      node("text", { x: plot.left - 10, y: (plot.pressureTop + plot.pressureBottom) / 2 + 5, "text-anchor": "end", "font-size": 13 }, "本站气压(hPa)"),
     );
     points.forEach((point, index) => {
       const value = number(point.pressure);
@@ -337,11 +371,12 @@
     const visibilities = points.map((point) => number(point.visibility)).filter((value) => value !== null);
     if (visibilities.length) {
       const [visibilityMin, visibilityMax] = extent(visibilities, 2);
-      const yVisibility = (value) => 580 - (value - visibilityMin) / (visibilityMax - visibilityMin) * 62;
+      const yVisibility = (value) => plot.visibilityBottom
+        - (value - visibilityMin) / (visibilityMax - visibilityMin)
+        * (plot.visibilityBottom - plot.visibilityTop);
       svg.append(
         node("path", { d: linePath(points, "visibility", x, yVisibility), fill: "none", stroke: "#5a7fa3", "stroke-width": 2.4 }),
-        node("line", { x1: plot.left, x2: plot.right, y1: 580, y2: 580, stroke: "#c4cfe0", "stroke-width": 0.8 }),
-        node("text", { x: plot.left - 8, y: 586, "text-anchor": "end", "font-size": 13 }, "能见度(km):"),
+        node("text", { x: plot.left - 10, y: (plot.visibilityTop + plot.visibilityBottom) / 2 + 5, "text-anchor": "end", "font-size": 13 }, "能见度(km)"),
       );
       points.forEach((point, index) => {
         const value = number(point.visibility);
@@ -358,23 +393,23 @@
     const rainMaximum = Math.max(...rain, 0.1);
     const rainBarWidth = Math.max(8, (plot.right - plot.left) / points.length * 0.7);
     points.forEach((point, index) => {
-      const height = rain[index] / rainMaximum * 88;
-      if (height > 0) svg.append(node("rect", { x: x(index) - rainBarWidth / 2, y: 662 - height, width: rainBarWidth, height, fill: precipitationColour(rain[index]) }));
-      svg.append(node("text", { x: x(index), y: 676, "text-anchor": "middle", "font-size": 11.5 }, format(rain[index], 1)));
+      const height = rain[index] / rainMaximum * (plot.rainBottom - plot.rainTop - 22);
+      if (height > 0) svg.append(node("rect", { x: x(index) - rainBarWidth / 2, y: plot.rainBottom - height, width: rainBarWidth, height, fill: precipitationColour(rain[index]) }));
+      svg.append(node("text", { x: x(index), y: plot.rainTop + 14, "text-anchor": "middle", "font-size": 11.5 }, format(rain[index], 1)));
     });
     svg.append(
-      node("line", { x1: plot.left, x2: plot.right, y1: 664, y2: 664, stroke: "#c9d6e8", "stroke-width": 1 }),
-      node("text", { x: plot.left - 8, y: 676, "text-anchor": "end", "font-size": 13 }, "降水量(mm):"),
+      node("text", { x: plot.left - 10, y: (plot.rainTop + plot.rainBottom) / 2 + 5, "text-anchor": "end", "font-size": 13 }, "小时降水(mm)"),
     );
 
     // ---- Wind band ----
     const wind = points.map((point) => number(point.windSpeed) ?? 0);
     const windMaximum = Math.max(...wind, 1);
-    const yWind = (value) => 880 - value / windMaximum * 100;
+    const yWind = (value) => plot.windBottom
+      - value / windMaximum * (plot.windBottom - plot.windTop - 18);
     svg.append(
-      node("line", { x1: plot.left, x2: plot.right, y1: 880, y2: 880, stroke: "#111", "stroke-width": 1, "stroke-dasharray": "5 4" }),
+      node("line", { x1: plot.left, x2: plot.right, y1: plot.windBottom, y2: plot.windBottom, stroke: "#111", "stroke-width": 1, "stroke-dasharray": "5 4" }),
       node("path", { d: linePath(points, "windSpeed", x, yWind), fill: "none", stroke: "#a9dce8", "stroke-width": 2.3 }),
-      node("text", { x: 148, y: 815, transform: "rotate(-90 148 815)", "text-anchor": "middle", "font-size": 15 }, "风速(m/s)"),
+      node("text", { x: plot.left - 10, y: (plot.windTop + plot.windBottom) / 2 + 5, "text-anchor": "end", "font-size": 13 }, "风速(m/s)"),
     );
     points.forEach((point, index) => {
       const speed = number(point.windSpeed) ?? 0;
