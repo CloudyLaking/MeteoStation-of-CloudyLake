@@ -7,7 +7,7 @@
     <title>历史再分析 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0812c" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0812d" />
     <script src="/static/site.js?v=2.2.1-0810a" defer></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
@@ -60,10 +60,10 @@
             <label id="reanalysis-level-wrap"><span>等压面</span><select id="reanalysis-level"><option>1000</option><option>925</option><option>850</option><option>700</option><option selected>500</option><option>300</option><option>250</option><option>200</option><option>100</option></select></label>
           </div>
           <div class="reanalysis-bounds" aria-label="查询边界">
-            <label><span>西界</span><input id="reanalysis-west" type="number" min="-180" max="180" step="0.25" value="70" /></label>
-            <label><span>东界</span><input id="reanalysis-east" type="number" min="-180" max="180" step="0.25" value="145" /></label>
-            <label><span>南界</span><input id="reanalysis-south" type="number" min="-90" max="90" step="0.25" value="15" /></label>
-            <label><span>北界</span><input id="reanalysis-north" type="number" min="-90" max="90" step="0.25" value="60" /></label>
+            <label><span>西界</span><input id="reanalysis-west" type="number" min="-180" max="180" step="any" value="70" /></label>
+            <label><span>东界</span><input id="reanalysis-east" type="number" min="-180" max="180" step="any" value="145" /></label>
+            <label><span>南界</span><input id="reanalysis-south" type="number" min="-90" max="90" step="any" value="15" /></label>
+            <label><span>北界</span><input id="reanalysis-north" type="number" min="-90" max="90" step="any" value="60" /></label>
           </div>
           <button class="reanalysis-submit" type="submit">查询并绘制</button>
         </form>
