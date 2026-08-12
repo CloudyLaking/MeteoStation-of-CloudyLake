@@ -6177,3 +6177,94 @@ html body .station-display-dock {
 
   .cycle-switch { grid-template-columns: repeat(2, 30px); }
 }
+
+/* Weather-map reading typography. Keep the dense meteorological drawing
+   untouched and enlarge the surrounding interface and explanatory copy. */
+.map-panel .eyebrow {
+  font-size: 18px !important;
+}
+
+.map-panel .panel-subtitle {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.archive-picker__label,
+.archive-picker small {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.archive-picker__controls > button,
+.archive-picker input,
+.cycle-switch button {
+  font-size: 14px;
+}
+
+.layer-dock button,
+.station-display-dock > span,
+.station-display-dock button {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.map-attribution {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.map-legend {
+  gap: 9px 20px;
+  padding-block: 12px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.map-legend span {
+  gap: 7px;
+}
+
+.legend-symbol {
+  min-width: 14px;
+  height: 14px;
+  font-size: 14px;
+}
+
+@media (max-width: 700px) {
+  .map-panel .eyebrow {
+    font-size: 17px !important;
+  }
+
+  .map-panel .panel-subtitle {
+    font-size: 14px;
+  }
+
+  .archive-picker__label,
+  .archive-picker small {
+    font-size: 13px;
+  }
+
+  .archive-picker__controls > button,
+  .archive-picker input,
+  .cycle-switch button {
+    font-size: 13px;
+  }
+
+  .layer-dock button,
+  .station-display-dock > span,
+  .station-display-dock button {
+    min-height: 40px;
+    padding: 9px 13px;
+    font-size: 13px;
+  }
+
+  .map-attribution {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .map-legend {
+    padding-block: 11px;
+    font-size: 13px;
+  }
+}
