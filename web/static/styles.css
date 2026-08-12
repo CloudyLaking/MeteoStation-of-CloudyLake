@@ -3127,7 +3127,8 @@ a {
   text-align: right;
 }
 
-#sounding-world-map {
+#sounding-world-map,
+#point-forecast-world-map {
   z-index: 1;
   width: 100%;
   height: 390px;
@@ -3136,7 +3137,8 @@ a {
   background: #eef5f3;
 }
 
-#sounding-world-map .leaflet-control-attribution {
+#sounding-world-map .leaflet-control-attribution,
+#point-forecast-world-map .leaflet-control-attribution {
   font-size: 9px;
 }
 
@@ -5045,7 +5047,8 @@ summary:focus-visible {
     text-align: left;
   }
 
-  #sounding-world-map {
+  #sounding-world-map,
+  #point-forecast-world-map {
     height: 300px;
   }
 

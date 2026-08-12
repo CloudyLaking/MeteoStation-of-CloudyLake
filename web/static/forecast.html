@@ -6,7 +6,8 @@
     <meta name="description" content="云海观象台：ECMWF IFS 与 AIFS 单点预报。" />
     <title>单点预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0812d" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0812e" />
   </head>
   <body>
     <header class="site-header">
@@ -52,6 +53,14 @@
         <p class="eyebrow">Point Forecast</p>
         <h1>单点预报</h1>
         <p>输入国家站号、站名或经纬度，读取未来三天的模式格点预报。</p>
+      </section>
+
+      <section class="forecast-world-picker" aria-labelledby="point-world-picker-title">
+        <header>
+          <div><p class="eyebrow">World Map</p><h2 id="point-world-picker-title">世界地图选点</h2></div>
+          <p id="point-world-coordinate">点击地图任意位置，或搜索站号、站名与地名。</p>
+        </header>
+        <div id="point-forecast-world-map" role="application" aria-label="单点预报世界地图选点"></div>
       </section>
 
       <form class="forecast-form" id="forecast-form">
@@ -140,8 +149,9 @@
       <span>Powered with Codex &amp; Deepseek</span>
     </footer>
     <script src="/static/site.js?v=2.2.1-0810a" defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
     <script src="/static/weather-series-chart.js?v=2.2.1-0812b" defer></script>
     <script src="/static/location-suggest.js?v=2.2.1-0810a" defer></script>
-    <script src="/static/forecast.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/forecast.js?v=2.2.1-0812e" defer></script>
   </body>
 </html>

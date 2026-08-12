@@ -103,6 +103,12 @@ def test_station_record_exposes_decimal_coordinates() -> None:
     assert station.longitude == 121.75
 
 
+def test_forecast_pressure_levels_use_all_open_data_native_levels() -> None:
+    assert retriever.FORECAST_PRESSURE_LEVELS == [
+        1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50,
+    ]
+
+
 def test_mars_point_area_keeps_interpolation_neighbours() -> None:
     assert mars_point_area(31.65, 121.75) == (
         "31.9000/121.5000/31.4000/122.0000"

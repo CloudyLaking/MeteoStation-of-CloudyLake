@@ -211,6 +211,26 @@ def validate_fast_store(path: Path, *, kind: StoreKind) -> None:
             raise RuntimeError(f"incomplete fast store: {path}")
 
 
+def fast_store_has_pressure_levels(
+    path: Path,
+    required_levels: list[int] | tuple[int, ...],
+) -> bool:
+    """Return whether a pressure store contains every requested native level."""
+    from netCDF4 import Dataset
+
+    try:
+        with Dataset(path, "r") as store:
+            if "isobaricInhPa" not in store.variables:
+                return False
+            available = {
+                int(round(float(level)))
+                for level in store.variables["isobaricInhPa"][:]
+            }
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return set(required_levels).issubset(available)
+
+
 def read_fast_point_fields(
     path: Path,
     *,

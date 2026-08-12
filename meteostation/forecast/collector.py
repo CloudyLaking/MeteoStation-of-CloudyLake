@@ -12,8 +12,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from .retriever import retrieve_ecmwf_forecast
-from .fast_store import convert_forecast_grib, is_fast_store
+from .retriever import FORECAST_PRESSURE_LEVELS, retrieve_ecmwf_forecast
+from .fast_store import (
+    convert_forecast_grib,
+    fast_store_has_pressure_levels,
+    is_fast_store,
+)
 
 
 ForecastModel = Literal["ifs", "aifs"]
@@ -367,7 +371,14 @@ def _cycle_is_complete(
             f"{prefix}forecast_pressure_144h_*hourly.{suffix}"
         )
     ]
-    return bool(surface and pressure)
+    if not surface or not pressure:
+        return False
+    if require_fast and not any(
+        fast_store_has_pressure_levels(item, FORECAST_PRESSURE_LEVELS)
+        for item in pressure
+    ):
+        return False
+    return True
 
 
 def _convert_and_optionally_discard(

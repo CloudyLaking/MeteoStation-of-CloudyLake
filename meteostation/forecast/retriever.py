@@ -27,13 +27,18 @@ from .models import (
     SurfaceForecast,
     SurfaceForecastPoint,
 )
-from .fast_store import fast_store_path, is_fast_store, read_fast_point_fields
+from .fast_store import (
+    fast_store_has_pressure_levels,
+    fast_store_path,
+    is_fast_store,
+    read_fast_point_fields,
+)
 
 _log = logging.getLogger(__name__)
 
 # Pressure levels used for forecast soundings.
 FORECAST_PRESSURE_LEVELS = [
-    1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100,
+    1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50,
 ]
 
 # Surface forecast parameters.
@@ -205,6 +210,13 @@ def retrieve_ecmwf_forecast(
         / f"{stem}_forecast_pressure_144h_{cadence}hourly.grib2"
     )
     pressure_store = fast_store_path(pres_path)
+    if pressure_store.exists() and not fast_store_has_pressure_levels(
+        pressure_store,
+        FORECAST_PRESSURE_LEVELS,
+    ):
+        # Native pressure-level coverage changed; rebuild this derived cache
+        # instead of serving a permanently sparse forecast sounding.
+        pressure_store.unlink()
     if include_pressure and pressure_store.exists():
         pres_path = pressure_store
     if include_pressure and not allow_download and not pres_path.exists():

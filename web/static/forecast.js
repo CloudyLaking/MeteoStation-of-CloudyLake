@@ -7,12 +7,66 @@ const section = document.querySelector("#surface-forecast-section");
 const title = document.querySelector("#surface-forecast-title");
 const source = document.querySelector("#surface-forecast-source");
 const chart = document.querySelector("#point-forecast-chart");
+const pointMapElement = document.querySelector("#point-forecast-world-map");
+const pointCoordinate = document.querySelector("#point-world-coordinate");
+
+let pointMap = null;
+let pointMarker = null;
 
 dateInput.value = new Date().toISOString().slice(0, 10);
 
+function setForecastPoint(latitude, longitude, { move = true, updateInput = true } = {}) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !pointMap) return;
+  if (pointMarker) pointMarker.setLatLng([latitude, longitude]);
+  else {
+    pointMarker = window.L.circleMarker([latitude, longitude], {
+      radius: 6,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: "#126e68",
+      fillOpacity: 1,
+    }).addTo(pointMap);
+  }
+  if (move) pointMap.setView([latitude, longitude], Math.max(pointMap.getZoom(), 5));
+  if (updateInput) locationInput.value = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+  if (pointCoordinate) {
+    pointCoordinate.textContent = `已选择 ${latitude.toFixed(4)}°, ${longitude.toFixed(4)}° · 可继续移动地图选点`;
+  }
+}
+
+function initializePointMap() {
+  if (!pointMapElement || !window.L) {
+    if (pointCoordinate) pointCoordinate.textContent = "地图组件暂未加载，仍可直接输入站号、地名或经纬度。";
+    return;
+  }
+  pointMap = window.L.map(pointMapElement, {
+    worldCopyJump: true,
+    minZoom: 2,
+    maxZoom: 10,
+    scrollWheelZoom: true,
+    wheelPxPerZoomLevel: 140,
+    zoomSnap: 0.5,
+    zoomDelta: 0.5,
+    touchZoom: true,
+  }).setView([28, 105], 2);
+  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+  }).addTo(pointMap);
+  pointMap.on("click", (event) => {
+    setForecastPoint(event.latlng.lat, event.latlng.lng, { move: false, updateInput: true });
+  });
+  setForecastPoint(31.65, 121.75, { move: false, updateInput: false });
+}
+
 initLocationSuggest(locationInput, options, {
-  onPick: () => form.requestSubmit(),
+  onPick: (item) => {
+    setForecastPoint(item.latitude, item.longitude, { updateInput: false });
+    form.requestSubmit();
+  },
 });
+
+window.addEventListener("DOMContentLoaded", initializePointMap);
 
 function svg(tag, attributes = {}, text = "") {
   const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
