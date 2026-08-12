@@ -38,7 +38,7 @@ _log = logging.getLogger(__name__)
 
 # Pressure levels used for forecast soundings.
 FORECAST_PRESSURE_LEVELS = [
-    1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50,
+    1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50, 10,
 ]
 
 # Surface forecast parameters.
@@ -210,14 +210,15 @@ def retrieve_ecmwf_forecast(
         / f"{stem}_forecast_pressure_144h_{cadence}hourly.grib2"
     )
     pressure_store = fast_store_path(pres_path)
-    if pressure_store.exists() and not fast_store_has_pressure_levels(
+    pressure_store_current = pressure_store.exists() and fast_store_has_pressure_levels(
         pressure_store,
         FORECAST_PRESSURE_LEVELS,
-    ):
-        # Native pressure-level coverage changed; rebuild this derived cache
-        # instead of serving a permanently sparse forecast sounding.
-        pressure_store.unlink()
-    if include_pressure and pressure_store.exists():
+    )
+    if include_pressure and pressure_store_current:
+        pres_path = pressure_store
+    elif include_pressure and not allow_download and pressure_store.exists():
+        # Keep the previous native-level set queryable while the collector
+        # downloads its replacement; the swap happens only after conversion.
         pres_path = pressure_store
     if include_pressure and not allow_download and not pres_path.exists():
         partial = _find_partial_step_cache(

@@ -388,6 +388,16 @@ def _convert_and_optionally_discard(
     discard_grib: bool,
 ) -> Path:
     source = Path(path)
+    if kind == "pressure" and not is_fast_store(source):
+        existing = source.with_name(f"{source.name[:-6]}.fast.nc")
+        if existing.exists() and not fast_store_has_pressure_levels(
+            existing,
+            FORECAST_PRESSURE_LEVELS,
+        ):
+            # The complete GRIB is already durable at this point, so replacing
+            # the old derived cache here keeps the public query path available
+            # throughout the much longer network download.
+            existing.unlink()
     converted = convert_forecast_grib(source, kind=kind)
     if discard_grib and not is_fast_store(source):
         source.unlink(missing_ok=True)

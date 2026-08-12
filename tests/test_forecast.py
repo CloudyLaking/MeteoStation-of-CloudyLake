@@ -105,7 +105,7 @@ def test_station_record_exposes_decimal_coordinates() -> None:
 
 def test_forecast_pressure_levels_use_all_open_data_native_levels() -> None:
     assert retriever.FORECAST_PRESSURE_LEVELS == [
-        1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50,
+        1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50, 10,
     ]
 
 
