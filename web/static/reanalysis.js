@@ -18,6 +18,49 @@ const plot = document.querySelector("#reanalysis-plot");
 const pressureFields = new Set(["temperature", "relative_humidity", "geopotential_height", "wind_speed"]);
 let selectionMap = null;
 let selectionRectangle = null;
+const GRID_STEP = 0.25;
+const MAX_LONGITUDE_SPAN = 120;
+const MAX_LATITUDE_SPAN = 75;
+
+function clamp(value, minimum, maximum) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function adaptBounds(west, east, south, north) {
+  if (![west, east, south, north].every(Number.isFinite)) return null;
+  let longitudeSpan = east - west;
+  if (longitudeSpan <= 0) longitudeSpan = ((longitudeSpan % 360) + 360) % 360;
+  if (longitudeSpan <= 0 || longitudeSpan > 360) longitudeSpan = 360;
+  longitudeSpan = clamp(longitudeSpan, 0.5, MAX_LONGITUDE_SPAN);
+  let longitudeCentre = ((west + (east - west > 0 ? (east - west) : longitudeSpan) / 2 + 180) % 360 + 360) % 360 - 180;
+  longitudeCentre = clamp(longitudeCentre, -180 + longitudeSpan / 2, 180 - longitudeSpan / 2);
+
+  if (north < south) [south, north] = [north, south];
+  let latitudeSpan = clamp(north - south, 0.5, MAX_LATITUDE_SPAN);
+  let latitudeCentre = clamp((south + north) / 2, -90 + latitudeSpan / 2, 90 - latitudeSpan / 2);
+  let fitted = {
+    west: Math.floor((longitudeCentre - longitudeSpan / 2) / GRID_STEP) * GRID_STEP,
+    east: Math.ceil((longitudeCentre + longitudeSpan / 2) / GRID_STEP) * GRID_STEP,
+    south: Math.floor((latitudeCentre - latitudeSpan / 2) / GRID_STEP) * GRID_STEP,
+    north: Math.ceil((latitudeCentre + latitudeSpan / 2) / GRID_STEP) * GRID_STEP,
+  };
+  if (fitted.east - fitted.west > MAX_LONGITUDE_SPAN) fitted.east = fitted.west + MAX_LONGITUDE_SPAN;
+  if (fitted.north - fitted.south > MAX_LATITUDE_SPAN) fitted.north = fitted.south + MAX_LATITUDE_SPAN;
+  if (fitted.east > 180) { fitted.west -= fitted.east - 180; fitted.east = 180; }
+  if (fitted.west < -180) { fitted.east += -180 - fitted.west; fitted.west = -180; }
+  if (fitted.north > 90) { fitted.south -= fitted.north - 90; fitted.north = 90; }
+  if (fitted.south < -90) { fitted.north += -90 - fitted.south; fitted.south = -90; }
+  return fitted;
+}
+
+function writeBounds(bounds) {
+  westInput.value = bounds.west.toFixed(2);
+  eastInput.value = bounds.east.toFixed(2);
+  southInput.value = bounds.south.toFixed(2);
+  northInput.value = bounds.north.toFixed(2);
+  selectionRectangle?.setBounds([[bounds.south, bounds.west], [bounds.north, bounds.east]]);
+  areaLabel.textContent = `${westInput.value}—${eastInput.value}°E · ${southInput.value}—${northInput.value}°N`;
+}
 
 for (let hour = 0; hour < 24; hour += 1) {
   const option = document.createElement("option");
@@ -58,20 +101,17 @@ function initializeMap() {
 function updateBoundsFromMap() {
   if (!selectionMap) return;
   const bounds = selectionMap.getBounds();
-  westInput.value = Math.max(-180, bounds.getWest()).toFixed(2);
-  eastInput.value = Math.min(180, bounds.getEast()).toFixed(2);
-  southInput.value = Math.max(-90, bounds.getSouth()).toFixed(2);
-  northInput.value = Math.min(90, bounds.getNorth()).toFixed(2);
-  selectionRectangle.setBounds(bounds);
-  areaLabel.textContent = `${westInput.value}—${eastInput.value}°E · ${southInput.value}—${northInput.value}°N`;
+  const fitted = adaptBounds(bounds.getWest(), bounds.getEast(), bounds.getSouth(), bounds.getNorth());
+  if (fitted) writeBounds(fitted);
 }
 
 function updateMapFromBounds() {
   const values = [westInput, eastInput, southInput, northInput].map((input) => Number(input.value));
   if (!selectionMap || !values.every(Number.isFinite)) return;
-  const [west, east, south, north] = values;
-  if (west >= east || south >= north) return;
-  selectionMap.fitBounds([[south, west], [north, east]], { animate: false, padding: [8, 8] });
+  const fitted = adaptBounds(...values);
+  if (!fitted) return;
+  writeBounds(fitted);
+  selectionMap.fitBounds([[fitted.south, fitted.west], [fitted.north, fitted.east]], { animate: false, padding: [0, 0] });
 }
 
 [westInput, eastInput, southInput, northInput].forEach((input) => input.addEventListener("change", updateMapFromBounds));
@@ -100,6 +140,11 @@ function renderField(result) {
     [0, "#225ea8"], [0.22, "#5ba3c7"], [0.44, "#d8edf0"],
     [0.58, "#fff4ad"], [0.76, "#f2c94c"], [1, "#126e68"],
   ];
+  const longitudeSpan = Math.max(0.25, result.longitude.at(-1) - result.longitude[0]);
+  const latitudeSpan = Math.max(0.25, result.latitude.at(-1) - result.latitude[0]);
+  const meanLatitude = (result.latitude.at(-1) + result.latitude[0]) / 2;
+  const geographicRatio = longitudeSpan * Math.max(0.2, Math.cos(meanLatitude * Math.PI / 180)) / latitudeSpan;
+  plot.style.height = `${Math.round(clamp(plot.clientWidth / Math.max(0.7, geographicRatio) + 110, 430, 760))}px`;
   window.Plotly.react(plot, [{
     type: "contour",
     x: result.longitude,
@@ -136,13 +181,26 @@ form.addEventListener("submit", async (event) => {
   resultSection.hidden = true;
   status.textContent = "正在提交 ERA5 区域查询……";
   try {
+    const fitted = adaptBounds(
+      Number(westInput.value), Number(eastInput.value),
+      Number(southInput.value), Number(northInput.value),
+    );
+    if (!fitted) throw new Error("请输入有效的经纬度边界");
+    const changed = [
+      Number(westInput.value) !== fitted.west,
+      Number(eastInput.value) !== fitted.east,
+      Number(southInput.value) !== fitted.south,
+      Number(northInput.value) !== fitted.north,
+    ].some(Boolean);
+    writeBounds(fitted);
+    if (changed) status.textContent = "已自动适配为 ERA5 可查询范围，正在提交……";
     const request = {
       valid_date: dateInput.value,
       hour: Number(hourInput.value),
       field: fieldInput.value,
       pressure_hpa: pressureFields.has(fieldInput.value) ? Number(levelInput.value) : null,
-      west: Number(westInput.value), east: Number(eastInput.value),
-      south: Number(southInput.value), north: Number(northInput.value),
+      west: fitted.west, east: fitted.east,
+      south: fitted.south, north: fitted.north,
     };
     const response = await fetch("/api/v1/reanalysis/jobs", {
       method: "POST",

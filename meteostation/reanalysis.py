@@ -84,6 +84,91 @@ FIELDS: dict[str, ReanalysisField] = {
 }
 
 
+def adapt_reanalysis_bounds(
+    west: float,
+    east: float,
+    south: float,
+    north: float,
+    *,
+    grid_step: float = 0.25,
+    maximum_longitude_span: float = 120.0,
+    maximum_latitude_span: float = 75.0,
+    minimum_span: float = 0.5,
+) -> tuple[float, float, float, float]:
+    """Fit an arbitrary map viewport to a valid ERA5 request rectangle.
+
+    Leaflet view bounds may cross the antimeridian or exceed the legal CDS
+    domain after aspect-ratio padding.  Preserve the viewport centre, constrain
+    its spans, and snap outward to the native quarter-degree ERA5 grid.
+    """
+    coordinates = np.asarray([west, east, south, north], dtype=float)
+    if not np.all(np.isfinite(coordinates)):
+        raise ValueError("reanalysis bounds must be finite")
+
+    raw_longitude_span = east - west
+    if raw_longitude_span <= 0:
+        raw_longitude_span %= 360.0
+    if raw_longitude_span <= 0 or raw_longitude_span > 360:
+        raw_longitude_span = 360.0
+    longitude_span = min(
+        maximum_longitude_span,
+        max(minimum_span, raw_longitude_span),
+    )
+    longitude_centre = ((west + raw_longitude_span / 2 + 180) % 360) - 180
+    longitude_centre = float(np.clip(
+        longitude_centre,
+        -180 + longitude_span / 2,
+        180 - longitude_span / 2,
+    ))
+
+    if north < south:
+        south, north = north, south
+    latitude_centre = float(np.clip((south + north) / 2, -90, 90))
+    latitude_span = min(
+        maximum_latitude_span,
+        max(minimum_span, north - south),
+    )
+    latitude_centre = float(np.clip(
+        latitude_centre,
+        -90 + latitude_span / 2,
+        90 - latitude_span / 2,
+    ))
+
+    fitted_west = longitude_centre - longitude_span / 2
+    fitted_east = longitude_centre + longitude_span / 2
+    fitted_south = latitude_centre - latitude_span / 2
+    fitted_north = latitude_centre + latitude_span / 2
+
+    fitted_west = np.floor(fitted_west / grid_step) * grid_step
+    fitted_east = np.ceil(fitted_east / grid_step) * grid_step
+    fitted_south = np.floor(fitted_south / grid_step) * grid_step
+    fitted_north = np.ceil(fitted_north / grid_step) * grid_step
+
+    # Outward grid snapping can add at most one grid interval. Re-constrain
+    # the far edge while keeping every boundary on the native grid.
+    if fitted_east - fitted_west > maximum_longitude_span:
+        fitted_east = fitted_west + maximum_longitude_span
+    if fitted_north - fitted_south > maximum_latitude_span:
+        fitted_north = fitted_south + maximum_latitude_span
+    if fitted_east > 180:
+        fitted_west -= fitted_east - 180
+        fitted_east = 180.0
+    if fitted_west < -180:
+        fitted_east += -180 - fitted_west
+        fitted_west = -180.0
+    if fitted_north > 90:
+        fitted_south -= fitted_north - 90
+        fitted_north = 90.0
+    if fitted_south < -90:
+        fitted_north += -90 - fitted_south
+        fitted_south = -90.0
+
+    return tuple(
+        round(float(value), 2)
+        for value in (fitted_west, fitted_east, fitted_south, fitted_north)
+    )
+
+
 def retrieve_reanalysis_grid(
     *,
     valid_at: datetime,

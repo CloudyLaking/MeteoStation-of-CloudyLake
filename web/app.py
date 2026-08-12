@@ -79,6 +79,7 @@ from meteostation.forecast import (
     retrieve_ecmwf_forecast,
 )
 from meteostation.reanalysis import (
+    adapt_reanalysis_bounds,
     FIELDS as REANALYSIS_FIELDS,
     ReanalysisUnavailable,
     retrieve_reanalysis_grid,
@@ -214,10 +215,10 @@ class ReanalysisRequest(BaseModel):
     hour: int = Field(ge=0, le=23)
     field: str = Field(min_length=1, max_length=40)
     pressure_hpa: int | None = Field(default=500, ge=1, le=1000)
-    north: float = Field(ge=-90, le=90)
-    west: float = Field(ge=-180, le=180)
-    south: float = Field(ge=-90, le=90)
-    east: float = Field(ge=-180, le=180)
+    north: float
+    west: float
+    south: float
+    east: float
 
     @field_validator("field")
     @classmethod
@@ -229,10 +230,21 @@ class ReanalysisRequest(BaseModel):
 
 @app.post("/api/v1/reanalysis/jobs", summary="提交临时 ERA5 区域查询")
 async def create_reanalysis_job(query: ReanalysisRequest) -> dict[str, object]:
-    if query.north <= query.south or query.east <= query.west:
-        raise HTTPException(status_code=422, detail="区域边界顺序不正确")
-    if query.north - query.south > 75 or query.east - query.west > 120:
-        raise HTTPException(status_code=422, detail="单次查询范围过大，请缩小框选区域")
+    try:
+        west, east, south, north = adapt_reanalysis_bounds(
+            query.west,
+            query.east,
+            query.south,
+            query.north,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="区域边界不是有效数值") from exc
+    query = query.model_copy(update={
+        "west": west,
+        "east": east,
+        "south": south,
+        "north": north,
+    })
     valid_at = datetime(
         query.valid_date.year,
         query.valid_date.month,
