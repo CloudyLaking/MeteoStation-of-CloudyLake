@@ -200,10 +200,22 @@ forecastForm.addEventListener("submit", async (event) => {
     );
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || `HTTP ${response.status}`);
+      const detail = payload.detail;
+      if (detail && typeof detail === "object" && detail.status === "unavailable") {
+        const reason = detail.reason === "stale"
+          ? `资料已超过最大允许陈旧时间 ${detail.max_stale_hours} h（当前年龄 ${detail.age_hours} h）`
+          : `当前无可用 ${detail.model.toUpperCase()} 预报资料`;
+        throw new Error(`${reason}，请稍后重试或切换模式。`);
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
     }
     latestForecast = payload;
     const validAt = payload.profile.valid_at.slice(0, 16).replace("T", " ");
+    const meta = payload.meta || {};
+    const ageText = Number.isFinite(Number(meta.data_age_hours))
+      ? `资料年龄 ${Number(meta.data_age_hours).toFixed(1)} h`
+      : "";
+    const degradedText = meta.degraded ? " · 降级资料" : "";
     forecastTitle.textContent =
       `${payload.station_name} · ${model.toUpperCase()} +${payload.step_hours} h`;
     forecastSource.textContent =
@@ -211,7 +223,7 @@ forecastForm.addEventListener("submit", async (event) => {
       `${payload.profile.station_latitude.toFixed(3)}, ` +
       `${payload.profile.station_longitude.toFixed(3)}`;
     forecastSection.hidden = false;
-    forecastStatus.textContent = "";
+    forecastStatus.textContent = [ageText, degradedText].filter(Boolean).join("，");
     openProfile(payload);
   } catch (error) {
     forecastStatus.textContent = `探空预报读取失败：${error.message}`;

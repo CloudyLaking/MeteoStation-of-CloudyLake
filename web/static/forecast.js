@@ -355,10 +355,15 @@ function renderForecast(data, model) {
     (sum, point) => sum + Math.max(0, Number(point.precipitation) || 0),
     0,
   );
+  const meta = payload.meta || {};
+  const ageText = Number.isFinite(Number(meta.data_age_hours))
+    ? `，资料年龄 ${Number(meta.data_age_hours).toFixed(1)} h`
+    : "";
+  const degradedText = meta.degraded ? "（降级资料）" : "";
   window.CloudyLakeWeatherSeriesRenderer.render(chart, {
     title: `${data.station_name} · ${model.toUpperCase()} 72h单点预报`,
     locationLine: `${Number(data.latitude).toFixed(2)}°N  ${Number(data.longitude).toFixed(2)}°E`,
-    timeLine: `起报时次: ${new Date(data.initialized_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}`,
+    timeLine: `起报时次: ${new Date(data.initialized_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}${ageText}${degradedText}`,
     points,
     includeDateLabels: true,
     accumulationLines: [
@@ -397,7 +402,14 @@ form.addEventListener("submit", async (event) => {
     );
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || `HTTP ${response.status}`);
+      const detail = payload.detail;
+      if (detail && typeof detail === "object" && detail.status === "unavailable") {
+        const reason = detail.reason === "stale"
+          ? `资料已超过最大允许陈旧时间 ${detail.max_stale_hours} h（当前年龄 ${detail.age_hours} h）`
+          : `当前无可用 ${detail.model.toUpperCase()} 预报资料`;
+        throw new Error(`${reason}，请稍后重试或切换模式。`);
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
     }
     if (!renderForecast(payload, model)) {
       throw new Error("所选起报时次尚无完整的未来三天预报");
@@ -408,7 +420,10 @@ form.addEventListener("submit", async (event) => {
       `${payload.source} · ${payload.latitude.toFixed(3)}, ${payload.longitude.toFixed(3)}`;
     section.hidden = false;
     const actualInitialization = new Date(payload.initialized_at);
-    if (
+    const meta = payload.meta || {};
+    if (meta.degraded) {
+      status.textContent = `资料降级：当前显示 ${payload.initialized_at.slice(0, 16).replace("T", " ")} UTC 起报的完整周期（年龄 ${Number(meta.data_age_hours).toFixed(1)} h），最新起报尚在准备或校验中。`;
+    } else if (
       Number.isFinite(actualInitialization.valueOf())
       && payload.initialized_at !== requestedInitialization
     ) {

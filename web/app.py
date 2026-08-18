@@ -78,8 +78,13 @@ from meteostation.forecast import (
     extract_surface_forecast,
     retrieve_ecmwf_forecast,
 )
+from meteostation.forecast.collector import load_forecast_collector_config
+from meteostation.forecast.manifest import (
+    CycleLease,
+    ForecastManifest,
+    validate_cycle_files,
+)
 from meteostation.reanalysis import (
-    adapt_reanalysis_bounds,
     FIELDS as REANALYSIS_FIELDS,
     ReanalysisUnavailable,
     retrieve_reanalysis_grid,
@@ -98,6 +103,12 @@ COLLECTOR_STATE_PATH = (
 )
 FORECAST_COLLECTOR_STATE_PATH = (
     PROJECT_ROOT / "data" / "state" / "forecast_collector.json"
+)
+FORECAST_MANIFEST_PATH = (
+    PROJECT_ROOT / "data" / "state" / "manifest" / "current.json"
+)
+FORECAST_COLLECTOR_CONFIG_PATH = (
+    PROJECT_ROOT / "config" / "forecast_collector.json"
 )
 SOUNDING_CATALOG_PATH = PRODUCT_DATA_DIR / "soundings" / "catalog.json"
 WEATHER_MAP_CONFIG_PATH = PROJECT_ROOT / "config" / "weather_map.json"
@@ -215,10 +226,10 @@ class ReanalysisRequest(BaseModel):
     hour: int = Field(ge=0, le=23)
     field: str = Field(min_length=1, max_length=40)
     pressure_hpa: int | None = Field(default=500, ge=1, le=1000)
-    north: float
-    west: float
-    south: float
-    east: float
+    north: float = Field(ge=-90, le=90)
+    west: float = Field(ge=-180, le=180)
+    south: float = Field(ge=-90, le=90)
+    east: float = Field(ge=-180, le=180)
 
     @field_validator("field")
     @classmethod
@@ -230,21 +241,10 @@ class ReanalysisRequest(BaseModel):
 
 @app.post("/api/v1/reanalysis/jobs", summary="提交临时 ERA5 区域查询")
 async def create_reanalysis_job(query: ReanalysisRequest) -> dict[str, object]:
-    try:
-        west, east, south, north = adapt_reanalysis_bounds(
-            query.west,
-            query.east,
-            query.south,
-            query.north,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="区域边界不是有效数值") from exc
-    query = query.model_copy(update={
-        "west": west,
-        "east": east,
-        "south": south,
-        "north": north,
-    })
+    if query.north <= query.south or query.east <= query.west:
+        raise HTTPException(status_code=422, detail="区域边界顺序不正确")
+    if query.north - query.south > 75 or query.east - query.west > 120:
+        raise HTTPException(status_code=422, detail="单次查询范围过大，请缩小框选区域")
     valid_at = datetime(
         query.valid_date.year,
         query.valid_date.month,
@@ -993,7 +993,7 @@ async def station_region_map(region: str) -> dict[str, object]:
 
 @app.get(
     "/api/v1/stations/china",
-    summary="读取全国国家站，供可拖动站点地图使用",
+    summary="读取全国国家站与省级边界，供可拖动站点地图使用",
 )
 async def station_china_map() -> dict[str, object]:
     return _station_china_payload()
@@ -1448,6 +1448,158 @@ async def moderate_guestbook(
 FORECAST_CACHE_ROOT = PROJECT_ROOT / "data" / "raw"
 FORECAST_CYCLES = ("00", "06", "12", "18")
 FORECAST_MODELS = ("ifs", "aifs")
+forecast_manifest = ForecastManifest(
+    path=FORECAST_MANIFEST_PATH,
+    cache_root=FORECAST_CACHE_ROOT,
+)
+_DEFAULT_MAX_STALE_HOURS = {"ifs": 18.0, "aifs": 30.0}
+_forecast_max_stale_cache: dict[str, float] = {}
+
+
+def _forecast_max_stale_hours(model: str) -> float:
+    """Maximum allowed age for one model cycle, from collector config."""
+    if not _forecast_max_stale_cache:
+        try:
+            config = load_forecast_collector_config(
+                FORECAST_COLLECTOR_CONFIG_PATH
+            )
+            for name, hours in config.max_stale_hours.items():
+                _forecast_max_stale_cache[name] = float(hours)
+        except Exception:
+            pass
+    return _forecast_max_stale_cache.get(
+        model,
+        _DEFAULT_MAX_STALE_HOURS.get(model, 18.0),
+    )
+
+
+def _forecast_unavailable(
+    model: str,
+    *,
+    reason: str,
+    age_hours: float | None = None,
+) -> HTTPException:
+    """Structured 503 for missing or over-age forecast data (never 500)."""
+    detail: dict[str, object] = {
+        "status": "unavailable",
+        "model": model,
+        "reason": reason,
+    }
+    max_stale = _forecast_max_stale_hours(model)
+    detail["max_stale_hours"] = max_stale
+    if age_hours is not None:
+        detail["age_hours"] = round(age_hours, 2)
+    return HTTPException(status_code=503, detail=detail)
+
+
+def _forecast_meta_payload(
+    model: str,
+    initialized_at: datetime,
+    age_hours: float | None,
+    degraded: bool,
+) -> dict[str, object]:
+    """Public degradation metadata attached to every forecast response."""
+    return {
+        "model": model,
+        "initialized_at": initialized_at.isoformat(),
+        "data_age_hours": round(
+            age_hours
+            if age_hours is not None
+            else max(
+                0.0,
+                (
+                    datetime.now(timezone.utc) - initialized_at
+                ).total_seconds()
+                / 3600.0,
+            ),
+            2,
+        ),
+        "degraded": degraded,
+        "max_stale_hours": _forecast_max_stale_hours(model),
+    }
+
+
+def _resolve_forecast_cycle(
+    model: str,
+    field_type: Literal["surface", "pressure"],
+    *,
+    requested_at: datetime | None = None,
+    reference: datetime | None = None,
+) -> tuple[datetime, Path, bool, float]:
+    """Resolve the freshest usable cycle via manifest + filesystem.
+
+    The manifest is never trusted alone: both stores of the entry must exist
+    with the recorded sizes.  ``previous`` is used only when ``current`` is
+    missing or over age, and every non-current answer is flagged degraded.
+    Returns ``(initialized_at, store_path, degraded, age_hours)``.
+
+    Raises an ``HTTPException(503)`` with a structured payload when no cycle
+    is within the configured maximum staleness.
+    """
+    now = reference or datetime.now(timezone.utc)
+    max_stale = _forecast_max_stale_hours(model)
+    slots = forecast_manifest.cycles().get(model, {})
+    for slot in ("current", "previous"):
+        entry = slots.get(slot)
+        if entry is None:
+            continue
+        path = entry.path_for(field_type)
+        expected_bytes = (
+            entry.surface_bytes
+            if field_type == "surface"
+            else entry.pressure_bytes
+        )
+        if not path.exists() or path.stat().st_size != expected_bytes:
+            # State/file divergence: ignore the manifest entry and look
+            # further.  A vanished current is reported as degraded data
+            # only if the previous cycle still passes validation.
+            continue
+        age_hours = entry.age_hours(now)
+        if age_hours > max_stale:
+            raise _forecast_unavailable(
+                model,
+                reason="stale",
+                age_hours=age_hours,
+            )
+        return (
+            entry.initialized_at,
+            path,
+            slot != "current",
+            age_hours,
+        )
+
+    # Manifest missing or unusable: cross-validate directly from disk.
+    fallback = _latest_cached_forecast_cycle(
+        model=model,
+        requested_at=requested_at,
+        field_type=field_type,
+    )
+    if fallback is not None:
+        age_hours = max(
+            0.0,
+            (now - fallback).total_seconds() / 3600.0,
+        )
+        if age_hours <= max_stale:
+            path = (
+                FORECAST_CACHE_ROOT
+                / "ecmwf_forecast"
+                / model
+                / f"{fallback:%Y}"
+                / f"{fallback:%m}"
+                / f"{fallback:%d}"
+            )
+            matches = sorted(
+                path.glob(
+                    f"{model}_{fallback:%Y%m%d}_{fallback:%H}z_"
+                    f"forecast_{field_type}_144h_*hourly.fast.nc"
+                )
+            )
+            if matches:
+                return fallback, matches[0], True, age_hours
+    raise _forecast_unavailable(
+        model,
+        reason="missing",
+    )
 
 
 def _latest_cached_forecast_cycle(
@@ -1482,8 +1634,13 @@ def _latest_cached_forecast_cycle(
 
 @app.get("/api/v1/forecast/cache/status")
 async def forecast_cache_status() -> dict[str, object]:
-    """Return the forecast-cycle monitor state without starting downloads."""
-    return read_json(
+    """Return the forecast-cycle monitor state without starting downloads.
+
+    Every item is cross-validated against the filesystem, and the manifest
+    slots are reported with their current age and usability, so this state
+    is never a stale collector-only declaration.
+    """
+    state = read_json(
         FORECAST_COLLECTOR_STATE_PATH,
         default={
             "updated_at": None,
@@ -1491,6 +1648,68 @@ async def forecast_cache_status() -> dict[str, object]:
             "last_run": None,
         },
     )
+    now = datetime.now(timezone.utc)
+    validated: dict[str, object] = {}
+    items = state.get("items", {})
+    if isinstance(items, dict):
+        # Validate only complete items from the last seven days; older
+        # declarations are pruned declarations and only slow the endpoint.
+        recent_keys: list[tuple[datetime, str]] = []
+        for key, item in items.items():
+            if not isinstance(item, dict) or item.get("status") != "complete":
+                continue
+            parts = str(key).split("|")
+            if len(parts) != 2:
+                continue
+            try:
+                initialized_at = datetime.fromisoformat(parts[1])
+            except ValueError:
+                continue
+            if now - initialized_at <= timedelta(days=7):
+                recent_keys.append((initialized_at, str(key)))
+        recent_keys.sort(reverse=True)
+        recent_keys = recent_keys[:24]
+        for _, key in recent_keys:
+            item = items[key]
+            parts = str(key).split("|")
+            initialized_at = datetime.fromisoformat(parts[1])
+            check = await asyncio.to_thread(
+                validate_cycle_files,
+                FORECAST_CACHE_ROOT,
+                parts[0],
+                initialized_at,
+                require_fast=True,
+            )
+            item = {**item, "filesystem": check["ok"]}
+            if not check["ok"]:
+                item["validation_errors"] = check["errors"]
+            validated[key] = item
+    manifest_report: dict[str, object] = {}
+    for model in FORECAST_MODELS:
+        entry = forecast_manifest.cycles().get(model, {}).get("current")
+        if entry is None:
+            manifest_report[model] = {"available": False}
+            continue
+        files_present = (
+            entry.path_for("surface").exists()
+            and entry.path_for("pressure").exists()
+            and entry.path_for("surface").stat().st_size
+            == entry.surface_bytes
+            and entry.path_for("pressure").stat().st_size
+            == entry.pressure_bytes
+        )
+        manifest_report[model] = {
+            "available": files_present,
+            "initialized_at": entry.initialized_at.isoformat(),
+            "age_hours": round(entry.age_hours(now), 2),
+            "max_stale_hours": _forecast_max_stale_hours(model),
+            "stale": entry.age_hours(now) > _forecast_max_stale_hours(model),
+        }
+    return {
+        **state,
+        "cross_validated_items": validated,
+        "manifest": manifest_report,
+    }
 
 
 @app.get("/api/v1/forecast/surface/{location}")
@@ -1514,6 +1733,8 @@ async def surface_forecast(
 
     initialized_at = _build_initialized_at(date, cycle)
     actual_initialized_at = initialized_at
+    age_hours: float | None = None
+    degraded = False
 
     try:
         surf_path, _ = await asyncio.to_thread(
@@ -1528,61 +1749,46 @@ async def surface_forecast(
             allow_download=False,
         )
     except FileNotFoundError:
-        fallback = _latest_cached_forecast_cycle(
-            model=model,
-            requested_at=initialized_at,
-            field_type="surface",
-        )
         # This is a latest operational product, not a forecast archive.  Old
         # bookmarked URLs can outlive the rotating cache, so fall forward to
-        # the newest complete cycle rather than returning a stale-cycle 503.
-        if fallback is None:
-            fallback = _latest_cached_forecast_cycle(
-                model=model,
-                requested_at=None,
-                field_type="surface",
+        # the freshest cycle that passes the manifest + filesystem check.
+        actual_initialized_at, surf_path, degraded, age_hours = (
+            await asyncio.to_thread(
+                _resolve_forecast_cycle,
+                model,
+                "surface",
+                requested_at=initialized_at,
             )
-        if fallback is None:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"ECMWF {model.upper()} forecast unavailable: "
-                    f"{initialized_at:%Y-%m-%d %H} UTC is not cached yet"
-                ),
-            )
-        actual_initialized_at = fallback
-        try:
-            surf_path, _ = await asyncio.to_thread(
-                retrieve_ecmwf_forecast,
-                initialized_at=actual_initialized_at,
-                cache_root=FORECAST_CACHE_ROOT,
-                model=model,
-                include_pressure=False,
+        )
+    except Exception as exc:
+        raise _forecast_unavailable(model, reason=f"read failed: {exc}") from exc
+
+    try:
+        with CycleLease(
+            FORECAST_CACHE_ROOT,
+            model,
+            actual_initialized_at,
+            exclusive=False,
+        ):
+            forecast = await asyncio.to_thread(
+                extract_surface_forecast,
+                surf_path,
+                station_id=point["id"],
+                station_name=point["name"],
                 latitude=point["latitude"],
                 longitude=point["longitude"],
-                backend="open-data",
-                allow_download=False,
+                initialized_at=actual_initialized_at,
             )
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
-            ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
+    except FileNotFoundError as exc:
+        # The file vanished despite the lease being free (external removal);
+        # surface the condition as a structured 503 instead of a 500.
+        raise _forecast_unavailable(
+            model,
+            reason="file missing during read",
         ) from exc
+    except Exception as exc:
+        raise _forecast_unavailable(model, reason=str(exc)) from exc
 
-    forecast = await asyncio.to_thread(
-        extract_surface_forecast,
-        surf_path,
-        station_id=point["id"],
-        station_name=point["name"],
-        latitude=point["latitude"],
-        longitude=point["longitude"],
-        initialized_at=actual_initialized_at,
-    )
     if forecast is None:
         raise HTTPException(status_code=422, detail="Could not decode forecast")
     forecast = forecast.model_copy(
@@ -1599,7 +1805,17 @@ async def surface_forecast(
         if not matches:
             raise HTTPException(status_code=404, detail=f"No forecast at {target}")
         forecast = forecast.model_copy(update={"points": matches})
-    return forecast.model_dump(mode="json")
+    payload = forecast.model_dump(mode="json")
+    payload["meta"] = {
+        **_forecast_meta_payload(
+            model,
+            actual_initialized_at,
+            age_hours,
+            degraded,
+        ),
+        "forecast_horizon_hours": horizon,
+    }
+    return payload
 
 
 @app.get("/api/v1/forecast/sounding/{location}")
@@ -1635,6 +1851,8 @@ async def sounding_forecast(
 
     initialized_at = _build_initialized_at(date, cycle)
     actual_initialized_at = initialized_at
+    degraded = False
+    age_hours: float | None = None
     requested_step = step
     if target is not None:
         target_utc = (
@@ -1677,54 +1895,41 @@ async def sounding_forecast(
             cached_step=requested_step,
         )
     except FileNotFoundError:
-        fallback = _latest_cached_forecast_cycle(
-            model=model,
-            requested_at=initialized_at,
-            field_type="pressure",
-        )
-        if fallback is None or fallback == initialized_at:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"ECMWF {model.upper()} forecast unavailable: "
-                    f"{initialized_at:%Y-%m-%d %H} UTC is not cached yet"
-                ),
+        actual_initialized_at, pres_path, degraded, age_hours = (
+            await asyncio.to_thread(
+                _resolve_forecast_cycle,
+                model,
+                "pressure",
+                requested_at=initialized_at,
             )
-        actual_initialized_at = fallback
-        try:
-            _, pres_path = await asyncio.to_thread(
-                retrieve_ecmwf_forecast,
-                initialized_at=actual_initialized_at,
-                cache_root=FORECAST_CACHE_ROOT,
-                model=model,
-                include_surface=False,
+        )
+    except Exception as exc:
+        raise _forecast_unavailable(model, reason=f"read failed: {exc}") from exc
+
+    try:
+        with CycleLease(
+            FORECAST_CACHE_ROOT,
+            model,
+            actual_initialized_at,
+            exclusive=False,
+        ):
+            soundings = await asyncio.to_thread(
+                extract_sounding_forecast,
+                pres_path,
+                station_id=point["id"],
+                station_name=point["name"],
                 latitude=point["latitude"],
                 longitude=point["longitude"],
-                backend="open-data",
-                allow_download=False,
-                cached_step=requested_step,
+                initialized_at=actual_initialized_at,
+                step_hours=requested_step,
             )
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
-            ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"ECMWF {model.upper()} forecast unavailable: {exc}",
+    except FileNotFoundError as exc:
+        raise _forecast_unavailable(
+            model,
+            reason="file missing during read",
         ) from exc
-
-    soundings = await asyncio.to_thread(
-        extract_sounding_forecast,
-        pres_path,
-        station_id=point["id"],
-        station_name=point["name"],
-        latitude=point["latitude"],
-        longitude=point["longitude"],
-        initialized_at=actual_initialized_at,
-        step_hours=requested_step,
-    )
+    except Exception as exc:
+        raise _forecast_unavailable(model, reason=str(exc)) from exc
     if not soundings:
         raise HTTPException(status_code=422, detail="Could not decode forecast sounding")
 
@@ -1732,7 +1937,14 @@ async def sounding_forecast(
         matches = [s for s in soundings if s.step_hours == requested_step]
         if not matches:
             raise HTTPException(status_code=404, detail=f"No forecast at {target}")
-        return matches[0].model_dump(mode="json")
+        result = matches[0].model_dump(mode="json")
+        result["meta"] = _forecast_meta_payload(
+            model,
+            actual_initialized_at,
+            age_hours,
+            degraded,
+        )
+        return result
 
     if requested_step is not None:
         matches = [s for s in soundings if s.step_hours == requested_step]
@@ -1741,7 +1953,14 @@ async def sounding_forecast(
                 status_code=404,
                 detail=f"No forecast at step +{requested_step}h",
             )
-        return matches[0].model_dump(mode="json")
+        result = matches[0].model_dump(mode="json")
+        result["meta"] = _forecast_meta_payload(
+            model,
+            actual_initialized_at,
+            age_hours,
+            degraded,
+        )
+        return result
     raise HTTPException(status_code=404, detail="Forecast sounding not found")
 
 
@@ -1809,6 +2028,7 @@ async def interactive_sounding_forecast(
         "requested_location": station_id,
         "model": model,
         "step_hours": step,
+        "meta": payload.get("meta"),
     }
 
 
@@ -1869,6 +2089,16 @@ def _station_region_payload(region: str) -> dict[str, object]:
 @lru_cache(maxsize=1)
 def _station_china_payload() -> dict[str, object]:
     stations = list(station_records())
+    geojson_path = PROJECT_ROOT / "中国_省.geojson"
+    features: list[dict[str, object]] = []
+    if geojson_path.exists():
+        payload = json.loads(geojson_path.read_text(encoding="utf-8"))
+        features = list(payload.get("features", []))
+    city_geojson_path = PROJECT_ROOT / "中国_市.geojson"
+    city_features: list[dict[str, object]] = []
+    if city_geojson_path.exists():
+        payload = json.loads(city_geojson_path.read_text(encoding="utf-8"))
+        city_features = list(payload.get("features", []))
     return {
         "bounds": {
             "west": 73.0,
@@ -1876,7 +2106,8 @@ def _station_china_payload() -> dict[str, object]:
             "south": 18.0,
             "north": 54.0,
         },
-        "station_count": len(stations),
+        "boundaries": {"type": "FeatureCollection", "features": features},
+        "city_boundaries": {"type": "FeatureCollection", "features": city_features},
         "stations": [station.as_dict() for station in stations],
     }
 

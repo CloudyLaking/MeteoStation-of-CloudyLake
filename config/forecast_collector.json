@@ -2,12 +2,18 @@
   "poll_interval_seconds": 60,
   "retry_interval_minutes": 1,
   "request_spacing_seconds": 5,
-  "retain_complete_cycles": 4,
+  "retain_complete_cycles": 2,
   "minimum_free_disk_gb": 3,
   "download_reserve_gb": 3,
   "source": "google",
   "cycles": ["00", "06", "12", "18"],
   "models": ["aifs", "ifs"],
   "convert_to_fast_store": true,
-  "discard_grib_after_conversion": true
+  "discard_grib_after_conversion": true,
+  "publish_manifest": true,
+  "retire_grace_hours": 24,
+  "max_stale_hours": {
+    "ifs": 18,
+    "aifs": 30
+  }
 }
