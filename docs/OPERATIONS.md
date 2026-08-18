@@ -1,6 +1,6 @@
 # 探空与地面实况运行说明
 
-更新日期：2026-08-03
+更新日期：2026-08-18
 
 ## 进程职责
 
@@ -248,3 +248,59 @@ WIS2 原始 BUFR 位于 `data/raw/wis2_soundings/`，Wyoming CSV 回填位于
 `sounding_json` 实际站表，只请求对应时次确实发布的五位 WMO 站。部署时
 三天并集为 664 站、约 3301 个实际站次；按逐秒高分辨率 CSV 与 BUFR
 实测大小预计约 0.4—0.8 GB，为元数据、状态和临时文件预留 1—2 GB。
+
+
+---
+
+# 预报缓存运维说明（2026-08-18 新增）
+
+## 进程职责
+
+```text
+run_forecast_collector.py（systemd: meteostation-forecast-collector）
+  ├── 每 60 秒检查 IFS/AIFS 00/06/12/18 时次
+  ├── 下载 → 转换 fast.nc → 深度校验（变量/时次/层面/网格）
+  ├── 校验通过才发布 data/state/manifest/current.json（原子替换）
+  ├── 剪枝保护 manifest current/previous，删除前取排他 flock 租约
+  └── 正常轮换只“标记退役”，24 小时宽限期过后才真正删除
+
+run_web.py（systemd: meteostation-web）
+  ├── 预报接口只信任 manifest + 文件系统双重验证的周期
+  ├── 读取期间持有共享 flock 租约，采集器不会并发删除
+  ├── 超过最大陈旧时间（ifs 18 h / aifs 30 h）返回结构化 503
+  └── 每个响应附带 meta（initialized_at / data_age_hours / degraded）
+```
+
+## 关键文件
+
+- `data/state/manifest/current.json` — 当前可用周期（current/previous 双槽）
+- `data/state/forecast_collector.json` — 采集器状态（仅供参考，Web 不信任它）
+- `data/raw/ecmwf_forecast/.leases/` — flock 租约文件（勿手删）
+- `config/forecast_collector.json` — 保留周期、磁盘阈值、最大陈旧时间
+
+## 容量策略
+
+- 当前每模型保留 current + previous 两个完整周期，约 10.2 GB。
+- 每模型保留 4 个周期需要数据盘 ≥ 80 GB，扩容前不放开。
+- 磁盘低于 minimum_free_disk_gb + download_reserve_gb 时进入
+  `storage-blocked`：停止新下载、绝不删除最后一个完整周期，
+  仅淘汰 manifest 之外的旧周期。
+
+## 人工检查
+
+```bash
+cat /opt/meteostation/data/state/manifest/current.json
+curl -s https://meteostation.top/api/v1/forecast/cache/status | python3 -m json.tool | head -40
+sudo -u meteostation /opt/meteostation/.venv/bin/python /opt/meteostation/run_forecast_collector.py --once
+```
+
+注意：手动运行 `--once` 必须使用 `sudo -u meteostation`，用 root 运行会创建
+root 属主的 `.leases` 锁文件，导致 web 进程无法加租约。
+
+## 回滚
+
+```bash
+systemctl stop meteostation-forecast-collector meteostation-web
+tar -xzf /opt/backups/meteostation/pre-p0-20260818-1726.tar.gz -C /opt --strip-components=1 meteostation
+systemctl start meteostation-forecast-collector meteostation-web
+```

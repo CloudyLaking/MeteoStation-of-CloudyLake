@@ -94,6 +94,10 @@ class ForecastCollector:
             "cycles": [],
         }
 
+        if self.config.publish_manifest:
+            # Bootstrap first so the manifest points at a validated current
+            # cycle before this run spends hours downloading replacements.
+            summary["bootstrap"] = self._bootstrap_manifest()
         summary["removed_stale_partials"] = remove_stale_partial_downloads(
             self.cache_root / "ecmwf_forecast",
             older_than=now - timedelta(hours=6),
@@ -231,21 +235,7 @@ class ForecastCollector:
                         "validated": True,
                     }
                     if self.config.publish_manifest:
-                        self.manifest.publish(
-                            model,
-                            CycleEntry(
-                                initialized_at=initialized_at,
-                                validated_at=completed_at,
-                                surface_path=surface.relative_to(
-                                    self.cache_root
-                                ).as_posix(),
-                                pressure_path=pressure.relative_to(
-                                    self.cache_root
-                                ).as_posix(),
-                                surface_bytes=surface.stat().st_size,
-                                pressure_bytes=pressure.stat().st_size,
-                            ),
-                        )
+                        self._republish_from_disk(model)
                     complete_for_model[model] += 1
                     summary["completed"] = int(summary["completed"]) + 1
                     summary["cycles"].append(items[key])
@@ -274,8 +264,6 @@ class ForecastCollector:
 
         removed: dict[str, list[str]] = {}
         retired_now: dict[str, list[str]] = {}
-        if self.config.publish_manifest:
-            summary["bootstrap"] = self._bootstrap_manifest()
         for model in self.config.models:
             removed[model] = prune_forecast_cycles(
                 self.cache_root / "ecmwf_forecast" / model,
@@ -308,7 +296,7 @@ class ForecastCollector:
         return protected
 
     def _bootstrap_manifest(self) -> dict[str, object]:
-        """Publish the newest validated on-disk cycle when manifest is empty.
+        """Publish validated on-disk cycles when the manifest has no current.
 
         This closes the upgrade gap: right after deployment the manifest does
         not exist yet, and web reads must not fall back to a state JSON that
@@ -319,33 +307,57 @@ class ForecastCollector:
         for model in self.config.models:
             if slots.get(model, {}).get("current") is not None:
                 continue
-            newest: tuple[datetime, CycleEntry] | None = None
-            model_root = self.cache_root / "ecmwf_forecast" / model
-            if model_root.is_dir():
-                for surface in model_root.rglob(
-                    "*_forecast_surface_144h_*hourly.fast.nc"
-                ):
-                    match = _CYCLE_PATTERN.match(surface.name)
-                    if match is None or match.group("model") != model:
-                        continue
-                    initialized_at = datetime.strptime(
-                        match.group("date") + match.group("hour"),
-                        "%Y%m%d%H",
-                    ).replace(tzinfo=timezone.utc)
-                    if newest is not None and initialized_at <= newest[0]:
-                        continue
-                    entry = build_cycle_entry(
-                        self.cache_root,
-                        model,
-                        initialized_at,
-                        require_fast=True,
-                    )
-                    if entry is not None:
-                        newest = (initialized_at, entry)
-            if newest is not None:
-                self.manifest.publish(model, newest[1])
-                published[model] = newest[0].isoformat()
+            republished = self._republish_from_disk(model)
+            if republished:
+                published[model] = republished
         return published
+
+    def _republish_from_disk(self, model: str) -> dict[str, object]:
+        """Rebuild the model manifest slots from validated on-disk cycles.
+
+        ``current`` is always the newest validated cycle and ``previous`` the
+        second newest, regardless of the order downloads completed in.
+        """
+        entries: list[tuple[datetime, CycleEntry]] = []
+        model_root = self.cache_root / "ecmwf_forecast" / model
+        if model_root.is_dir():
+            seen: set[datetime] = set()
+            for surface in model_root.rglob(
+                "*_forecast_surface_144h_*hourly.fast.nc"
+            ):
+                match = _CYCLE_PATTERN.match(surface.name)
+                if match is None or match.group("model") != model:
+                    continue
+                initialized_at = datetime.strptime(
+                    match.group("date") + match.group("hour"),
+                    "%Y%m%d%H",
+                ).replace(tzinfo=timezone.utc)
+                if initialized_at in seen:
+                    continue
+                seen.add(initialized_at)
+                entry = build_cycle_entry(
+                    self.cache_root,
+                    model,
+                    initialized_at,
+                    require_fast=True,
+                )
+                if entry is not None:
+                    entries.append((initialized_at, entry))
+        entries.sort(key=lambda pair: pair[0], reverse=True)
+        slots: dict[str, object] = {}
+        if entries:
+            self.manifest.set_slots(
+                model,
+                current=entries[0][1],
+                previous=entries[1][1] if len(entries) > 1 else None,
+            )
+            slots = {
+                "current": entries[0][0].isoformat(),
+                "previous": (
+                    entries[1][0].isoformat() if len(entries) > 1 else None
+                ),
+            }
+        return slots
 
     def _retire_due_cycles(self, model: str) -> list[str]:
         """Delete files whose retirement grace period has fully expired."""

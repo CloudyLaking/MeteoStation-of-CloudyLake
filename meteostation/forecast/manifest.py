@@ -414,6 +414,35 @@ class ForecastManifest:
                 self._mtime = None
             return payload
 
+    def set_slots(
+        self,
+        model: str,
+        current: CycleEntry | None,
+        previous: CycleEntry | None,
+    ) -> dict[str, object]:
+        """Atomically replace both slots of one model (order-independent)."""
+        with self._lock:
+            payload = self.load()
+            raw_cycles = payload.get("cycles", {})
+            cycles = dict(raw_cycles) if isinstance(raw_cycles, dict) else {}
+            cycles[model] = {
+                "current": current.to_json() if current is not None else None,
+                "previous": previous.to_json() if previous is not None else None,
+            }
+            payload = {
+                **payload,
+                "version": _MANIFEST_SCHEMA_VERSION,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "cycles": cycles,
+            }
+            _write_json_atomic(self.path, payload)
+            self._state = payload
+            try:
+                self._mtime = self.path.stat().st_mtime
+            except OSError:
+                self._mtime = None
+            return payload
+
     def mark_retired(
         self,
         cycle_keys: dict[str, str],
@@ -509,17 +538,18 @@ class CycleLease:
             self._held = True
             return self
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._file = open(self._path, "a+")
-        operation = fcntl.LOCK_EX if self._exclusive else fcntl.LOCK_SH
-        if not self._blocking:
-            operation |= fcntl.LOCK_NB
         try:
+            self._file = open(self._path, "a+")
+            operation = fcntl.LOCK_EX if self._exclusive else fcntl.LOCK_SH
+            if not self._blocking:
+                operation |= fcntl.LOCK_NB
             fcntl.flock(self._file.fileno(), operation)
             self._held = True
-        except OSError:
-            self._file.close()
-            self._file = None
-            raise LeaseUnavailable(self._path)
+        except OSError as exc:
+            if self._file is not None:
+                self._file.close()
+                self._file = None
+            raise LeaseUnavailable(self._path) from exc
         return self
 
     def __exit__(self, *_: object) -> None:

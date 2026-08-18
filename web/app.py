@@ -82,6 +82,7 @@ from meteostation.forecast.collector import load_forecast_collector_config
 from meteostation.forecast.manifest import (
     CycleLease,
     ForecastManifest,
+    LeaseUnavailable,
     validate_cycle_files,
 )
 from meteostation.reanalysis import (
@@ -1764,12 +1765,19 @@ async def surface_forecast(
         raise _forecast_unavailable(model, reason=f"read failed: {exc}") from exc
 
     try:
-        with CycleLease(
+        lease = CycleLease(
             FORECAST_CACHE_ROOT,
             model,
             actual_initialized_at,
             exclusive=False,
-        ):
+        )
+        try:
+            lease.__enter__()
+        except LeaseUnavailable:
+            # Advisory lease unavailable (e.g. permissions): read anyway;
+            # the manifest + size cross-check still guards the file set.
+            lease = None
+        try:
             forecast = await asyncio.to_thread(
                 extract_surface_forecast,
                 surf_path,
@@ -1779,6 +1787,9 @@ async def surface_forecast(
                 longitude=point["longitude"],
                 initialized_at=actual_initialized_at,
             )
+        finally:
+            if lease is not None:
+                lease.__exit__(None, None, None)
     except FileNotFoundError as exc:
         # The file vanished despite the lease being free (external removal);
         # surface the condition as a structured 503 instead of a 500.
@@ -1907,12 +1918,17 @@ async def sounding_forecast(
         raise _forecast_unavailable(model, reason=f"read failed: {exc}") from exc
 
     try:
-        with CycleLease(
+        lease = CycleLease(
             FORECAST_CACHE_ROOT,
             model,
             actual_initialized_at,
             exclusive=False,
-        ):
+        )
+        try:
+            lease.__enter__()
+        except LeaseUnavailable:
+            lease = None
+        try:
             soundings = await asyncio.to_thread(
                 extract_sounding_forecast,
                 pres_path,
@@ -1923,6 +1939,9 @@ async def sounding_forecast(
                 initialized_at=actual_initialized_at,
                 step_hours=requested_step,
             )
+        finally:
+            if lease is not None:
+                lease.__exit__(None, None, None)
     except FileNotFoundError as exc:
         raise _forecast_unavailable(
             model,
