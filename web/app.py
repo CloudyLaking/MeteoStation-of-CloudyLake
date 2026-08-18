@@ -11,8 +11,8 @@ from pathlib import Path
 from time import monotonic
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -85,6 +85,13 @@ from meteostation.forecast.manifest import (
     LeaseUnavailable,
     validate_cycle_files,
 )
+from meteostation.health import (
+    HealthMetrics,
+    PAGE_PATHS,
+    collect_data_health,
+    looks_like_bot,
+    qweather_registry,
+)
 from meteostation.reanalysis import (
     FIELDS as REANALYSIS_FIELDS,
     ReanalysisUnavailable,
@@ -120,6 +127,16 @@ WEATHER_MAP_PREVIEW_CATALOG_PATH = (
 SITE_CONFIG_PATH = PROJECT_ROOT / "config" / "site.json"
 TRAFFIC_STATE_PATH = PROJECT_ROOT / "data" / "state" / "traffic.json"
 GUESTBOOK_STATE_PATH = PROJECT_ROOT / "data" / "state" / "guestbook.json"
+HEALTH_STATE_PATH = PROJECT_ROOT / "data" / "state" / "health.json"
+GLOBAL_SOUNDING_STATE_PATH = (
+    PROJECT_ROOT / "data" / "state" / "global_sounding_collector.json"
+)
+GLOBAL_SOUNDING_STATIONS_PATH = (
+    PROJECT_ROOT / "data" / "state" / "global_sounding_stations.json"
+)
+WIS2_SOUNDING_STATE_PATH = (
+    PROJECT_ROOT / "data" / "state" / "wis2_sounding_collector.json"
+)
 
 wyoming_client = WyomingSoundingClient(cache_root=RAW_DATA_DIR)
 weather_map_catalog = WeatherMapCatalog(
@@ -139,6 +156,8 @@ reanalysis_jobs: dict[str, dict[str, object]] = {}
 reanalysis_job_lock = asyncio.Lock()
 reanalysis_worker_slots = asyncio.Semaphore(2)
 traffic = RuntimeTraffic(TRAFFIC_STATE_PATH)
+health_metrics = HealthMetrics(HEALTH_STATE_PATH)
+qweather_registry.register(health_metrics.record_qweather)
 admin_security = HTTPBasic(auto_error=False)
 PRODUCT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 PREVIEW_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -178,12 +197,37 @@ app = FastAPI(
 
 @app.middleware("http")
 async def count_application_traffic(request: Request, call_next):
+    started = monotonic()
     response = await call_next(request)
+    latency_ms = (monotonic() - started) * 1000
+    path = request.url.path
     try:
         response_bytes = int(response.headers.get("content-length", "0"))
     except ValueError:
         response_bytes = 0
-    traffic.record(request.url.path, response.status_code, response_bytes)
+    traffic.record(path, response.status_code, response_bytes)
+    if path.startswith("/api/"):
+        health_metrics.record_api_latency(latency_ms)
+    is_page = path in PAGE_PATHS
+    user_agent = request.headers.get("user-agent")
+    is_bot = not user_agent or looks_like_bot(user_agent)
+    if is_page and not is_bot:
+        health_metrics.record_page_latency(latency_ms)
+        if 200 <= response.status_code < 400:
+            # Only successful responses on real page routes count as page
+            # views, deduplicated per anonymous session and day.
+            session_id = request.cookies.get("cl_session")
+            if not session_id or not re.fullmatch(r"[0-9a-f]{16,32}", session_id):
+                session_id = secrets.token_hex(8)
+                response.set_cookie(
+                    "cl_session",
+                    session_id,
+                    max_age=86400,
+                    httponly=True,
+                    samesite="lax",
+                    secure=True,
+                )
+            traffic.record_page_view(session_id, path)
     return response
 
 
@@ -303,6 +347,7 @@ async def _run_reanalysis_job(
                 east=query.east,
             )
         except ReanalysisUnavailable as exc:
+            health_metrics.record_task("reanalysis", False)
             async with reanalysis_job_lock:
                 reanalysis_jobs[job_id].update(
                     status="failed",
@@ -310,6 +355,7 @@ async def _run_reanalysis_job(
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
             return
+        health_metrics.record_task("reanalysis", True)
         async with reanalysis_job_lock:
             reanalysis_jobs[job_id].update(
                 status="complete",
@@ -347,9 +393,105 @@ async def misans_font() -> FileResponse:
     return FileResponse(FONT_FILE, media_type="font/ttf")
 
 
-@app.get("/api/v1/health")
+@app.get("/api/v1/health", include_in_schema=False)
 async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "CloudyLake's Observatory"}
+    # Backward-compatible alias of /health/live.
+    return {"status": "alive", "service": "CloudyLake's Observatory"}
+
+
+@app.get("/health/live", include_in_schema=False)
+async def health_live() -> dict[str, str]:
+    """Process liveness only — no dependency checks."""
+    return {"status": "alive"}
+
+
+def _weather_map_health_meta() -> dict[str, object]:
+    """Newest weather-map cycle from products and previews catalogs."""
+    product = weather_map_catalog.latest_product(layer_id="surface")
+    previews = read_preview_catalog(WEATHER_MAP_PREVIEW_CATALOG_PATH)
+    newest_preview = max(previews, key=lambda item: item.valid_at, default=None)
+    latest_valid_at: str | None = None
+    publication_status: str | None = None
+    if product is not None:
+        latest_valid_at = product.valid_at.isoformat()
+        publication_status = "published"
+    if newest_preview is not None and (
+        latest_valid_at is None or newest_preview.valid_at.isoformat() > latest_valid_at
+    ):
+        latest_valid_at = newest_preview.valid_at.isoformat()
+        publication_status = "development-preview"
+    return {
+        "latest_valid_at": latest_valid_at,
+        "publication_status": publication_status,
+    }
+
+
+async def _health_data_report() -> dict[str, object]:
+    return await asyncio.to_thread(
+        collect_data_health,
+        project_root=PROJECT_ROOT,
+        metrics=health_metrics,
+        max_stale_hours=_DEFAULT_MAX_STALE_HOURS,
+        weather_map_meta=_weather_map_health_meta(),
+        manifest_payload=forecast_manifest.load(),
+        sounding_stations_payload=read_json(
+            GLOBAL_SOUNDING_STATIONS_PATH, default={}
+        ),
+        global_sounding_payload=read_json(
+            GLOBAL_SOUNDING_STATE_PATH, default={}
+        ),
+        wis2_payload=read_json(WIS2_SOUNDING_STATE_PATH, default={}),
+        traffic_payload=traffic.snapshot(),
+    )
+
+
+@app.get("/health/ready", include_in_schema=False)
+async def health_ready(response: Response) -> dict[str, object]:
+    """Core dependencies and current products usable.
+
+    Fails with 503 when the current forecast cycles or the latest weather
+    map are missing or over age, so load balancers stop routing traffic
+    while data is stale.
+    """
+    report = await _health_data_report()
+    if report["status"] == "stale":
+        detail: dict[str, object] = {
+            "status": "not_ready",
+            "forecast": report["forecast"],
+            "weather_maps": report["weather_maps"],
+        }
+        return JSONResponse(status_code=503, content=detail)
+    return {"status": "ready", "checked_at": report["checked_at"]}
+
+
+@app.get("/health/data", include_in_schema=False)
+async def health_data() -> dict[str, object]:
+    """Per-source freshness report (always HTTP 200)."""
+    return await _health_data_report()
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics() -> dict[str, object]:
+    """Internal monitoring values: counters, latency percentiles, disk."""
+    report = await _health_data_report()
+    traffic_snapshot = traffic.snapshot()
+    return {
+        "uptime_checked_at": report["checked_at"],
+        "traffic": {
+            "requests": traffic_snapshot.get("requests"),
+            "response_bytes": traffic_snapshot.get("response_bytes"),
+            "status_counts": traffic_snapshot.get("status_counts"),
+            "path_counts": traffic_snapshot.get("path_counts"),
+            "monthly_page_views": traffic_snapshot.get("monthly_page_views"),
+        },
+        "latency": report["http"],
+        "qweather": report["qweather"],
+        "tasks": report["tasks"],
+        "disk": report["disk"],
+        "forecast": report["forecast"],
+        "weather_maps": report["weather_maps"],
+        "wis2": report["wis2"],
+    }
 
 
 @app.get("/api/v1/status")
@@ -470,9 +612,37 @@ async def public_site_config() -> dict[str, object]:
 
 @app.get("/api/v1/site/stats")
 async def public_site_stats() -> dict[str, object]:
+    congestion = server_congestion_snapshot(PROJECT_ROOT)
+    # The three status cells must reflect resources *and* data availability:
+    # stale products can never show a green all-clear.
+    data_health = await _health_data_report()
+    data_status = str(data_health.get("status", "unknown"))
+    base_level = int(congestion.get("level", 1))
+    if data_status == "stale":
+        congestion = {
+            **congestion,
+            "level": 1,
+            "label": "资料过期",
+            "data_status": "stale",
+        }
+    elif data_status == "ok" and base_level == 3:
+        congestion = {
+            **congestion,
+            "data_status": "fresh",
+        }
+    else:
+        congestion = {
+            **congestion,
+            "data_status": "degraded",
+        }
     return {
         **traffic.snapshot(),
-        "congestion": server_congestion_snapshot(PROJECT_ROOT),
+        "congestion": congestion,
+        "data_health": {
+            "status": data_status,
+            "forecast": data_health.get("forecast"),
+            "weather_maps": data_health.get("weather_maps"),
+        },
     }
 
 

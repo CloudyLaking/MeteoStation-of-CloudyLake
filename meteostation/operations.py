@@ -8,12 +8,14 @@ import shutil
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
+
+from .health import PAGE_PATHS
 
 
 VERSION = "V2.2.1"
@@ -103,6 +105,10 @@ class RuntimeTraffic:
         self._lock = threading.Lock()
         self._dirty_requests = 0
         self._last_flush = 0.0
+        # Anonymous session-level page-view dedup: key → last seen day.
+        # The session id is a random token in an HttpOnly cookie and is
+        # never joined with any personal identifier.
+        self._page_sessions: dict[str, str] = {}
         self._state = self._load()
 
     def _load(self) -> dict[str, object]:
@@ -143,15 +149,24 @@ class RuntimeTraffic:
             return
         self._state["month_key"] = current
         self._state["monthly_page_views"] = 0
+        self._page_sessions.clear()
         self._dirty_requests += 1
 
     def record(self, path: str, status_code: int, response_bytes: int) -> None:
+        """Count raw requests, bytes and status classes (all traffic).
+
+        Page-view counting is deliberately separate: only successful
+        responses on real page routes count, and only through
+        ``record_page_view`` which deduplicates per anonymous session.
+        """
         if path.startswith("/static/") or path.startswith("/brand/"):
             category = "static"
-        elif path.startswith("/api/"):
+        elif path.startswith("/api/") or path.startswith("/health") or path.startswith("/metrics"):
             category = "api"
-        else:
+        elif path in PAGE_PATHS:
             category = "page"
+        else:
+            category = "other"
         with self._lock:
             self._roll_month_locked()
             self._state["requests"] = int(self._state["requests"]) + 1
@@ -165,13 +180,29 @@ class RuntimeTraffic:
             path_counts = dict(self._state.get("path_counts", {}))
             path_counts[category] = int(path_counts.get(category, 0)) + 1
             self._state["path_counts"] = path_counts
-            if category == "page":
-                self._state["monthly_page_views"] = (
-                    int(self._state.get("monthly_page_views", 0)) + 1
-                )
             self._state["last_request_at"] = datetime.now(timezone.utc).isoformat()
             self._dirty_requests += 1
             if self._dirty_requests >= 10 or time.monotonic() - self._last_flush >= 30:
+                self._flush_locked()
+
+    def record_page_view(self, session_id: str, path: str) -> None:
+        """Count one page view, deduplicated per session, path and day."""
+        day = date.today().isoformat()
+        key = f"{session_id}|{path}"
+        with self._lock:
+            self._roll_month_locked()
+            if self._page_sessions.get(key) == day:
+                return
+            if len(self._page_sessions) >= 20_000:
+                # Bounded memory: drop the oldest half of seen sessions.
+                for old_key in list(self._page_sessions)[:10_000]:
+                    self._page_sessions.pop(old_key, None)
+            self._page_sessions[key] = day
+            self._state["monthly_page_views"] = (
+                int(self._state.get("monthly_page_views", 0)) + 1
+            )
+            self._dirty_requests += 1
+            if self._dirty_requests >= 10:
                 self._flush_locked()
 
     def snapshot(self) -> dict[str, object]:

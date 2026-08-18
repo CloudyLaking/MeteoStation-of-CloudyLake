@@ -44,8 +44,19 @@ def test_monthly_traffic_counts_page_visits_only(tmp_path) -> None:
     traffic.record("/observations", 200, 800)
     traffic.record("/api/v1/site/stats", 200, 400)
     traffic.record("/static/site.js", 200, 300)
+    traffic.record("/error.php", 404, 100)
     snapshot = traffic.snapshot()
 
-    assert snapshot["monthly_page_views"] == 2
-    assert snapshot["requests"] == 4
+    # Raw requests count everything; page views come only from
+    # record_page_view (successful real page routes, deduplicated).
+    assert snapshot["monthly_page_views"] == 0
+    assert snapshot["requests"] == 5
+    assert snapshot["path_counts"]["page"] == 2
+    assert snapshot["path_counts"]["other"] == 1
     assert snapshot["month_key"]
+
+    traffic.record_page_view("s1", "/")
+    traffic.record_page_view("s1", "/")
+    traffic.record_page_view("s1", "/observations")
+    traffic.record_page_view("s2", "/")
+    assert traffic.snapshot()["monthly_page_views"] == 3

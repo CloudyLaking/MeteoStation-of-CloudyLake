@@ -53,6 +53,13 @@ async function applySiteConfiguration() {
 function renderHeaderSummary(target, stats) {
   const congestion = stats?.congestion;
   const level = Math.min(3, Math.max(1, Number(congestion?.level || 1)));
+  const dataStatus = congestion?.data_status || stats?.data_health?.status || "unknown";
+  const dataLabel = {
+    fresh: "资料新鲜",
+    degraded: "资料降级",
+    stale: "资料过期",
+    unknown: "资料未知",
+  }[dataStatus] || "资料未知";
   target.replaceChildren();
   const summary = document.createElement("span");
   summary.className = "header-server-summary";
@@ -65,10 +72,13 @@ function renderHeaderSummary(target, stats) {
   visits.append(visitsLabel, visitsValue);
   const indicator = document.createElement("span");
   indicator.className = `server-congestion server-congestion--${level}`;
-  indicator.setAttribute("aria-label", `服务器${congestion?.label || "状态未知"}`);
+  const labelText = dataStatus === "stale" ? "服务器·资料过期"
+    : dataStatus === "degraded" ? "服务器·资料降级"
+    : `服务器${congestion?.label || "状态未知"}·${dataLabel}`;
+  indicator.setAttribute("aria-label", labelText);
   const copy = document.createElement("span");
   copy.className = "server-congestion__copy";
-  copy.textContent = `服务器${congestion?.label || "状态未知"}`;
+  copy.textContent = labelText;
   const blocks = document.createElement("span");
   blocks.className = "server-congestion__blocks";
   blocks.setAttribute("aria-hidden", "true");
@@ -85,7 +95,8 @@ function renderHeaderSummary(target, stats) {
   const disk = Number(congestion?.disk_used_percent);
   target.title = [
     `本月页面访问 ${Number(stats?.monthly_page_views || 0).toLocaleString("zh-CN")} 次。`,
-    "三个等大方格：绿三格为通畅，黄两格为较忙，红一格为拥挤。",
+    "三个等大方格：绿三格为资源与资料均正常，黄两格为资源或资料降级，红一格为拥挤或资料过期。",
+    `资料状态：${dataLabel}`,
     Number.isFinite(load) ? `归一化负载 ${load.toFixed(2)}` : "",
     Number.isFinite(memory) ? `内存 ${memory.toFixed(1)}%` : "",
     Number.isFinite(disk) ? `磁盘 ${disk.toFixed(1)}%` : "",

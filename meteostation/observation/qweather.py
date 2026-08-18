@@ -1,10 +1,12 @@
 import asyncio
+import time
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
 
+from meteostation.health import qweather_registry
 from .models import RealtimeObservation, SurfaceObservation, SurfaceObservationSeries
 from .station_registry import StationRecord
 
@@ -318,11 +320,14 @@ async def fetch_qweather_realtime(
     station_id: str,
 ) -> RealtimeObservation:
     source_url = f"https://q-weather.info/api/weather/{station_id}/realtime/"
+    started = time.monotonic()
     try:
         response = await _qweather_client.get(source_url, timeout=20)
         response.raise_for_status()
         payload = response.json()
+        qweather_registry.notify(True, (time.monotonic() - started) * 1000)
     except (httpx.HTTPError, ValueError) as exc:
+        qweather_registry.notify(False, (time.monotonic() - started) * 1000)
         detail = str(exc) or exc.__class__.__name__
         raise QWeatherError(f"实时状态暂时无法读取：{detail}") from exc
 
@@ -442,10 +447,13 @@ def _leading_number(value: object) -> float | None:
 
 
 async def _fetch_qweather_html(source_url: str) -> str:
+    started = time.monotonic()
     try:
         response = await _qweather_client.get(source_url)
         response.raise_for_status()
+        qweather_registry.notify(True, (time.monotonic() - started) * 1000)
     except httpx.HTTPError as exc:
+        qweather_registry.notify(False, (time.monotonic() - started) * 1000)
         raise QWeatherError(f"逐小时资料暂时无法读取：{exc}") from exc
     return response.content.decode("utf-8", errors="replace")
 
