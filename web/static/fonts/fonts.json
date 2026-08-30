@@ -1,0 +1,29 @@
+{
+  "MiSans-latin": {
+    "file": "MiSans-latin.4d774e1199.woff2",
+    "size_bytes": 67292,
+    "unicode_range": [
+      "U+0000-00FF",
+      "U+2000-206F",
+      "U+20A0-20BF",
+      "U+2190-22FF",
+      "U+3000-303F",
+      "U+FF00-FFEF"
+    ]
+  },
+  "MiSans-cjk-common": {
+    "file": "MiSans-cjk-common.13519a9129.woff2",
+    "size_bytes": 632,
+    "unicode_range": [
+      "U+4E00-9FFF"
+    ]
+  },
+  "MiSans-cjk-ext": {
+    "file": "MiSans-cjk-ext.13519a9129.woff2",
+    "size_bytes": 632,
+    "unicode_range": [
+      "U+3400-4DBF",
+      "U+4E00-9FFF"
+    ]
+  }
+}

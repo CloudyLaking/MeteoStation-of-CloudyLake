@@ -1,0 +1,12 @@
+[Unit]
+Description=Run CloudyLake storage policy daily
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=meteostation-storage.service
+
+[Install]
+WantedBy=timers.target
+

@@ -85,6 +85,9 @@ from meteostation.forecast.manifest import (
     LeaseUnavailable,
     validate_cycle_files,
 )
+from meteostation.ensemble import ensemble_capability_report, load_snapshot, summarize_members, threshold_support, cluster_scenarios
+from meteostation.cyclone_products import cluster_tracks, cyclone_capability_report
+from meteostation.historical_similarity import similarity_score
 from meteostation.health import (
     HealthMetrics,
     PAGE_PATHS,
@@ -148,6 +151,9 @@ observation_series_cache: dict[
     tuple[str, str, str, str], tuple[float, SurfaceObservationSeries]
 ] = {}
 observation_series_locks: dict[tuple[str, str, str, str], asyncio.Lock] = {}
+observation_refresh_tasks: dict[
+    tuple[str, str, str, str], asyncio.Task
+] = {}
 guestbook_lock = asyncio.Lock()
 weather_map_station_cache: dict[
     tuple[date, str], tuple[float, tuple[dict[str, object], ...]]
@@ -190,7 +196,7 @@ async def _warm_primary_observation() -> None:
 app = FastAPI(
     title="云海观象台 API",
     description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek.",
-    version="2.2.1",
+    version="2.3.0",
     lifespan=application_lifespan,
 )
 
@@ -233,6 +239,12 @@ async def count_application_traffic(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 async def homepage() -> FileResponse:
+    return FileResponse(STATIC_DIR / "home.html")
+
+
+@app.get("/analysis", include_in_schema=False)
+async def analysis_page() -> FileResponse:
+    """Legacy China analysis workbench, now with an explicit route."""
     return FileResponse(STATIC_DIR / "index.html")
 
 
@@ -264,6 +276,76 @@ async def about_page() -> FileResponse:
 @app.get("/colorbar-translator", include_in_schema=False)
 async def colorbar_translator_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "colorbar-translator.html")
+
+
+@app.get("/ensemble", include_in_schema=False)
+async def ensemble_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "ensemble.html")
+
+
+@app.get("/cyclones", include_in_schema=False)
+async def cyclones_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "cyclones.html")
+
+
+@app.get("/history/similar", include_in_schema=False)
+async def similar_history_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "cyclones.html")
+
+
+@app.get("/api/v1/ensemble/status")
+async def ensemble_status() -> dict[str, object]:
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "products": ensemble_capability_report(PROJECT_ROOT),
+        "policy": "Only validated local derived snapshots are published; deterministic or interpolated data are not used as ensemble members.",
+    }
+
+
+@app.get("/api/v1/ensemble/snapshot/{model}")
+async def ensemble_snapshot(model: str) -> dict[str, object]:
+    normalized = model.casefold()
+    path = PRODUCT_DATA_DIR / "ensembles" / normalized / "latest.json"
+    if not path.exists():
+        raise HTTPException(status_code=503, detail={"status": "not_configured", "model": normalized, "message": "Validated AIFS ENS/WeatherNext 2 derived data is not configured on this host."})
+    try:
+        snapshot = load_snapshot(path)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=503, detail=f"Invalid ensemble snapshot: {exc}") from exc
+    return {
+        "model": snapshot.model,
+        "initialized_at": snapshot.initialized_at.isoformat(),
+        "steps": list(snapshot.steps),
+        "members": snapshot.members,
+        "variables": list(snapshot.variables),
+        "data": snapshot.payload.get("data", {}),
+    }
+
+
+@app.get("/api/v1/cyclones/status")
+async def cyclones_status() -> dict[str, object]:
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "wnc": cyclone_capability_report(PROJECT_ROOT),
+        "official_sources": [
+            {"label": "WeatherNext Cyclones / Weather Lab", "url": "https://www.weatherlab.ai/"},
+            {"label": "Google DeepMind WeatherNext", "url": "https://deepmind.google/science/weathernext/"},
+        ],
+        "policy": "WNC 1000-member tracks are never substituted with WN2, AIFS or official warning tracks.",
+    }
+
+
+@app.get("/api/v1/history/similarity")
+async def history_similarity(
+    path_distance_km: float = Query(9999, ge=0),
+    max_wind_kt: float = Query(0, ge=0),
+    month: int = Query(1, ge=1, le=12),
+    environment_distance: float = Query(9999, ge=0),
+) -> dict[str, object]:
+    current = {"path_distance_km": path_distance_km, "max_wind_kt": max_wind_kt, "month": month, "environment_distance": environment_distance}
+    # The endpoint exposes the scoring contract; it intentionally does not
+    # invent historical cases when no authoritative index is installed.
+    return {"status": "index_not_configured", "scoring": similarity_score(current, current), "cases": []}
 
 
 class ReanalysisRequest(BaseModel):
@@ -497,9 +579,9 @@ async def metrics() -> dict[str, object]:
 @app.get("/api/v1/status")
 async def project_status() -> dict[str, object]:
     return {
-        "version": "V2.2.1",
-        "stage": "interactive-analysis-workbench",
-        "updated_at": "2026-08-10",
+        "version": "V2.3.0",
+        "stage": "observatory-home-and-honest-ensemble-boundaries",
+        "updated_at": "2026-08-31",
         "archive_policy": "soundings-saved-surface-query-no-store",
         "modules": [
             {
@@ -508,7 +590,9 @@ async def project_status() -> dict[str, object]:
                 "status": "automatic-analysis-running",
             },
             {"id": "historical-reanalysis", "label": "历史再分析", "status": "query-on-demand"},
-            {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "planned"},
+            {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "adapter-ready-not-configured"},
+            {"id": "wn2", "label": "WeatherNext 2全球集合", "status": "adapter-ready-not-configured"},
+            {"id": "wnc", "label": "WeatherNext Cyclones千成员", "status": "adapter-ready-not-configured"},
             {
                 "id": "sounding",
                 "label": "交互式探空图",
@@ -1295,6 +1379,55 @@ async def hourly_observation(
     )
 
 
+async def _fetch_observation_series(
+    station: WorldStation,
+    source: str,
+    mode: str,
+    historical_date: date | None,
+    history_window: str,
+) -> SurfaceObservationSeries:
+    """One normalized upstream read shared by API, cache and PNG export."""
+    if source == "qweather":
+        return await fetch_qweather_series(
+            station,
+            mode=mode,
+            historical_date=historical_date,
+            history_window=history_window,
+        )
+    return await fetch_ogimet_series(
+        station_id=station.wmo_id,
+        mode=mode,
+        historical_date=historical_date,
+        station_info=station.as_dict(),
+    )
+
+
+async def _refresh_observation_series(
+    key: tuple[str, str, str, str],
+    station: WorldStation,
+    source: str,
+    mode: str,
+    historical_date: date | None,
+    history_window: str,
+) -> None:
+    """Background stale-while-revalidate refresh for one series key."""
+    try:
+        series = await _fetch_observation_series(
+            station,
+            source,
+            mode,
+            historical_date,
+            history_window,
+        )
+        ttl = 3600 if mode == "past24h" else 21600
+        observation_series_cache[key] = (monotonic() + ttl, series)
+        health_metrics.record_task("observation-refresh", True)
+    except (QWeatherError, OgimetError):
+        health_metrics.record_task("observation-refresh", False)
+    finally:
+        observation_refresh_tasks.pop(key, None)
+
+
 @app.get(
     "/api/v1/observations/series/{station_id}",
     response_model=SurfaceObservationSeries,
@@ -1325,26 +1458,37 @@ async def observation_series(
     cached = observation_series_cache.get(key)
     if cached and cached[0] > now:
         return cached[1].model_copy(update={"cache_status": "memory-hit"})
+    if cached:
+        # Stale-while-revalidate: answer with the previous data at once and
+        # refresh in the background (deduplicated per key).
+        refresh_task = observation_refresh_tasks.get(key)
+        if refresh_task is None or refresh_task.done():
+            observation_refresh_tasks[key] = asyncio.create_task(
+                _refresh_observation_series(
+                    key,
+                    station,
+                    source,
+                    mode,
+                    historical_date,
+                    history_window,
+                )
+            )
+        return cached[1].model_copy(
+            update={"cache_status": "stale-refreshing"}
+        )
     key_lock = observation_series_locks.setdefault(key, asyncio.Lock())
     async with key_lock:
         cached = observation_series_cache.get(key)
         if cached and cached[0] > monotonic():
             return cached[1].model_copy(update={"cache_status": "memory-hit"})
         try:
-            if source == "qweather":
-                series = await fetch_qweather_series(
-                    station,
-                    mode=mode,
-                    historical_date=historical_date,
-                    history_window=history_window,
-                )
-            else:
-                series = await fetch_ogimet_series(
-                    station_id=station.wmo_id,
-                    mode=mode,
-                    historical_date=historical_date,
-                    station_info=station.as_dict(),
-                )
+            series = await _fetch_observation_series(
+                station,
+                source,
+                mode,
+                historical_date,
+                history_window,
+            )
         except (QWeatherError, OgimetError) as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         # The upstream table updates hourly. Reusing the normalized response
@@ -1393,6 +1537,26 @@ async def surface_observation_plot(
         if mode == "past24h"
         else historical_date.strftime("%Y%m%d")
     )
+    # PNG export reuses the normalized structured series (memory cache or a
+    # single normalized fetch) instead of hitting the upstream page again.
+    date_key = historical_date.isoformat() if historical_date else "today"
+    window_key = history_window if mode == "history" else "current"
+    key = (station.wmo_id, mode, date_key, window_key)
+    cached = observation_series_cache.get(key)
+    if cached is not None:
+        series = cached[1]
+    else:
+        try:
+            series = await fetch_qweather_series(
+                station,
+                mode=mode,
+                historical_date=historical_date,
+                history_window=history_window,
+            )
+        except QWeatherError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        ttl = 3600 if mode == "past24h" else 21600
+        observation_series_cache[key] = (monotonic() + ttl, series)
     async with observation_plot_lock:
         try:
             result = await asyncio.to_thread(
@@ -1401,6 +1565,7 @@ async def surface_observation_plot(
                 mode=mode,
                 historical_date=historical_date,
                 history_window=history_window,
+                series=series,
             )
         except Exception as exc:
             raise HTTPException(
@@ -2326,7 +2491,7 @@ def _download_geojson(url: str) -> dict[str, object]:
 
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "MeteoStation/2.2.1"},
+        headers={"User-Agent": "MeteoStation/2.3.0"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))

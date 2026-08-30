@@ -1,0 +1,13 @@
+[Unit]
+Description=CloudyLake storage policy cleanup
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=meteostation
+Group=meteostation
+WorkingDirectory=/opt/meteostation
+ExecStart=/opt/meteostation/.venv/bin/python scripts/storage_maintenance.py --apply --json
+NoNewPrivileges=true
+PrivateTmp=true
+

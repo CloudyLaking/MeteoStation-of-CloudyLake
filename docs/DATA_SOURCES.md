@@ -183,3 +183,11 @@ quality_flags
 - 原始值、修正值和估算值分别保存。
 
 具体阈值需结合 WMO 规范、报文编码和实际样本另行制定，不能只凭界面色阶代替质量控制。
+
+## AIFS ENS、WeatherNext 2 与 WeatherNext Cyclones
+
+AIFS ENS 的官方开放产品来自 ECMWF Set X：00/06/12/18 UTC、51 个成员、6 小时原生时间步至 360 小时，许可为 CC-BY-4.0 与 ECMWF Terms of Use。本站只有在 `data/products/ensembles/aifs-ens/latest.json` 通过 schema 校验后才发布成员统计。
+
+WeatherNext 2 与 WeatherNext Cyclones 的官方研究/产品入口为 Google DeepMind / Weather Lab；访问渠道可能是 BigQuery、Earth Engine、官方 feed 或合规远程推理。本站服务器当前不保存完整成员场，也不把 WN2 或 AIFS ENS 当作 WNC 1000 成员。WNC 适配器应写入 `data/products/cyclones/wnc-latest.json`，否则 `/cyclones` 只显示未配置状态。
+
+每个适配器必须记录真实起报时间、有效时间、成员数、变量/层次、原生时间步、来源、许可、接收时间、延迟、质量和是否回退；缺失数据返回结构化不可用状态，不生成占位统计。

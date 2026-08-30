@@ -50,10 +50,7 @@ function initializeWorldMap() {
     zoomDelta: 0.5,
     touchZoom: true,
   }).setView([28, 105], 2);
-  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-  }).addTo(worldMap);
+  window.L.control.attribution({ prefix: false }).addAttribution("本地世界站点目录 · 无外部瓦片底图").addTo(worldMap);
   worldMap.on("click", (event) => {
     setWorldPoint(event.latlng.lat, event.latlng.lng, { move: false, updateInput: true });
   });

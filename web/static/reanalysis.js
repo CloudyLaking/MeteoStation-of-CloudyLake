@@ -83,10 +83,7 @@ function initializeMap() {
     zoomSnap: 0.25,
     wheelPxPerZoomLevel: 130,
   });
-  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-  }).addTo(selectionMap);
+  window.L.control.attribution({ prefix: false }).addAttribution("ERA5 区域框选 · 无外部瓦片底图").addTo(selectionMap);
   selectionMap.fitBounds([[15, 70], [60, 145]], { padding: [8, 8] });
   selectionRectangle = window.L.rectangle([[15, 70], [60, 145]], {
     color: "#126e68",

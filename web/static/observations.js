@@ -18,12 +18,13 @@ const stationMapZoomIn = document.querySelector("#station-map-zoom-in");
 const stationMapZoomOut = document.querySelector("#station-map-zoom-out");
 const stationMapReset = document.querySelector("#station-map-reset");
 const SVG_NS = "http://www.w3.org/2000/svg";
-// The China station picker is a Leaflet map over OSM tiles. Keep the station
-// payload independent from heavy administrative GeoJSON so dots are usable as
-// soon as the page opens, including on slower mobile connections.
+// The China station picker is a Leaflet map over OSM tiles. Station dots and
+// names appear only after zooming in far enough to separate dense clusters,
+// so the whole-country view stays clean and mis-taps are avoided.
 const CHINA_MAP_MIN_ZOOM = 3;
 const CHINA_MAP_MAX_ZOOM = 13;
-const CHINA_MAP_DOT_ZOOM = 3;
+const CHINA_MAP_DOT_ZOOM = 5;
+const CHINA_MAP_NAME_ZOOM = 7;
 const CHINA_MAP_CENTER = [31.5, 105];
 const CHINA_MAP_START_ZOOM = 4;
 
@@ -31,7 +32,6 @@ let stationSearchTimer = null;
 let latestSeries = null;
 let chinaLeafletMap = null;
 let chinaMarkerLayer = null;
-let chinaStationMarkers = [];
 let suppressStationClick = false;
 
 function localIsoDate(date) {
@@ -316,10 +316,7 @@ function renderObservationChart(series) {
     locationLine: `${series.latitude.toFixed(2)}°N  ${series.longitude.toFixed(2)}°E`,
     timeLine: latest ? `查询时次: ${timeLabelForHeader(latest.time)}` : "",
     points,
-    // A rolling 24-hour series normally crosses midnight. Date transition
-    // labels prevent two identical-looking hour sequences and make the
-    // plotted interval unambiguous.
-    includeDateLabels: true,
+    includeDateLabels: false,
   });
 }
 
@@ -448,9 +445,10 @@ async function updateStationSuggestions() {
 }
 
 // ---- China station picker map (Leaflet over OpenStreetMap tiles) ----
-// Every national station is a canvas-rendered circle marker. OSM provides the
-// selector's geographic context; the multi-megabyte city boundary bundle is
-// deliberately not part of this latency-sensitive request.
+// Province and city boundaries come from the bundled GeoJSON; every national
+// station is a circle marker. Dots and names appear only once the view is
+// zoomed in far enough to separate dense clusters, so the whole-country view
+// stays clean and nearby stations are not mis-tapped.
 
 let chinaMapStations = [];
 
@@ -471,23 +469,28 @@ async function loadChinaStationMap() {
       zoomDelta: 0.5,
       attributionControl: true,
     });
-    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: CHINA_MAP_MAX_ZOOM,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-    }).addTo(chinaLeafletMap);
+    window.L.control.attribution({ prefix: false }).addAttribution("本地省市边界 · 无外部瓦片底图").addTo(chinaLeafletMap);
+
+    if (data.boundaries?.features?.length) {
+      window.L.geoJSON(data.boundaries, {
+        style: { color: "#3e7f79", weight: 1.1, fillColor: "#f3f8f6", fillOpacity: 0.35 },
+      }).addTo(chinaLeafletMap);
+    }
+    if (data.city_boundaries?.features?.length) {
+      window.L.geoJSON(data.city_boundaries, {
+        style: { color: "#7fa8a2", weight: 0.6, fillOpacity: 0 },
+      }).addTo(chinaLeafletMap);
+    }
 
     chinaMapStations = data.stations || [];
-    chinaStationMarkers = [];
-    chinaMarkerLayer = window.L.layerGroup();
-    const stationRenderer = window.L.canvas({ padding: 0.35 });
+    chinaMarkerLayer = window.L.layerGroup().addTo(chinaLeafletMap);
     chinaMapStations.forEach((station) => {
       const marker = window.L.circleMarker([station.latitude, station.longitude], {
-        renderer: stationRenderer,
-        radius: 2.6,
+        radius: 4.2,
         color: "#ffffff",
-        weight: 0.8,
+        weight: 1.1,
         fillColor: "#126e68",
-        fillOpacity: 0.94,
+        fillOpacity: 1,
       });
       marker.bindTooltip(`${station.display_name} · ${station.wmo_id}`, {
         direction: "top",
@@ -495,7 +498,7 @@ async function loadChinaStationMap() {
         opacity: 1,
       });
       marker.on("click", () => {
-        chinaStationMarkers.forEach((item) => item.setStyle({ fillColor: "#126e68" }));
+        chinaMarkerLayer.eachLayer((item) => item.setStyle({ fillColor: "#126e68" }));
         marker.setStyle({ fillColor: "#f2c94c" });
         stationInput.value = station.display_name;
         regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
@@ -504,7 +507,6 @@ async function loadChinaStationMap() {
       marker.on("mouseover", () => {
         regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
       });
-      chinaStationMarkers.push(marker);
       chinaMarkerLayer.addLayer(marker);
     });
     chinaLeafletMap.on("zoomend", () => updateStationMapLod());
@@ -523,22 +525,24 @@ async function loadChinaStationMap() {
   }
 }
 
-// Keep markers in their layer group when changing zoom. Removing items while
-// iterating the group emptied it permanently, which made dots disappear after
-// one low-zoom transition.
+// Level-of-detail: hide all station dots until the view is close enough to
+// separate them, then reveal station names once it is much closer. Keeps the
+// whole-country view clean and avoids mis-tapping a nearby station.
 function updateStationMapLod() {
   if (!chinaLeafletMap || !chinaMarkerLayer) return;
   const zoom = chinaLeafletMap.getZoom();
   const showDots = zoom >= CHINA_MAP_DOT_ZOOM;
-  chinaStationMarkers.forEach((marker) => {
-    marker.closeTooltip();
-    marker.setRadius(zoom >= 7 ? 3.7 : (zoom >= 5 ? 3.1 : 2.6));
+  const showNames = zoom >= CHINA_MAP_NAME_ZOOM;
+  chinaMarkerLayer.eachLayer((marker) => {
+    if (showDots) {
+      if (!chinaLeafletMap.hasLayer(marker)) chinaMarkerLayer.addLayer(marker);
+      if (showNames) marker.openTooltip();
+      else marker.closeTooltip();
+    } else {
+      marker.closeTooltip();
+      chinaMarkerLayer.removeLayer(marker);
+    }
   });
-  if (showDots && !chinaLeafletMap.hasLayer(chinaMarkerLayer)) {
-    chinaMarkerLayer.addTo(chinaLeafletMap);
-  } else if (!showDots && chinaLeafletMap.hasLayer(chinaMarkerLayer)) {
-    chinaLeafletMap.removeLayer(chinaMarkerLayer);
-  }
 }
 
 function zoomStationMap(delta) {
