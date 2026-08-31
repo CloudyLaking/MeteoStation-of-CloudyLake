@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 from .health import PAGE_PATHS
 
 
-VERSION = "V2.2.1"
+VERSION = "V2.4.2"
 DEFAULT_SITE_CONFIG = {
     "version": VERSION,
     "theme": {
@@ -27,7 +28,7 @@ DEFAULT_SITE_CONFIG = {
         "blue": "#2563A9",
     },
     "homepage": {
-        "title": "中国天气自动分析",
+        "title": "中国天气场",
         "subtitle": "探空实况、天气形势与模式背景的统一工作台",
         "station_title": "探空工作台",
         "station_subtitle": "点击地图站点或输入站号，可选择时次、图形和地面订正方式。",
@@ -119,6 +120,8 @@ class RuntimeTraffic:
             "response_bytes": 0,
             "month_key": month_key,
             "monthly_page_views": 0,
+            "monthly_unique_visitors": 0,
+            "monthly_visitor_hashes": [],
             "status_counts": {},
             "path_counts": {},
             "last_request_at": None,
@@ -149,6 +152,8 @@ class RuntimeTraffic:
             return
         self._state["month_key"] = current
         self._state["monthly_page_views"] = 0
+        self._state["monthly_unique_visitors"] = 0
+        self._state["monthly_visitor_hashes"] = []
         self._page_sessions.clear()
         self._dirty_requests += 1
 
@@ -204,6 +209,31 @@ class RuntimeTraffic:
             self._dirty_requests += 1
             if self._dirty_requests >= 10:
                 self._flush_locked()
+
+    def record_unique_visitor(self, address: str) -> None:
+        """Count one network address per Shanghai calendar month.
+
+        Only a month-scoped SHA-256 digest is persisted. The source address is
+        never written to disk, and a new month produces a different digest.
+        """
+        normalized = address.strip()
+        if not normalized:
+            return
+        with self._lock:
+            self._roll_month_locked()
+            month_key = str(self._state["month_key"])
+            digest = hashlib.sha256(
+                f"cloudylake-visitor|{month_key}|{normalized}".encode("utf-8")
+            ).hexdigest()
+            hashes = set(self._state.get("monthly_visitor_hashes", []))
+            if digest in hashes:
+                return
+            hashes.add(digest)
+            # A compact bounded list is enough for this small personal site.
+            self._state["monthly_visitor_hashes"] = sorted(hashes)[-100_000:]
+            self._state["monthly_unique_visitors"] = len(hashes)
+            self._dirty_requests += 1
+            self._flush_locked()
 
     def snapshot(self) -> dict[str, object]:
         with self._lock:

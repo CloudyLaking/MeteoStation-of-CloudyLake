@@ -6,8 +6,8 @@
     <meta name="description" content="云海观象台首页：气象实况、探空、预报、台风和历史资料工作台入口。" />
     <title>云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.4.1-0831e" />
-    <script src="/static/site.js?v=2.4.1-0831e" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.2-0901a" />
+    <script src="/static/site.js?v=2.4.2-0901a" defer></script>
     <script src="/static/about.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
@@ -22,11 +22,6 @@
             <p>由堡状云维护的个人气象资料站。这里集中整理实况、探空、数值预报、台风和历史资料，并明确标出资料时间、来源与可用状态。</p>
           </div>
         </div>
-        <dl class="station-home-facts">
-          <div><dt>资料范围</dt><dd>实况 / 预报 / 历史</dd></div>
-          <div><dt>更新方式</dt><dd>自动采集，按需制图</dd></div>
-          <div><dt>使用边界</dt><dd>研究与天气爱好</dd></div>
-        </dl>
       </section>
 
       <section class="station-home-section station-home-index" aria-labelledby="workspace-heading">
@@ -55,13 +50,14 @@
           </dl>
           <div class="social-links" aria-label="社交媒体账号">
             <a href="https://space.bilibili.com/228372829" target="_blank" rel="noopener"><i class="platform-mark platform-mark--bilibili" aria-hidden="true"><svg viewBox="0 0 28 24"><path d="M8 4 5 1M20 4l3-3M4 6h20a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Z"/><path d="M8 13v3M20 13v3"/></svg></i><span>哔哩哔哩</span><strong>云海观象台－堡状云</strong></a>
-            <a href="https://www.xiaohongshu.com/user/profile/64a778a200000000110001cc" target="_blank" rel="noopener"><i class="platform-mark platform-mark--redbook" aria-hidden="true">红</i><span>小红书</span><strong>云海观象台</strong></a>
+            <a href="https://www.xiaohongshu.com/user/profile/64a778a200000000110001cc" target="_blank" rel="noopener"><i class="platform-mark platform-mark--redbook" aria-hidden="true"><img src="/static/xiaohongshu.png" alt="" /></i><span>小红书</span><strong>云海观象台</strong></a>
           </div>
         </section>
 
         <section class="station-home-section station-home-updates" aria-labelledby="updates-heading">
           <header><span>03</span><div><h2 id="updates-heading">更新记录</h2><p>只记录已经上线的变化。</p></div></header>
           <ol>
+            <li><time>V2.4.2<br />2026-09-01</time><div><strong>天气图可信度与界面修正</strong><p>天气图仅呈现经过完整性和物理范围检查的基础气象场，撤下未经独立验证的锋面与高低压自动结论；同时修正站点标注、日期栏、状态块和访客统计。</p></div></li>
             <li><time>V2.4.1<br />2026-08-31</time><div><strong>天气图分析界面收口</strong><p>天气图改为紧凑无框主画布，移除标题上下的口号式说明，并禁止旧页面缓存。</p></div></li>
             <li><time>V2.4.0<br />2026-08-31</time><div><strong>气象产品实用化与紧凑排版</strong><p>新增探空垂直结构识别、IBTrACS 相似路径图、ERA5 专用配色与风矢量、色条双极性自动识别，并接通 AIFS ENS 与 WeatherNext 2 全时段逐点集合。</p></div></li>
             <li><time>V2.3.4<br />2026-08-31</time><div><strong>全站界面与导航统一</strong><p>重做公共顶栏、首页、页面结构、移动端导航和交互网格背景。</p></div></li>

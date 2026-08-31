@@ -1,13 +1,13 @@
 {
-  "version": "V2.4.1",
+  "version": "V2.4.2",
   "theme": {
     "primary": "#126E68",
     "accent": "#C8795D",
     "blue": "#7D6898"
   },
   "homepage": {
-    "title": "中国天气自动分析",
-    "subtitle": "探空实况、天气形势与模式背景的统一工作台",
+    "title": "中国天气场",
+    "subtitle": "逐项标注来源、有效时次与变量的天气场工作台",
     "station_title": "探空工作台",
     "station_subtitle": "点击地图站点或输入站号，可选择时次、图形和地面订正方式。"
   },

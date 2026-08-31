@@ -15,8 +15,6 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy.ndimage import maximum_filter, minimum_filter
 
 from .analysis import (
-    detect_height_axes,
-    detect_surface_fronts,
     smooth_field,
 )
 from .basemap import LocalBoundaryLayer, TiandituBasemap
@@ -32,6 +30,10 @@ from .models import (
 WIND_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-wind",
     ["#f8faf9", "#d9eceb", "#91c8c3", "#f1d993", "#d58b63", "#a2544c", "#71537f"],
+)
+TEMPERATURE_COLORS = LinearSegmentedColormap.from_list(
+    "cloudylake-temperature",
+    ["#5d4b78", "#7b88b5", "#d8e2e1", "#f7f5f1", "#e7c39e", "#c8795d", "#964b46"],
 )
 HUMIDITY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-humidity",
@@ -83,6 +85,7 @@ def render_weather_map_preview(
 ) -> WeatherMapPreview:
     """Render one China weather-analysis preview."""
     subset = grid.subset(domain)
+    validate_weather_fields(subset, layer_id)
     figure, axis = plt.subplots(
         figsize=FIGURE_SIZE_INCHES,
         facecolor="white",
@@ -115,7 +118,7 @@ def render_weather_map_preview(
         )
     if layer_id in {"surface", "composite"}:
         draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "地面综合分析 · 海平面气压 / 十米风 / 天气系统"
+        title = "地面天气场 · 二米温度 / 海平面气压 / 十米风"
     elif layer_id == "850":
         draw_pressure_level(
             axis,
@@ -137,7 +140,7 @@ def render_weather_map_preview(
             pressure_hpa=500,
             shade="height_anomaly",
         )
-        title = "500 hPa · 高度距平 / 位势高度 / 风场"
+        title = "500 hPa · 位势高度距平 / 位势高度 / 风场"
     elif layer_id == "200":
         draw_pressure_level(
             axis,
@@ -160,21 +163,10 @@ def render_weather_map_preview(
     axis.set_xlim(domain.west, domain.east)
     axis.set_ylim(domain.south, domain.north)
 
-    diagnosed_features = synoptic_features
-    if diagnosed_features is None:
-        if layer_id in {"surface", "composite"}:
-            diagnosed_features = detect_surface_fronts(
-                subset,
-                domain=domain,
-            )
-        elif layer_id == "500":
-            diagnosed_features = detect_height_axes(
-                subset,
-                domain=domain,
-                pressure_hpa=500,
-            )
-        else:
-            diagnosed_features = []
+    # Fronts, troughs and ridges are analysis conclusions rather than raw
+    # fields. Do not publish heuristic diagnoses unless a caller explicitly
+    # supplies a separately validated feature set.
+    diagnosed_features = synoptic_features or []
     draw_synoptic_features(
         axis,
         diagnosed_features,
@@ -205,7 +197,7 @@ def render_weather_map_preview(
         )
     draw_cyclone_markers(
         axis,
-        cyclone_markers or [],
+        [marker for marker in (cyclone_markers or []) if marker.kind == "tropical"],
         font=font,
     )
     # At the domain midpoint, one degree of longitude is about cos(latitude)
@@ -242,7 +234,7 @@ def render_weather_map_preview(
     )
     for spine in axis.spines.values():
         spine.set_color("#264b4a")
-        spine.set_linewidth(0.85)
+        spine.set_linewidth(0.55)
     axis.set_title(
         f"{title}\n{subset.valid_at:%Y-%m-%d %H:00} 世界时",
         loc="left",
@@ -371,7 +363,7 @@ def render_weather_map_preview(
             ),
             "cyclone_markers": [
                 marker.model_dump(mode="json")
-                for marker in (cyclone_markers or [])
+                for marker in (cyclone_markers or []) if marker.kind == "tropical"
             ],
             "synoptic_features": [
                 feature.model_dump(mode="json")
@@ -680,24 +672,22 @@ def draw_surface(
     )
     u_wind = require_field(grid, "wind_u_10m_ms")
     v_wind = require_field(grid, "wind_v_10m_ms")
-    speed = smooth_field(
-        np.hypot(u_wind, v_wind),
-        sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
-            "surface_wind_speed"
-        ],
+    temperature = smooth_field(
+        require_field(grid, "temperature_2m_c"),
+        sigma_gridpoints=2.0,
     )
-    maximum = max(
-        20,
-        round_up(float(np.nanpercentile(speed, 99)), 5),
-    )
+    lower = np.floor(np.nanpercentile(temperature, 1) / 2) * 2
+    upper = np.ceil(np.nanpercentile(temperature, 99) / 2) * 2
+    if upper <= lower:
+        upper = lower + 2
     shaded = axis.contourf(
         longitude,
         latitude,
-        speed,
-        levels=np.linspace(0, maximum, 13),
-        cmap=WIND_COLORS,
-        extend="max",
-        alpha=0.72,
+        temperature,
+        levels=np.arange(lower, upper + 2.1, 2),
+        cmap=TEMPERATURE_COLORS,
+        extend="both",
+        alpha=0.78,
     )
     contour_levels = np.arange(
         np.floor(np.nanmin(mslp) / 4) * 4,
@@ -722,16 +712,10 @@ def draw_surface(
     )
     style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
-    draw_surface_objective_features(
-        axis,
-        longitude,
-        latitude,
-        grid,
-    )
     add_weather_colorbar(
         figure,
         shaded,
-        "十米风速（米/秒）",
+        "二米温度（摄氏度）",
     )
 
 
@@ -1148,10 +1132,10 @@ def draw_wind_barbs(
         sampled_latitude[moving],
         sampled_u[moving],
         sampled_v[moving],
-        color="#667c7a",
-        linewidth=0.34,
+        color="#435d5b",
+        linewidth=0.38,
         length=3.8,
-        alpha=0.36,
+        alpha=0.55,
     )
     axis.scatter(
         sampled_longitude[calm],
@@ -1212,6 +1196,41 @@ def require_field(grid: WeatherGrid, name: str) -> np.ndarray:
         return grid.fields[name]
     except KeyError as exc:
         raise ValueError(f"Weather field is unavailable: {name}") from exc
+
+
+def validate_weather_fields(grid: WeatherGrid, layer_id: str) -> None:
+    """Reject missing, non-finite or physically implausible chart inputs."""
+    required: dict[str, tuple[float, float]] = {
+        "mslp_hpa": (850, 1100),
+        "temperature_2m_c": (-90, 65),
+        "wind_u_10m_ms": (-100, 100),
+        "wind_v_10m_ms": (-100, 100),
+    }
+    if layer_id in {"850", "500", "200"}:
+        pressure = int(layer_id)
+        required = {
+            f"geopotential_height_{pressure}_gpm": {
+                850: (-500, 3000), 500: (3500, 7000), 200: (8000, 15000)
+            }[pressure],
+            f"wind_u_{pressure}_ms": (-200, 200),
+            f"wind_v_{pressure}_ms": (-200, 200),
+        }
+        if pressure == 850:
+            required["relative_humidity_850_pct"] = (0, 105)
+        elif pressure == 500:
+            required["geopotential_height_500_climatology_gpm"] = (3500, 7000)
+    for name, (minimum, maximum) in required.items():
+        values = require_field(grid, name)
+        finite = values[np.isfinite(values)]
+        if finite.size < values.size * 0.9:
+            raise ValueError(f"Weather field has insufficient valid coverage: {name}")
+        low = float(np.nanpercentile(finite, 0.1))
+        high = float(np.nanpercentile(finite, 99.9))
+        if low < minimum or high > maximum:
+            raise ValueError(
+                f"Weather field failed physical-range validation: {name} "
+                f"({low:.1f} to {high:.1f})"
+            )
 
 
 def round_up(value: float, interval: float) -> float:

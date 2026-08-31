@@ -1,7 +1,10 @@
 {
-  "version": "V2.2.1",
+  "version": "V2.4.2",
   "region": "china-and-neighbours",
-  "cycles": ["00", "12"],
+  "cycles": [
+    "00",
+    "12"
+  ],
   "domain": {
     "west": 70.0,
     "east": 145.0,
@@ -16,8 +19,17 @@
     "source_url": "https://www.tianditu.gov.cn/",
     "service_review_number": "GS（2024）0568号",
     "token_environment_variable": "TIANDITU_TOKEN",
-    "service_layers": ["vec_w", "cva_w", "ibo_w"],
-    "included_features": ["province_boundaries", "cities", "rivers", "lakes"],
+    "service_layers": [
+      "vec_w",
+      "cva_w",
+      "ibo_w"
+    ],
+    "included_features": [
+      "province_boundaries",
+      "cities",
+      "rivers",
+      "lakes"
+    ],
     "local_boundary": {
       "status": "ready",
       "path": "中国_省.geojson",
@@ -50,83 +62,83 @@
     }
   },
   "analysis_method": {
-    "background": "ECMWF",
-    "constraints": ["primary soundings", "surface observations", "tropical cyclones"],
+    "background": "ECMWF IFS weather fields",
     "frequency": "00/12 UTC",
-    "smoothing": {
-      "method": "NaN-aware Gaussian",
-      "sigma_gridpoints": {
-        "surface_mslp": 3.0,
-        "surface_wind_speed": 1.75,
-        "850_humidity": 2.0,
-        "850_height": 2.0,
-        "500_height_anomaly": 2.5,
-        "500_height": 2.0,
-        "200_wind_speed": 2.0,
-        "200_height": 2.0
-      },
-      "wind_barbs": "unsmoothed observations/model vectors"
-    },
-    "surface_fronts": {
-      "method": "thermal-front parameter with Petterssen frontogenesis, deformation, convergence, thermal advection, terrain, continuity and minimum-length filters",
-      "classification": ["cold-front", "warm-front", "stationary-front"],
-      "confidence": ["medium", "high"]
-    },
-    "500_height_axes": {
-      "method": "geopotential-contour curvature along zero meridional geostrophic wind with persistence and minimum-length filters",
-      "classification": ["trough-axis", "ridge-axis"],
-      "confidence": ["medium", "high"]
-    }
+    "quality_control": [
+      "required-field completeness",
+      "physical-range validation",
+      "explicit valid time and source"
+    ],
+    "publication_rule": "heuristic fronts, pressure centres and height axes are not published without separate validation"
   },
   "layers": [
     {
       "id": "composite",
-      "label": "综合分析",
-      "description": "海平面气压、高低压中心、温度极值、湿区、客观锋面与热带气旋综合分析",
+      "label": "地面气压与温度",
+      "description": "二米温度填色、海平面气压等值线与十米风场",
       "status": "pipeline-ready",
       "recipe": {
-        "background": ["mean_sea_level_pressure", "10m_wind", "total_column_water_vapour"],
-        "constraints": ["surface_observations", "soundings", "tropical_cyclones"]
+        "fields": [
+          "2m_temperature",
+          "mean_sea_level_pressure",
+          "10m_wind"
+        ]
       }
     },
     {
       "id": "surface",
-      "label": "地面",
-      "description": "海平面气压、近地面风温湿、温度极值、湿区与客观锋面分析",
+      "label": "地面气压与温度",
+      "description": "二米温度填色、海平面气压等值线与十米风场",
       "status": "pipeline-ready",
       "recipe": {
-        "fields": ["mean_sea_level_pressure", "2m_temperature", "10m_wind", "total_column_water_vapour"],
-        "constraints": ["surface_temperature", "surface_dewpoint", "surface_pressure"]
+        "fields": [
+          "2m_temperature",
+          "mean_sea_level_pressure",
+          "10m_wind"
+        ]
       }
     },
     {
       "id": "850",
       "label": "850 hPa",
-      "description": "低层温湿、风场与水汽输送",
+      "description": "相对湿度、位势高度与风场",
       "status": "pipeline-ready",
       "recipe": {
         "pressure_hpa": 850,
-        "fields": ["geopotential", "temperature", "relative_humidity", "wind"]
+        "fields": [
+          "geopotential",
+          "temperature",
+          "relative_humidity",
+          "wind"
+        ]
       }
     },
     {
       "id": "500",
       "label": "500 hPa",
-      "description": "500 hPa 位势高度距平、等高线、风场与槽脊分析",
+      "description": "ERA5 1991—2020 同月平均距平、位势高度与风场",
       "status": "pipeline-ready",
       "recipe": {
         "pressure_hpa": 500,
-        "fields": ["geopotential", "height_anomaly_1991_2020", "wind"]
+        "fields": [
+          "geopotential",
+          "height_anomaly_1991_2020",
+          "wind"
+        ]
       }
     },
     {
       "id": "200",
       "label": "200 hPa",
-      "description": "高空急流与辐散条件",
+      "description": "风速、位势高度与风场",
       "status": "pipeline-ready",
       "recipe": {
         "pressure_hpa": 200,
-        "fields": ["geopotential", "wind", "divergence"]
+        "fields": [
+          "geopotential",
+          "wind",
+          "divergence"
+        ]
       }
     }
   ],
@@ -138,38 +150,6 @@
       "status": "source-adapter-pending",
       "source": "NRL ATCF active warnings / ECMWF Open Data HRES TC tracks fallback",
       "method": "warning or trajectory positions nearest the analysis time"
-    },
-    {
-      "id": "low-pressure-centres",
-      "label": "低压中心",
-      "description": "在所有环境场中叠加客观识别的低压中心和中心气压或高度",
-      "status": "development-ready",
-      "source": "ECMWF Open Data MSLP",
-      "method": "smoothed local minima with depth and separation filters"
-    },
-    {
-      "id": "high-pressure-centres",
-      "label": "高压中心",
-      "description": "在所有环境场中叠加客观识别的高压中心和中心气压",
-      "status": "development-ready",
-      "source": "ECMWF Open Data MSLP",
-      "method": "smoothed local maxima with prominence and separation filters"
-    },
-    {
-      "id": "surface-fronts",
-      "label": "地面锋面",
-      "description": "用热力锋参数定位锋区轴线，并由锋生、形变、辐合、温度平流、地形和连续性联合筛选",
-      "status": "pipeline-ready",
-      "source": "ECMWF 2 m temperature and 10 m wind",
-      "method": "objective TFP and Petterssen-frontogenesis analysis"
-    },
-    {
-      "id": "500-trough-ridge-axes",
-      "label": "500 hPa 槽脊轴",
-      "description": "依据位势高度等值线曲率和零经向地转风线识别连续槽轴与脊轴",
-      "status": "pipeline-ready",
-      "source": "ECMWF 500 hPa geopotential height",
-      "method": "curvature, persistence and minimum-length analysis"
     }
   ],
   "sounding_stations_file": "china_sounding_stations.json",
@@ -178,7 +158,7 @@
       "wmo_id": "50527",
       "name": "海拉尔",
       "latitude": 49.25,
-      "longitude": 119.70,
+      "longitude": 119.7,
       "priority": 20
     },
     {
@@ -227,7 +207,7 @@
       "wmo_id": "52818",
       "name": "格尔木",
       "latitude": 36.4167,
-      "longitude": 94.90,
+      "longitude": 94.9,
       "priority": 20
     },
     {
@@ -248,7 +228,7 @@
       "wmo_id": "53614",
       "name": "银川",
       "latitude": 38.4667,
-      "longitude": 106.20,
+      "longitude": 106.2,
       "priority": 20
     },
     {
@@ -261,7 +241,7 @@
     {
       "wmo_id": "54161",
       "name": "长春",
-      "latitude": 43.90,
+      "latitude": 43.9,
       "longitude": 125.2167,
       "priority": 20
     },
@@ -275,7 +255,7 @@
     {
       "wmo_id": "54662",
       "name": "大连",
-      "latitude": 38.90,
+      "latitude": 38.9,
       "longitude": 121.6333,
       "priority": 30
     },
@@ -345,7 +325,7 @@
     {
       "wmo_id": "57494",
       "name": "武汉",
-      "latitude": 30.60,
+      "latitude": 30.6,
       "longitude": 114.05,
       "priority": 20
     },
@@ -366,8 +346,8 @@
     {
       "wmo_id": "57749",
       "name": "怀化",
-      "latitude": 27.5700,
-      "longitude": 110.0000,
+      "latitude": 27.57,
+      "longitude": 110.0,
       "priority": 30
     },
     {
@@ -380,15 +360,15 @@
     {
       "wmo_id": "58027",
       "name": "徐州",
-      "latitude": 34.20,
-      "longitude": 117.40,
+      "latitude": 34.2,
+      "longitude": 117.4,
       "priority": 30
     },
     {
       "wmo_id": "58238",
       "name": "南京",
       "latitude": 31.9333,
-      "longitude": 118.90,
+      "longitude": 118.9,
       "priority": 20
     },
     {
@@ -408,7 +388,7 @@
     {
       "wmo_id": "58606",
       "name": "南昌",
-      "latitude": 28.60,
+      "latitude": 28.6,
       "longitude": 115.9167,
       "priority": 20
     },
@@ -436,7 +416,7 @@
     {
       "wmo_id": "59316",
       "name": "汕头",
-      "latitude": 23.40,
+      "latitude": 23.4,
       "longitude": 116.6833,
       "priority": 20
     }

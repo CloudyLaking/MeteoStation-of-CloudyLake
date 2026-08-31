@@ -20,7 +20,7 @@
   };
   function language() { return localStorage.getItem("cloudylake-language") || "zh"; }
   Object.assign(dictionary, {
-    "nav.analysis": ["天气分析", "Weather analysis"],
+    "nav.analysis": ["天气场", "Weather fields"],
     "nav.ensemble": ["集合预报", "Ensembles"],
     "nav.point": ["单点预报", "Point forecast"],
     "nav.sounding_forecast": ["探空预报", "Sounding forecast"],
@@ -55,7 +55,7 @@
     document.body.classList.add("unified-page");
     const header = document.createElement("header");
     header.className = "floating-site-header";
-    header.innerHTML = `<div class="floating-site-header__bar"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">云海观象台</span><span class="floating-site-header__title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><nav class="floating-site-nav" aria-label="主导航">${navMarkup()}</nav><div class="floating-site-actions"><a class="header-data-status" href="/health/data" aria-label="查看资料状态"><i aria-hidden="true"></i><span><small>资料状态</small><strong data-status-label>读取中</strong></span><b aria-hidden="true"></b><span><small>本月访问</small><strong data-visit-count>—</strong></span></a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div>`;
+    header.innerHTML = `<div class="floating-site-header__bar"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">云海观象台</span><span class="floating-site-header__title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><nav class="floating-site-nav" aria-label="主导航">${navMarkup()}</nav><div class="floating-site-actions"><a class="header-data-status" href="/health/data" aria-label="查看资料状态"><i aria-hidden="true"></i><span><small>资料状态</small><strong data-status-label>读取中</strong></span><b aria-hidden="true"></b><span><small>本月访客</small><strong data-visit-count>—</strong></span></a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div>`;
     const legacy = document.querySelector("body > header");
     if (legacy) legacy.replaceWith(header);
     else document.body.prepend(header);
@@ -97,9 +97,9 @@
         const visitCount = target.querySelector?.("[data-visit-count]");
         if (statusLabel && visitCount) {
           statusLabel.textContent = status;
-          visitCount.textContent = new Intl.NumberFormat("zh-CN").format(stats.monthly_page_views || 0);
+          visitCount.textContent = new Intl.NumberFormat("zh-CN").format(stats.monthly_unique_visitors || 0);
         } else {
-          target.textContent = `资料${status} · ${new Intl.NumberFormat("zh-CN").format(stats.monthly_page_views || 0)} 次访问`;
+          target.textContent = `资料${status} · 本月 ${new Intl.NumberFormat("zh-CN").format(stats.monthly_unique_visitors || 0)} 位访客`;
         }
       });
     } catch (_) {}

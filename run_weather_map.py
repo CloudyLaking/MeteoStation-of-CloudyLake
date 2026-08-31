@@ -20,11 +20,7 @@ from meteostation.weather_map import (
     WeatherGrid,
     build_weather_map_plan,
     decode_ecmwf_background,
-    detect_low_pressure_centres,
-    detect_high_pressure_centres,
-    detect_pressure_level_centres,
     fetch_nrl_tropical_cyclones,
-    merge_cyclone_markers,
     load_tianditu_basemap,
     load_geojson_boundary,
     load_era5_height_climatology,
@@ -251,22 +247,6 @@ def main() -> None:
                 },
             },
         )
-        objective_lows = detect_low_pressure_centres(
-            grid,
-            domain=configuration.domain,
-        )
-        objective_highs = detect_high_pressure_centres(
-            grid,
-            domain=configuration.domain,
-        )
-        pressure_level_centres = {
-            pressure_hpa: detect_pressure_level_centres(
-                grid,
-                domain=configuration.domain,
-                pressure_hpa=pressure_hpa,
-            )
-            for pressure_hpa in (850, 500, 200)
-        }
         base_map = None
         boundary_layer = None
         boundary_configuration = configuration.base_map.get(
@@ -322,15 +302,6 @@ def main() -> None:
                 )
             except NrlCycloneUnavailable as exc:
                 print(f"热带气旋位置暂不可用：{exc}")
-        layer_centres = {
-            "surface": merge_cyclone_markers(
-                objective_lows,
-                objective_highs,
-            ),
-            "850": pressure_level_centres[850],
-            "500": pressure_level_centres[500],
-            "200": pressure_level_centres[200],
-        }
         preview_root = PROJECT_ROOT / "data" / "previews"
         previews = [
             render_weather_map_preview(
@@ -339,10 +310,7 @@ def main() -> None:
                 domain=configuration.domain,
                 preview_root=preview_root,
                 font_path=PROJECT_ROOT / "MiSans VF.ttf",
-                cyclone_markers=merge_cyclone_markers(
-                    tropical_cyclones,
-                    layer_centres[layer],
-                ),
+                cyclone_markers=tropical_cyclones,
                 base_map=base_map,
                 boundary_layer=boundary_layer,
             )

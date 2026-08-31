@@ -9,9 +9,9 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.4.1-0831e" />
-    <script src="/static/site.js?v=2.4.1-0831e" defer></script>
-    <script src="/static/app.js?v=2.4.1-0831e" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.2-0901a" />
+    <script src="/static/site.js?v=2.4.2-0901a" defer></script>
+    <script src="/static/app.js?v=2.4.2-0901a" defer></script>
   </head>
   <body class="analysis-page">
     <header class="site-header">
@@ -57,7 +57,7 @@
       <section class="map-panel" aria-labelledby="map-title">
         <div class="panel-heading">
           <div>
-            <h1 id="map-title">中国天气自动分析</h1>
+            <h1 id="map-title">中国天气场</h1>
           </div>
           <div class="archive-picker" aria-label="归档分析时次">
             <span class="archive-picker__label">归档日期与时次</span>
@@ -76,15 +76,14 @@
         </div>
 
         <div class="layer-dock" aria-label="地图图层">
-          <button type="button" class="is-active" data-map-layer="composite">综合分析</button>
-          <button type="button" data-map-layer="surface">地面</button>
+          <button type="button" class="is-active" data-map-layer="composite">地面</button>
           <button type="button" data-map-layer="850">850 hPa</button>
           <button type="button" data-map-layer="500">500 hPa</button>
           <button type="button" data-map-layer="200">200 hPa</button>
         </div>
         <div class="station-display-dock" aria-label="探空站数据显示方式">
-          <span>站点</span>
-          <button type="button" class="is-active" data-station-display="composite">综合站模</button>
+          <span title="切换天气图上探空站的数值标注；点击站点打开对应探空图">探空站标注</span>
+          <button type="button" class="is-active" data-station-display="composite" title="显示标准探空站模；点击图中站点打开探空图">站模</button>
           <button type="button" data-station-display="temperature">温度</button>
           <button type="button" data-station-display="dewpoint">露点</button>
           <button type="button" data-station-display="height">气压 / 高度</button>
@@ -99,9 +98,7 @@
             alt="中国天气分析图"
             hidden
           />
-          <div class="weather-map-badge" id="weather-map-badge" hidden>
-            ECMWF Field Preview · No Base Map · Not for Publication
-          </div>
+          <div class="weather-map-badge" id="weather-map-badge" hidden></div>
           <div
             class="map-sounding-stations"
             id="map-sounding-stations"
@@ -117,10 +114,10 @@
             <span class="station station--three"><i></i>广州</span>
             <span class="station station--four"><i></i>成都</span>
             <div class="map-notice">
-              <span id="weather-map-status">天气图产品管线</span>
-              <strong id="weather-map-layer-name">综合分析</strong>
+              <span id="weather-map-status">天气场资料</span>
+              <strong id="weather-map-layer-name">地面气压与温度</strong>
               <p id="weather-map-description">
-                已建立 00/12 UTC 产品目录；正式出图等待合规标准地图接入。
+                该时次通过字段完整性与物理范围检查后才会生成图片。
               </p>
             </div>
           </div>
@@ -133,17 +130,7 @@
         </div>
 
         <div class="map-legend">
-            <span><i class="legend-swatch legend-swatch--cold"></i>偏低</span>
-            <span><i class="legend-swatch legend-swatch--normal"></i>常见范围</span>
-            <span><i class="legend-swatch legend-swatch--warm"></i>偏高</span>
-            <span><i class="legend-symbol legend-symbol--high">H</i>高压中心</span>
-            <span><i class="legend-symbol legend-symbol--low">L</i>低压中心</span>
             <span><i class="legend-symbol legend-symbol--tc">×</i>热带气旋</span>
-            <span><i class="legend-front legend-front--cold"></i>冷锋</span>
-            <span><i class="legend-front legend-front--warm"></i>暖锋</span>
-            <span><i class="legend-front legend-front--stationary"></i>静止锋</span>
-            <span><i class="legend-axis legend-axis--trough"></i>槽线</span>
-            <span><i class="legend-axis legend-axis--ridge"></i>脊线</span>
             <span><i class="legend-symbol legend-symbol--station-ready">●</i>探空已更新</span>
             <span><i class="legend-symbol legend-symbol--station-pending">●</i>探空待更新</span>
         </div>
@@ -320,11 +307,11 @@
     </section>
 
     <section class="product-notes" aria-labelledby="home-method-heading">
-      <header><h2 id="home-method-heading">中国天气分析说明</h2></header>
+      <header><h2 id="home-method-heading">中国天气场说明</h2></header>
       <div>
-        <article><h3>处理方法</h3><p>以 ECMWF IFS 场为连续背景，对海平面气压和等高线作尺度受控的平滑；地面锋面由热力锋参数、锋生、形变/辐合和温度平流联合识别，500 hPa 槽脊轴由位势高度曲率、地转风零线及连续性筛选。探空点独立显示实测资料是否已经更新。</p></article>
+        <article><h3>处理方法</h3><p>地面图显示二米温度、海平面气压和十米风；850、500 与 200 hPa 图显示对应层次的位势高度、湿度或风速及风场。所有输入先检查覆盖率与物理范围，检查失败时不出图。</p></article>
         <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">欧洲中期天气预报中心开放资料</a>、<a href="https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive" target="_blank" rel="noopener">美国国家环境信息中心全球探空档案</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">世界气象信息系统 2.0</a> 与天地图标准地图服务。</p></article>
-        <article><h3>阅读提示</h3><p>蓝色三角线、黄色圆点线和青黄交替线分别表示客观冷锋、暖锋和静止锋；500 hPa 蓝色、黄色虚线分别表示槽轴和脊轴。自动诊断不等同于预报员手工分析或预警结论。</p></article>
+        <article><h3>阅读提示</h3><p>图上只呈现可复核的基础气象场和有明确资料源的热带气旋位置。锋面、高低压中心与槽脊等分析结论在完成独立验证前不公开展示。</p></article>
       </div>
     </section>
 

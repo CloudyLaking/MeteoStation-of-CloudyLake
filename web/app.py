@@ -204,7 +204,7 @@ async def _warm_primary_observation() -> None:
 app = FastAPI(
     title="云海观象台 API",
     description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek.",
-    version="2.4.1",
+    version="2.4.2",
     lifespan=application_lifespan,
 )
 
@@ -242,6 +242,13 @@ async def count_application_traffic(request: Request, call_next):
                     secure=True,
                 )
             traffic.record_page_view(session_id, path)
+            forwarded_for = request.headers.get("x-forwarded-for", "")
+            client_address = (
+                forwarded_for.split(",", 1)[0].strip()
+                if forwarded_for
+                else (request.client.host if request.client else "")
+            )
+            traffic.record_unique_visitor(client_address)
     return response
 
 
@@ -682,6 +689,7 @@ async def metrics() -> dict[str, object]:
             "status_counts": traffic_snapshot.get("status_counts"),
             "path_counts": traffic_snapshot.get("path_counts"),
             "monthly_page_views": traffic_snapshot.get("monthly_page_views"),
+            "monthly_unique_visitors": traffic_snapshot.get("monthly_unique_visitors"),
         },
         "latency": report["http"],
         "qweather": report["qweather"],
@@ -696,15 +704,15 @@ async def metrics() -> dict[str, object]:
 @app.get("/api/v1/status")
 async def project_status() -> dict[str, object]:
     return {
-        "version": "V2.4.1",
+        "version": "V2.4.2",
         "stage": "compact-observatory-and-operational-derived-products",
         "updated_at": "2026-08-31",
         "archive_policy": "soundings-saved-surface-query-no-store",
         "modules": [
             {
                 "id": "china-map",
-                "label": "中国天气主页",
-                "status": "automatic-analysis-running",
+                "label": "中国天气场",
+                "status": "validated-fields-only",
             },
             {"id": "historical-reanalysis", "label": "历史再分析", "status": "query-on-demand"},
             {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "real-point-ensemble-on-demand"},
@@ -1087,6 +1095,11 @@ async def latest_weather_map_product(
     ]
     preview = max(previews, key=lambda item: item.valid_at, default=None)
     product = weather_map_catalog.latest_product(layer_id=layer)
+    freshness_cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
+    if preview is not None and preview.valid_at < freshness_cutoff:
+        preview = None
+    if product is not None and product.valid_at < freshness_cutoff:
+        product = None
     if product is not None and (
         preview is None or product.valid_at >= preview.valid_at
     ):
@@ -1099,6 +1112,7 @@ async def latest_weather_map_product(
         "layer": layer,
         "product": preview.model_dump(mode="json") if preview else None,
         "kind": "preview" if preview else None,
+        "status": "fresh-product-unavailable" if preview is None else "available",
     }
 
 

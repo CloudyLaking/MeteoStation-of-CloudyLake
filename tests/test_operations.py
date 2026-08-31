@@ -60,3 +60,13 @@ def test_monthly_traffic_counts_page_visits_only(tmp_path) -> None:
     traffic.record_page_view("s1", "/observations")
     traffic.record_page_view("s2", "/")
     assert traffic.snapshot()["monthly_page_views"] == 3
+
+    traffic.record_unique_visitor("203.0.113.8")
+    traffic.record_unique_visitor("203.0.113.8")
+    traffic.record_unique_visitor("198.51.100.4")
+    unique_snapshot = traffic.snapshot()
+    assert unique_snapshot["monthly_unique_visitors"] == 2
+    assert all(
+        address not in json.dumps(unique_snapshot)
+        for address in ("203.0.113.8", "198.51.100.4")
+    )
