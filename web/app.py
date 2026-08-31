@@ -67,6 +67,7 @@ from meteostation.sounding.wyoming import (
     WyomingSoundingNotFound,
     validate_station_id,
 )
+from meteostation.sounding.wis2_profile import Wis2SoundingArchive, Wis2SoundingNotFound
 from meteostation.weather_map import (
     NrlCycloneUnavailable,
     WeatherMapCatalog,
@@ -148,6 +149,7 @@ WIS2_SOUNDING_STATE_PATH = (
 )
 
 wyoming_client = WyomingSoundingClient(cache_root=RAW_DATA_DIR)
+wis2_archive = Wis2SoundingArchive(RAW_DATA_DIR / "wis2_soundings")
 weather_map_catalog = WeatherMapCatalog(
     config_path=WEATHER_MAP_CONFIG_PATH,
     catalog_path=WEATHER_MAP_CATALOG_PATH,
@@ -391,7 +393,13 @@ async def current_cyclones() -> dict[str, object]:
                     "central_pressure_hpa": None, "maximum_wind_ms": round(float(severity.get("severity", 0)) / 3.6, 1) if severity.get("severityunit") == "km/h" else None,
                     "source": props.get("url", {}).get("report", "https://www.gdacs.org/"), "confidence": "medium", "alert_level": props.get("alertlevel"),
                 })
-            return {"status": "available", "valid_at": valid_at.isoformat(), "systems": systems, "source_role": "GDACS-global-situational-reference", "disclaimer": "GDACS 是全球灾害态势参考层，不是 WNC 集合成员。"}
+            return {
+                "status": "available",
+                "valid_at": valid_at.isoformat(),
+                "systems": systems,
+                "source_role": "GDACS-global-situational-reference",
+                "disclaimer": "GDACS 是全球灾害态势参考层，不是 WNC 集合成员。",
+            }
         except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
             return {"status": "source_unavailable", "systems": [], "detail": nrl_error or str(exc), "valid_at": valid_at.isoformat()}
     return {
@@ -1696,6 +1704,10 @@ async def sounding_profile(
             detail="date cannot be in the future",
         )
 
+    try:
+        return wis2_archive.load_profile(station_id, sounding_date, cycle)
+    except (Wis2SoundingNotFound, OSError, ValueError, json.JSONDecodeError):
+        pass
     try:
         return wyoming_client.load_cached_profile(
             station_id=station_id,

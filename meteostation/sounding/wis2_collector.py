@@ -155,6 +155,25 @@ class Wis2SoundingCollector:
                 "notification": notification,
             },
         )
+        properties = notification.get("properties", {})
+        station_id = str(properties.get("station_identifier", "")) if isinstance(properties, dict) else ""
+        if station_id.isdigit() and len(station_id) == 5:
+            index_path = directory / "index.json"
+            index = load_json(index_path, default={"items": {}})
+            items = index.setdefault("items", {})
+            cycle_at = observed_at.replace(minute=0, second=0, microsecond=0)
+            key = f"{station_id}|{cycle_at.isoformat()}"
+            entries = items.setdefault(key, [])
+            record = {
+                "data_file": data_path.name,
+                "metadata_file": metadata_path.name,
+                "source_url": href,
+                "downloaded_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if not any(item.get("data_file") == data_path.name for item in entries):
+                entries.append(record)
+            index["updated_at"] = datetime.now(timezone.utc).isoformat()
+            write_json_atomic(index_path, index)
         self._record_download(len(content))
         return data_path
 
