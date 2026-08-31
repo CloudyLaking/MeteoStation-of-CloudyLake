@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from urllib.parse import urlencode
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -137,6 +138,16 @@ def analogs(
             + 0.30 * intensity_score
             + 0.15 * season_score
         )
+        coordinates = storm.get("points", [])
+        latitudes = [float(point["lat"]) for point in coordinates]
+        longitudes = [float(point["lon"]) for point in coordinates]
+        era5_query = urlencode({
+            "date": str(storm.get("start_time", ""))[:10],
+            "south": max(-90, min(latitudes, default=5) - 5),
+            "north": min(90, max(latitudes, default=35) + 5),
+            "west": max(-180, min(longitudes, default=100) - 7),
+            "east": min(180, max(longitudes, default=150) + 7),
+        })
         ranked.append(
             {
                 "sid": storm.get("sid"),
@@ -151,11 +162,8 @@ def analogs(
                 },
                 "track_distance_km": round(distance, 1),
                 "max_wind_kt": storm.get("max_wind_kt"),
-                "points": storm.get("points", []),
-                "era5_link": (
-                    "/reanalysis?date="
-                    + str(storm.get("start_time", ""))[:10]
-                ),
+                "points": coordinates,
+                "era5_link": "/reanalysis?" + era5_query,
             }
         )
     ranked.sort(key=lambda item: item["score"], reverse=True)

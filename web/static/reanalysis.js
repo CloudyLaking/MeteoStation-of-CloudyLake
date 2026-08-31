@@ -72,8 +72,13 @@ for (let hour = 0; hour < 24; hour += 1) {
   hourInput.append(option);
 }
 const initialDate = new Date(Date.now() - 7 * 86400_000);
-dateInput.value = initialDate.toISOString().slice(0, 10);
+const initialParameters = new URLSearchParams(window.location.search);
+dateInput.value = initialParameters.get("date") || initialDate.toISOString().slice(0, 10);
 dateInput.max = new Date(Date.now() - 5 * 86400_000).toISOString().slice(0, 10);
+for (const [name, input] of [["west", westInput], ["east", eastInput], ["south", southInput], ["north", northInput]]) {
+  const value = Number(initialParameters.get(name));
+  if (Number.isFinite(value)) input.value = String(value);
+}
 
 function initializeMap() {
   if (!window.L) return;
@@ -149,32 +154,58 @@ function renderField(result) {
   const titleLevel = result.pressure_hpa ? `${result.pressure_hpa} hPa ` : "";
   resultTitle.textContent = `${titleLevel}${result.field_label}`;
   resultMeta.textContent = `${result.valid_at.slice(0, 16).replace("T", " ")} UTC · ${result.minimum}—${result.maximum} ${result.unit}`;
-  const palette = [
-    [0, "#225ea8"], [0.22, "#5ba3c7"], [0.44, "#d8edf0"],
-    [0.58, "#fff4ad"], [0.76, "#f2c94c"], [1, "#126e68"],
-  ];
+  const palettes = {
+    temperature_2m: [[0,"#506f82"],[.28,"#9ec4c2"],[.5,"#f3eee7"],[.72,"#d9a083"],[1,"#9b514a"]],
+    temperature: [[0,"#506f82"],[.28,"#9ec4c2"],[.5,"#f3eee7"],[.72,"#d9a083"],[1,"#9b514a"]],
+    mean_sea_level_pressure: [[0,"#7d6898"],[.35,"#c9bfd3"],[.52,"#f4f1eb"],[.72,"#c4b19b"],[1,"#9b514a"]],
+    cape: [[0,"#fbfbf8"],[.18,"#e4eee9"],[.42,"#d7bd87"],[.7,"#c8795d"],[1,"#7e3d46"]],
+    relative_humidity: [[0,"#b5a89c"],[.35,"#eeeae4"],[.62,"#a8cfca"],[1,"#126e68"]],
+    geopotential_height: [[0,"#5a7183"],[.34,"#a7c6c1"],[.55,"#efe9df"],[.76,"#b394a8"],[1,"#78546d"]],
+    wind_speed: [[0,"#f3f0eb"],[.3,"#a9cec7"],[.58,"#7d6898"],[.8,"#c8795d"],[1,"#8e4345"]],
+  };
+  const palette = palettes[result.field_id] || palettes.geopotential_height;
+  const range = Math.max(0.001, result.maximum - result.minimum);
+  const rawStep = range / 12;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  const contourStep = (normalized <= 1.5 ? 1 : normalized <= 3.5 ? 2 : normalized <= 7.5 ? 5 : 10) * magnitude;
   const longitudeSpan = Math.max(0.25, result.longitude.at(-1) - result.longitude[0]);
   const latitudeSpan = Math.max(0.25, result.latitude.at(-1) - result.latitude[0]);
   const meanLatitude = (result.latitude.at(-1) + result.latitude[0]) / 2;
   const geographicRatio = longitudeSpan * Math.max(0.2, Math.cos(meanLatitude * Math.PI / 180)) / latitudeSpan;
   plot.style.height = `${Math.round(clamp(plot.clientWidth / Math.max(0.7, geographicRatio) + 110, 430, 760))}px`;
-  window.Plotly.react(plot, [{
+  const traces = [{
     type: "contour",
     x: result.longitude,
     y: result.latitude,
     z: result.values,
     colorscale: palette,
-    contours: { coloring: "heatmap", showlabels: true, labelfont: { size: 11, color: "#20343e" } },
+    contours: { coloring: "heatmap", start: Math.floor(result.minimum / contourStep) * contourStep, end: Math.ceil(result.maximum / contourStep) * contourStep, size: contourStep, showlabels: true, labelfont: { size: 10, color: "#20343e" } },
     line: { width: 0.65, color: "rgba(26,54,66,.54)", smoothing: 0.85 },
     colorbar: { title: { text: result.unit }, thickness: 15, outlinewidth: 1, len: 0.82 },
-    hovertemplate: "Lon %{x:.2f}°<br>Lat %{y:.2f}°<br>%{z:.2f} " + result.unit + "<extra></extra>",
-  }], {
+    hovertemplate: "经度 %{x:.2f}°<br>纬度 %{y:.2f}°<br>数值 %{z:.2f} " + result.unit + "<extra></extra>",
+  }];
+  const arrows = [];
+  if (result.u_wind && result.v_wind) {
+    const rowStep = Math.max(1, Math.ceil(result.latitude.length / 16));
+    const colStep = Math.max(1, Math.ceil(result.longitude.length / 22));
+    for (let row = 0; row < result.latitude.length; row += rowStep) {
+      for (let column = 0; column < result.longitude.length; column += colStep) {
+        const u = Number(result.u_wind[row][column]), v = Number(result.v_wind[row][column]);
+        const speed = Math.hypot(u, v);
+        if (!Number.isFinite(speed) || speed < .1) continue;
+        const scale = Math.min(2.2, 1.1 / speed);
+        arrows.push({ x: result.longitude[column], y: result.latitude[row], ax: result.longitude[column] - u * scale, ay: result.latitude[row] - v * scale, xref: "x", yref: "y", axref: "x", ayref: "y", showarrow: true, text: "", arrowhead: 2, arrowsize: .75, arrowwidth: 1, arrowcolor: "rgba(36,52,58,.72)" });
+      }
+    }
+  }
+  window.Plotly.react(plot, traces, {
     margin: { l: 58, r: 72, t: 38, b: 52 },
     paper_bgcolor: "#ffffff",
     plot_bgcolor: "#ffffff",
-    xaxis: { title: "Longitude", gridcolor: "#e5eceb", zeroline: false },
-    yaxis: { title: "Latitude", gridcolor: "#e5eceb", zeroline: false, scaleanchor: "x", scaleratio: 1 },
-    annotations: [{ text: "@CloudyLake", x: 1, y: 1.07, xref: "paper", yref: "paper", showarrow: false, xanchor: "right", font: { size: 12, color: "#263943" } }],
+    xaxis: { title: "经度", gridcolor: "#e5eceb", zeroline: false, ticksuffix: "°" },
+    yaxis: { title: "纬度", gridcolor: "#e5eceb", zeroline: false, scaleanchor: "x", scaleratio: 1, ticksuffix: "°" },
+    annotations: [...arrows, { text: "云海观象台", x: 1, y: 1.07, xref: "paper", yref: "paper", showarrow: false, xanchor: "right", font: { size: 11, color: "#263943" } }],
     dragmode: "zoom",
   }, {
     responsive: true,
@@ -231,3 +262,4 @@ form.addEventListener("submit", async (event) => {
 });
 
 initializeMap();
+updateMapFromBounds();

@@ -302,7 +302,7 @@ function renderGlyphTemplate(glyph, fontFamily) {
   return binaryFromImage(context.getImageData(0, 0, side, side).data, side, side);
 }
 
-function binaryFromImage(data, width, height) {
+function binaryFromImage(data, width, height, threshold = 150, lightText = false) {
   let minX = width;
   let maxX = -1;
   let minY = height;
@@ -315,7 +315,8 @@ function binaryFromImage(data, width, height) {
       const green = data[offset + 1];
       const blue = data[offset + 2];
       const alpha = data[offset + 3];
-      if (alpha > 100 && Math.max(red, green, blue) < 150) {
+      const luminance = red * .2126 + green * .7152 + blue * .0722;
+      if (alpha > 100 && (lightText ? luminance > threshold : luminance < threshold)) {
         count += 1;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x);
         minY = Math.min(minY, y); maxY = Math.max(maxY, y);
@@ -323,10 +324,10 @@ function binaryFromImage(data, width, height) {
     }
   }
   if (count < 3 || maxX < minX || maxY < minY) return null;
-  return normalizeBinary(data, width, height, minX, maxX, minY, maxY);
+  return normalizeBinary(data, width, height, minX, maxX, minY, maxY, threshold, lightText);
 }
 
-function normalizeBinary(data, width, height, minX, maxX, minY, maxY) {
+function normalizeBinary(data, width, height, minX, maxX, minY, maxY, threshold = 150, lightText = false) {
   const boxWidth = maxX - minX + 1;
   const boxHeight = maxY - minY + 1;
   // Contain-scale into the target cell (never wider/taller than the cell) so
@@ -346,7 +347,8 @@ function normalizeBinary(data, width, height, minX, maxX, minY, maxY) {
       const green = data[offset + 1];
       const blue = data[offset + 2];
       const alpha = data[offset + 3];
-      if (alpha > 100 && Math.max(red, green, blue) < 150) {
+      const luminance = red * .2126 + green * .7152 + blue * .0722;
+      if (alpha > 100 && (lightText ? luminance > threshold : luminance < threshold)) {
         out[(offsetY + y) * TARGET_W + offsetX + x] = 1;
       }
     }
@@ -432,14 +434,34 @@ function tickTextCandidates() {
   return candidates;
 }
 
-function segmentTickCharacters(region) {
-  const width = region.x1 - region.x0;
-  const height = region.y1 - region.y0;
-  const data = imageContext.getImageData(region.x0, region.y0, width, height).data;
+function otsuThreshold(data) {
+  const histogram = new Uint32Array(256);
+  let count = 0;
+  for (let offset = 0; offset < data.length; offset += 4) {
+    if (data[offset + 3] < 100) continue;
+    const value = Math.round(data[offset] * .2126 + data[offset + 1] * .7152 + data[offset + 2] * .0722);
+    histogram[value] += 1; count += 1;
+  }
+  let total = 0; for (let value = 0; value < 256; value += 1) total += value * histogram[value];
+  let backgroundWeight = 0, backgroundSum = 0, best = 150, maximum = -1;
+  for (let value = 0; value < 256; value += 1) {
+    backgroundWeight += histogram[value]; if (!backgroundWeight) continue;
+    const foregroundWeight = count - backgroundWeight; if (!foregroundWeight) break;
+    backgroundSum += value * histogram[value];
+    const backgroundMean = backgroundSum / backgroundWeight;
+    const foregroundMean = (total - backgroundSum) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
+    if (variance > maximum) { maximum = variance; best = value; }
+  }
+  return clamp(best, 45, 220);
+}
+
+function connectedCharacters(data, width, height, threshold, lightText) {
   const mask = new Uint8Array(width * height);
   for (let index = 0; index < mask.length; index += 1) {
     const offset = index * 4;
-    mask[index] = data[offset + 3] > 100 && Math.max(data[offset], data[offset + 1], data[offset + 2]) < 150 ? 1 : 0;
+    const luminance = data[offset] * .2126 + data[offset + 1] * .7152 + data[offset + 2] * .0722;
+    mask[index] = data[offset + 3] > 100 && (lightText ? luminance > threshold : luminance < threshold) ? 1 : 0;
   }
   const seen = new Uint8Array(mask.length);
   const characters = [];
@@ -486,8 +508,26 @@ function segmentTickCharacters(region) {
   return characters;
 }
 
+function segmentTickCharacters(region) {
+  const width = region.x1 - region.x0;
+  const height = region.y1 - region.y0;
+  const data = imageContext.getImageData(region.x0, region.y0, width, height).data;
+  const threshold = otsuThreshold(data);
+  const attempts = [false, true].map((lightText) => ({
+    characters: connectedCharacters(data, width, height, threshold, lightText),
+    lightText,
+    threshold,
+  }));
+  attempts.sort((left, right) => {
+    const score = (attempt) => attempt.characters.filter((item) => item.boxHeight >= 6 && item.boxHeight <= 80).length;
+    return score(right) - score(left);
+  });
+  return attempts[0];
+}
+
 function readTicksFromRegion(region) {
-  const characters = segmentTickCharacters(region);
+  const segmentation = segmentTickCharacters(region);
+  const characters = segmentation.characters;
   const recognized = [];
   for (const character of characters) {
     const data = imageContext.getImageData(
@@ -496,10 +536,10 @@ function readTicksFromRegion(region) {
       character.boxWidth,
       character.boxHeight,
     ).data;
-    const binary = binaryFromImage(data, character.boxWidth, character.boxHeight);
+    const binary = binaryFromImage(data, character.boxWidth, character.boxHeight, segmentation.threshold, segmentation.lightText);
     if (!binary) continue;
     const match = matchGlyph(binary);
-    if (match && match.score > 0.46) recognized.push({ ...character, glyph: match.glyph });
+    if (match && match.score > 0.43) recognized.push({ ...character, glyph: match.glyph, matchScore: match.score });
   }
   if (!recognized.length) return { ticks: [], side: region.side };
   const vertical = region.side === "left" || region.side === "right";
@@ -543,12 +583,16 @@ function readTicksFromRegion(region) {
     const position = vertical
       ? (region.y0 + centerY - state.crop.y) / state.crop.height
       : (region.x0 + centerX - state.crop.x) / state.crop.width;
-    ticks.push({ value, position: clamp(position, 0, 1), text });
+    const confidence = group.reduce((sum, character) => sum + character.matchScore, 0) / group.length;
+    ticks.push({ value, position: clamp(position, 0, 1), text, confidence });
   }
   const seenValues = new Set();
   const uniqueTicks = ticks.filter((tick) => !seenValues.has(tick.value) && seenValues.add(tick.value));
-  uniqueTicks.sort((a, b) => a.value - b.value);
-  return { ticks: uniqueTicks, side: region.side };
+  uniqueTicks.sort((a, b) => a.position - b.position);
+  const directions = uniqueTicks.slice(1).map((tick, index) => Math.sign(tick.value - uniqueTicks[index].value)).filter(Boolean);
+  const monotonic = directions.length < 2 || directions.every((value) => value === directions[0]);
+  const confidence = uniqueTicks.reduce((sum, tick) => sum + tick.confidence, 0) / Math.max(1, uniqueTicks.length);
+  return { ticks: uniqueTicks, side: region.side, quality: uniqueTicks.length * 2 + confidence + (monotonic ? 2 : -3) };
 }
 
 function readTicks() {
@@ -560,7 +604,7 @@ function readTicks() {
   let best = null;
   for (const region of candidates) {
     const result = readTicksFromRegion(region);
-    if (result.ticks.length > 0 && (!best || result.ticks.length > best.ticks.length)) best = result;
+    if (result.ticks.length > 0 && (!best || result.quality > best.quality)) best = result;
   }
   return best || { ticks: [], side: null };
 }
@@ -588,7 +632,8 @@ function applyReadTicks() {
   }
   const sideText = { left: "左侧", right: "右侧", top: "上方", bottom: "下方" }[result.side] || "";
   const boundaryValues = state.ticks.map((tick) => tick.value).join(", ");
-  ticksNote.textContent = `${sideText}识别到刻度：${boundaryValues}（${state.ticks.length} 个边界）→ 离散模式按真实边界采样并生成不等距 bounds。`;
+  const confidence = Math.round(state.ticks.reduce((sum, tick) => sum + (tick.confidence || 0), 0) / state.ticks.length * 100);
+  ticksNote.textContent = `${sideText}识别到刻度：${boundaryValues}（${state.ticks.length} 个边界，字符匹配 ${confidence}%）→ 已按真实位置自动采样。`;
   generatePalette();
 }
 
@@ -810,7 +855,7 @@ document.addEventListener("paste", (event) => {
   const item = [...event.clipboardData.items].find((entry) => entry.type.startsWith("image/"));
   if (item) loadImage(item.getAsFile());
 });
-autoButton.addEventListener("click", () => { autoDetectColorbar(); generatePalette(); });
+autoButton.addEventListener("click", () => { autoDetectColorbar(); generatePalette(); applyReadTicks(); });
 resetButton.addEventListener("click", () => {
   setCrop({ x: 0, y: 0, width: imageCanvas.width, height: imageCanvas.height }, "已使用整张图片。");
   generatePalette();

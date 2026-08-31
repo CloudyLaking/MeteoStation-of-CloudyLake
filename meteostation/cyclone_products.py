@@ -18,13 +18,55 @@ import numpy as np
 
 WNC_SOURCE = {
     "label": "WeatherNext Cyclones",
-    "source_url": "https://deepmind.google/blog/ai-model-achieves-breakthrough-in-forecasting-cyclones/",
+    "source_url": "https://deepmind.google/blog/weathernext-ai-model-achieves-breakthrough-in-forecasting-cyclones/",
     "weather_lab_url": "https://www.weatherlab.ai/",
     "member_target": 1000,
     "lead_time_hours": 360,
     "status": "not_configured",
     "detail": "No compliant local WNC feed or remote inference job is configured.",
 }
+
+
+def load_wnc_snapshot(path: Path) -> dict[str, Any]:
+    """Validate a compact WNC-derived product without accepting substitutes."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    source = str(payload.get("source", "")).casefold()
+    if "weathernext cyclones" not in source:
+        raise ValueError("snapshot source must explicitly be WeatherNext Cyclones")
+    members = int(payload["members"])
+    if not 1 <= members <= 1000:
+        raise ValueError("members must be between 1 and 1000")
+    systems = payload.get("systems")
+    if not isinstance(systems, list):
+        raise ValueError("systems must be a list")
+    normalized = []
+    for system in systems:
+        if not isinstance(system, dict) or not system.get("system_id"):
+            raise ValueError("every system needs a system_id")
+        clusters = system.get("clusters", [])
+        if not isinstance(clusters, list):
+            raise ValueError("clusters must be a list")
+        for cluster in clusters:
+            points = cluster.get("representative_track", [])
+            if not isinstance(points, list) or any("lat" not in point or "lon" not in point for point in points):
+                raise ValueError("cluster representative tracks need lat/lon points")
+        normalized.append({
+            "system_id": str(system["system_id"]),
+            "name": system.get("name"),
+            "basin": system.get("basin"),
+            "identity_confidence": system.get("identity_confidence"),
+            "genesis_probability": system.get("genesis_probability"),
+            "clusters": clusters,
+        })
+    return {
+        "source": payload["source"],
+        "source_url": payload.get("source_url", WNC_SOURCE["source_url"]),
+        "initialized_at": payload.get("initialized_at"),
+        "members": members,
+        "systems": normalized,
+        "system_count": len(normalized),
+        "storage_class": "derived-track-product",
+    }
 
 
 def _utc(value: str | datetime) -> datetime:
@@ -126,11 +168,8 @@ def cyclone_capability_report(project_root: Path) -> dict[str, Any]:
     if not path.exists():
         return report
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        members = int(payload["members"])
-        if members < 1 or members > 1000:
-            raise ValueError("members must be between 1 and 1000")
-        report.update({"status": "available", "members": members, "snapshot": path.relative_to(project_root).as_posix(), "initialized_at": payload.get("initialized_at")})
+        payload = load_wnc_snapshot(path)
+        report.update({"status": "available", "members": payload["members"], "systems": payload["system_count"], "snapshot": path.relative_to(project_root).as_posix(), "initialized_at": payload.get("initialized_at")})
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
         report.update({"status": "invalid", "detail": str(exc)})
     return report

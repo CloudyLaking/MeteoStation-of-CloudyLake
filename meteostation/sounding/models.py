@@ -56,6 +56,18 @@ class ThermodynamicDiagnosticLevel(BaseModel):
     equivalent_potential_temperature_k: float
 
 
+class SoundingStructure(BaseModel):
+    kind: Literal["inversion", "moist_layer", "dry_layer", "low_level_jet", "tropopause"]
+    label: str
+    bottom_pressure_hpa: float
+    top_pressure_hpa: float
+    bottom_height_agl_m: float | None = None
+    top_height_agl_m: float | None = None
+    strength: float | None = None
+    confidence: Literal["高", "中", "低"]
+    summary: str
+
+
 class SoundingDiagnostics(BaseModel):
     station_id: str = Field(pattern=r"^\d{5}$")
     valid_at: datetime
@@ -95,6 +107,7 @@ class SoundingDiagnostics(BaseModel):
     critical_angle_deg: float | None = None
     significant_tornado_fixed: float | None = None
     lapse_rate_700_500_c_km: float | None = None
+    structures: list[SoundingStructure] = Field(default_factory=list)
     levels: list[ThermodynamicDiagnosticLevel]
 
 

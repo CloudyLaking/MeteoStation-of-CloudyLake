@@ -364,7 +364,7 @@ function renderForecast(data, model) {
     points,
     includeDateLabels: true,
     accumulationLines: [
-      `未来24h累计降水量: ${accumulated(Math.round(24 / cadence)).toFixed(1)} mm`,
+      `未来24 小时累计降水量: ${accumulated(Math.round(24 / cadence)).toFixed(1)} mm`,
       `未来48h累计降水量: ${accumulated(Math.round(48 / cadence)).toFixed(1)} mm`,
       `未来72h累计降水量: ${accumulated(points.length).toFixed(1)} mm`,
     ],

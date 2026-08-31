@@ -22,7 +22,7 @@ MODEL_CATALOG: dict[str, dict[str, Any]] = {
     "aifs-ens": {
         "label": "AIFS ENS",
         "provider": "ECMWF",
-        "source_url": "https://www.ecmwf.int/en/forecasts/datasets/set-x",
+        "source_url": "https://www.ecmwf.int/en/forecasts/datasets/aifs-machine-learning-data",
         "members": 51,
         "cycle_hours": [0, 6, 12, 18],
         "native_steps": list(range(0, 361, 6)),

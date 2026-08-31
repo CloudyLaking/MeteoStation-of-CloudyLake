@@ -30,6 +30,7 @@ from .models import (
     SoundingCorrectionInput,
     SoundingLevel,
     SoundingProfile,
+    SoundingStructure,
     ThermodynamicDiagnosticLevel,
 )
 
@@ -205,6 +206,7 @@ def calculate_sounding_diagnostics(
         shear_0_6km=wind_diagnostics["shear_0_6km"],
     )
     lapse_rate = lapse_rate_700_500(usable_levels)
+    structures = identify_vertical_structures(usable_levels)
 
     levels = [
         ThermodynamicDiagnosticLevel(
@@ -284,8 +286,120 @@ def calculate_sounding_diagnostics(
         critical_angle_deg=wind_diagnostics["critical_angle"],
         significant_tornado_fixed=fixed_stp,
         lapse_rate_700_500_c_km=lapse_rate,
+        structures=structures,
         levels=levels,
     )
+
+
+def identify_vertical_structures(levels: list[SoundingLevel]) -> list[SoundingStructure]:
+    """Identify readable vertical features from observed levels only.
+
+    The thresholds are deliberately conservative.  Results are diagnostic
+    hints with an explicit confidence, rather than categorical forecasts.
+    """
+    ordered = sorted(
+        [level for level in levels if level.temperature_c is not None],
+        key=lambda level: level.pressure_hpa,
+        reverse=True,
+    )
+    if len(ordered) < 3:
+        return []
+    surface_height = next(
+        (float(level.geopotential_height_m) for level in ordered if level.geopotential_height_m is not None),
+        0.0,
+    )
+
+    def height(level: SoundingLevel) -> float:
+        if level.geopotential_height_m is not None:
+            return float(level.geopotential_height_m) - surface_height
+        return 8434.5 * math.log(ordered[0].pressure_hpa / level.pressure_hpa)
+
+    def humidity(level: SoundingLevel) -> float | None:
+        if level.relative_humidity_pct is not None:
+            return float(level.relative_humidity_pct)
+        if level.dewpoint_c is None or level.temperature_c is None:
+            return None
+        saturation = math.exp(17.625 * level.temperature_c / (243.04 + level.temperature_c))
+        actual = math.exp(17.625 * level.dewpoint_c / (243.04 + level.dewpoint_c))
+        return max(0.0, min(100.0, 100.0 * actual / saturation))
+
+    found: list[SoundingStructure] = []
+
+    # Merge adjacent layers that share the same humidity regime.
+    for kind, label, predicate in (
+        ("moist_layer", "湿层", lambda value: value >= 80),
+        ("dry_layer", "干层", lambda value: value <= 30),
+    ):
+        start: int | None = None
+        for index, level in enumerate(ordered + [ordered[-1]]):
+            value = humidity(level) if index < len(ordered) else None
+            active = value is not None and predicate(value)
+            if active and start is None:
+                start = index
+            if start is not None and (not active or index == len(ordered) - 1):
+                end = index if active else index - 1
+                bottom, top = ordered[start], ordered[end]
+                depth = height(top) - height(bottom)
+                if end > start and depth >= 300:
+                    values = [humidity(item) for item in ordered[start:end + 1]]
+                    mean = sum(value for value in values if value is not None) / len([value for value in values if value is not None])
+                    found.append(SoundingStructure(
+                        kind=kind, label=label,
+                        bottom_pressure_hpa=bottom.pressure_hpa, top_pressure_hpa=top.pressure_hpa,
+                        bottom_height_agl_m=round(height(bottom)), top_height_agl_m=round(height(top)),
+                        strength=round(mean, 1), confidence="高" if len(values) >= 3 else "中",
+                        summary=f"{round(height(bottom))}—{round(height(top))} 米，相对湿度均值约 {mean:.0f}%",
+                    ))
+                start = None
+
+    # Temperature increase with height across at least one reported layer.
+    for lower, upper in zip(ordered, ordered[1:]):
+        depth = height(upper) - height(lower)
+        warming = float(upper.temperature_c) - float(lower.temperature_c)
+        if 80 <= depth <= 2500 and warming >= 1.5:
+            found.append(SoundingStructure(
+                kind="inversion", label="逆温层",
+                bottom_pressure_hpa=lower.pressure_hpa, top_pressure_hpa=upper.pressure_hpa,
+                bottom_height_agl_m=round(height(lower)), top_height_agl_m=round(height(upper)),
+                strength=round(warming, 1), confidence="高" if warming >= 3 else "中",
+                summary=f"{round(height(lower))}—{round(height(upper))} 米，升温 {warming:.1f} ℃",
+            ))
+
+    # Local wind maximum below 3 km with a meaningful decrease above it.
+    wind_levels = [(index, level) for index, level in enumerate(ordered) if level.wind_speed_ms is not None and height(level) <= 3000]
+    if len(wind_levels) >= 3:
+        peak_index, peak = max(wind_levels, key=lambda item: float(item[1].wind_speed_ms))
+        above = [level for level in ordered[peak_index + 1:] if level.wind_speed_ms is not None and height(level) <= 4500]
+        decrease = float(peak.wind_speed_ms) - min((float(level.wind_speed_ms) for level in above), default=float(peak.wind_speed_ms))
+        if float(peak.wind_speed_ms) >= 12 and decrease >= 4:
+            found.append(SoundingStructure(
+                kind="low_level_jet", label="低空急流",
+                bottom_pressure_hpa=peak.pressure_hpa, top_pressure_hpa=peak.pressure_hpa,
+                bottom_height_agl_m=round(height(peak)), top_height_agl_m=round(height(peak)),
+                strength=round(float(peak.wind_speed_ms), 1), confidence="高" if decrease >= 7 else "中",
+                summary=f"约 {round(height(peak))} 米风速峰值 {float(peak.wind_speed_ms):.1f} 米/秒",
+            ))
+
+    # First level above 7 km followed by a 2 km mean lapse rate <= 2 °C/km.
+    for index, lower in enumerate(ordered[:-1]):
+        lower_height = height(lower)
+        if lower_height < 7000:
+            continue
+        candidates = [upper for upper in ordered[index + 1:] if height(upper) - lower_height >= 1800]
+        if not candidates:
+            continue
+        upper = candidates[0]
+        lapse = (float(lower.temperature_c) - float(upper.temperature_c)) / ((height(upper) - lower_height) / 1000)
+        if lapse <= 2:
+            found.append(SoundingStructure(
+                kind="tropopause", label="对流层顶候选",
+                bottom_pressure_hpa=lower.pressure_hpa, top_pressure_hpa=upper.pressure_hpa,
+                bottom_height_agl_m=round(lower_height), top_height_agl_m=round(height(upper)),
+                strength=round(lapse, 1), confidence="中" if len(ordered[index:]) >= 3 else "低",
+                summary=f"约 {round(lower_height)} 米起，向上约 2 千米平均递减率 {lapse:.1f} ℃/千米",
+            ))
+            break
+    return sorted(found, key=lambda item: item.bottom_height_agl_m or 0)
 
 
 def safe_quantity_pair(

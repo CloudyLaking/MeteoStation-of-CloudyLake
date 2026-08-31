@@ -80,7 +80,7 @@ async function loadWorldSoundingStations() {
           fillOpacity: 0.82,
         },
       );
-      marker.bindTooltip(`${station.display_name} · WMO ${station.wmo_id}`, {
+      marker.bindTooltip(`${station.display_name} · 站号 ${station.wmo_id}`, {
         direction: "top",
         offset: [0, -4],
       });
@@ -91,7 +91,7 @@ async function loadWorldSoundingStations() {
           move: false,
           updateInput: false,
         });
-        worldCoordinate.textContent = `${station.display_name} · WMO ${station.wmo_id} · 已选择探空站`;
+        worldCoordinate.textContent = `${station.display_name} · 站号 ${station.wmo_id} · 已选择探空站`;
       });
       worldStationLayer.addLayer(marker);
     }
@@ -133,7 +133,7 @@ function openProfile(payload) {
     stationName: payload.station_name,
     meta:
       `${payload.requested_location} · ${model} · +${payload.step_hours} h · ` +
-      `${validAt} UTC · ${payload.profile.level_count} forecast levels`,
+      `${validAt} 世界时 · ${payload.profile.level_count} 个预报层`,
     rawUrl: null,
   });
 }
@@ -216,7 +216,7 @@ forecastForm.addEventListener("submit", async (event) => {
     forecastTitle.textContent =
       `${payload.station_name} · ${model.toUpperCase()} +${payload.step_hours} h`;
     forecastSource.textContent =
-      `${validAt} UTC · ${payload.profile.source} · ` +
+      `${validAt} 世界时 · ${payload.profile.source} · ` +
       `${payload.profile.station_latitude.toFixed(3)}, ` +
       `${payload.profile.station_longitude.toFixed(3)}`;
     forecastSection.hidden = false;

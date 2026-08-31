@@ -6,9 +6,9 @@
   <meta name="description" content="基于西北太平洋历史台风路径、强度和季节的相似案例检索，并联动历史再分析。"/>
   <title>历史相似台风 · 云海观象台</title>
   <link rel="icon" href="/brand/logo-cn-blue.png"/>
-  <link rel="stylesheet" href="/static/styles.css?v=2.3.5-0831f"/>
-  <script src="/static/site.js?v=2.3.5-0831f" defer></script>
-  <script src="/static/history-similar.js?v=2.3.2-0831c" defer></script>
+  <link rel="stylesheet" href="/static/styles.css?v=2.4.0-0831a"/>
+  <script src="/static/site.js?v=2.4.0-0831a" defer></script>
+  <script src="/static/history-similar.js?v=2.4.0-0831a" defer></script>
 </head>
 <body class="luna-page">
   <header></header>
@@ -26,6 +26,11 @@
           <button type="submit">查找案例</button>
         </form>
         <div id="history-search-results" class="history-search-results"></div>
+        <section class="history-track-view" id="history-track-view" hidden>
+          <header><h3>目标与相似路径</h3><p>砖红为目标台风，其他颜色为前五个相似案例；经度已自动处理日期变更线。</p></header>
+          <div id="history-track-map" role="img" aria-label="目标台风与历史相似台风路径地图"></div>
+          <div id="history-track-legend"></div>
+        </section>
         <div id="history-analog-results" class="history-analog-results"></div>
       </div>
       <a href="/reanalysis">打开历史再分析 →</a>

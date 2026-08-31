@@ -6,9 +6,9 @@
     <meta name="description" content="从色条截图提取配色并转换为 Matplotlib、Plotly、CSS 或 JSON 代码。" />
     <title>色条翻译器 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.5-0831f" />
-    <script src="/static/site.js?v=2.3.5-0831f" defer></script>
-    <script src="/static/colorbar-translator.js?v=2.2.1-0810a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.0-0831a" />
+    <script src="/static/site.js?v=2.4.0-0831a" defer></script>
+    <script src="/static/colorbar-translator.js?v=2.4.0-0831a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -96,9 +96,9 @@
       <section class="product-notes" aria-labelledby="translator-method-heading">
         <header><h2 id="translator-method-heading">使用说明</h2></header>
         <div>
-          <article><h3>提取方法</h3><p>对框选区域沿色条方向等距采样，并在色条短轴中部取多点中值，以减弱边框、刻度线和压缩噪声影响。</p></article>
+          <article><h3>提取方法</h3><p>载入图片后自动寻找色带和四周刻度；自适应识别深色或浅色数字，再沿色条方向采样并用短轴多点中值减弱噪声。</p></article>
           <article><h3>框选建议</h3><p>自动识别后仍可重新拖动框选。尽量只保留有颜色的矩形条，避开数字、标题、三角延伸端和大块背景。</p></article>
-          <article><h3>输出说明</h3><p>连续模式生成渐变色标，离散模式生成分级颜色与边界。最小值和最大值仅用于数值映射，不参与图片识别。</p></article>
+          <article><h3>输出说明</h3><p>连续模式生成渐变色标，离散模式按识别到的真实刻度位置生成不等距边界；低置信度时仍可手动修正。</p></article>
         </div>
       </section>
     </main>

@@ -18,6 +18,7 @@ const profileClose = document.querySelector("#profile-close");
 const levelPressure = document.querySelector("#level-pressure");
 const levelHeight = document.querySelector("#level-height");
 const levelValues = document.querySelector("#level-values");
+const soundingStructuresList = document.querySelector("#sounding-structures-list");
 const exportButtons = document.querySelectorAll("[data-export]");
 const weatherMapButtons = document.querySelectorAll("[data-map-layer]");
 const stationDisplayButtons = document.querySelectorAll("[data-station-display]");
@@ -169,7 +170,7 @@ async function selectLatestWeatherMapCycle() {
     cycleButtons.forEach((button) => {
       button.classList.toggle("is-active", button.dataset.cycle === cycle);
     });
-    archiveNote.textContent = `${archiveDate.value} ${cycle} UTC · 最近完整分析`;
+    archiveNote.textContent = `${archiveDate.value} ${cycle} 世界时 · 最近完整分析`;
   } catch {
     // Exact-date loading below still provides an explicit status on failure.
   }
@@ -611,7 +612,7 @@ function selectedCycle() {
 }
 
 function updateArchiveNote() {
-  archiveNote.textContent = `${archiveDate.value} ${selectedCycle()} UTC · 读取已保存产品`;
+  archiveNote.textContent = `${archiveDate.value} ${selectedCycle()} 世界时 · 读取已保存产品`;
   nextDay.disabled = archiveDate.value >= archiveDate.max;
   currentSounding = null;
   soundingResult.hidden = true;
@@ -668,7 +669,7 @@ stationForm?.addEventListener("submit", async (event) => {
   soundingResult.innerHTML = `
     <span class="sounding-result__label">正在读取探空资料</span>
     <strong>${stationId}</strong>
-    <p>正在查询 ${archiveDate.value} ${cycle} UTC 的廓线。</p>
+    <p>正在查询 ${archiveDate.value} ${cycle} 世界时的廓线。</p>
   `;
 
   try {
@@ -706,7 +707,7 @@ stationForm?.addEventListener("submit", async (event) => {
       query: query.toString(),
       diagnostics,
       corrected: null,
-      stationName: station?.display_name ?? `WMO ${stationId}`,
+      stationName: station?.display_name ?? `站号 ${stationId}`,
     };
     populateCorrectionFields(data);
     renderSoundingSummary();
@@ -747,7 +748,7 @@ stationForm?.elements.station?.addEventListener("input", () => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "station-suggestion";
-        button.innerHTML = `<strong>${escapeHtml(station.display_name)}</strong><small>WMO ${escapeHtml(station.wmo_id)} · ${Number(station.latitude).toFixed(2)}, ${Number(station.longitude).toFixed(2)}</small>`;
+        button.innerHTML = `<strong>${escapeHtml(station.display_name)}</strong><small>站号 ${escapeHtml(station.wmo_id)} · ${Number(station.latitude).toFixed(2)}, ${Number(station.longitude).toFixed(2)}</small>`;
         button.addEventListener("click", () => {
           stationForm.elements.station.value = station.wmo_id;
           soundingStationOptions.hidden = true;
@@ -785,7 +786,7 @@ function renderSoundingSummary() {
   };
   soundingResult.innerHTML = `
     <span class="sounding-result__label">探空资料 · ${cacheLabel}</span>
-    <strong>${escapeHtml(currentSounding.stationName ?? `WMO ${data.station_id}`)} · ${data.station_id} · ${cycle} UTC</strong>
+    <strong>${escapeHtml(currentSounding.stationName ?? `站号 ${data.station_id}`)} · ${data.station_id} · ${cycle} 世界时</strong>
     <dl>
       <div><dt>垂直层数</dt><dd>${data.level_count}</dd></div>
       <div><dt>地面气压</dt><dd>${formatNumber(data.surface_pressure_hpa, 1)} hPa</dd></div>
@@ -804,9 +805,10 @@ function renderSelectedView() {
   const data = activeProfile();
   const diagnostics = activeDiagnostics();
   const stationName = currentSounding.stationName
-    ?? (stationId === "58362" ? "Baoshan, Shanghai" : `WMO ${stationId}`);
+    ?? (stationId === "58362" ? "上海宝山" : `站号 ${stationId}`);
   profileWorkspaceMeta.textContent = currentSounding.meta
-    ?? `${stationName} · WMO ${stationId} · ${archiveDate.value} ${cycle} UTC · ${data.level_count} observed levels`;
+    ?? `${stationName} · 站号 ${stationId} · ${archiveDate.value} ${cycle} 世界时 · ${data.level_count} 个实测层`;
+  renderSoundingStructures(diagnostics?.structures ?? []);
   if (rawDownload) {
     rawDownload.hidden = !currentSounding.rawUrl && !query;
     rawDownload.href = currentSounding.rawUrl
@@ -826,6 +828,20 @@ function renderSelectedView() {
   profileView.hidden = false;
   sourceTableWrap.hidden = true;
   renderProfileChart(data, selectedView, stationName, diagnostics);
+}
+
+function renderSoundingStructures(structures) {
+  if (!soundingStructuresList) return;
+  if (!structures.length) {
+    soundingStructuresList.innerHTML = "<p>当前层次未达到保守识别阈值；这不表示结构一定不存在。</p>";
+    return;
+  }
+  soundingStructuresList.replaceChildren(...structures.map((structure) => {
+    const article = document.createElement("article");
+    article.dataset.kind = structure.kind;
+    article.innerHTML = `<div><strong>${escapeHtml(structure.label)}</strong><b>${escapeHtml(structure.confidence)}可信度</b></div><p>${escapeHtml(structure.summary)}</p><small>${formatNumber(structure.bottom_pressure_hpa, 0)}—${formatNumber(structure.top_pressure_hpa, 0)} hPa</small>`;
+    return article;
+  }));
 }
 
 function activeProfile() {
@@ -926,7 +942,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-size": "12.5",
       "letter-spacing": "0.5",
     },
-    `WMO ${profile.station_id}  |  ${formatUtc(profile.valid_at)}  |  ${profile.level_count} levels  |  ${profile.source}`,
+    `站号 ${profile.station_id}  |  ${formatUtc(profile.valid_at)}  |  ${profile.level_count} 个实测层  |  ${profile.source}`,
   );
   appendSvg(
     "text",
@@ -1109,7 +1125,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-weight": "650",
       "text-anchor": "middle",
     },
-    "RH / CLOUD",
+    "湿度 / 云层参考",
   );
   appendSvg(
     "text",
@@ -1121,7 +1137,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-weight": "650",
       "text-anchor": "middle",
     },
-    "WIND m/s",
+    "风速 米/秒",
   );
   appendSvg(
     "text",
@@ -1133,7 +1149,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-weight": "700",
       "text-anchor": "middle",
     },
-    "BARBS",
+    "风羽",
   );
   drawChartLegend();
 
@@ -1612,7 +1628,7 @@ function drawHodograph(levels, diagnostics) {
       "font-weight": "700",
       "letter-spacing": "0.5",
     },
-    "HODOGRAPH / GROUND RELATIVE",
+    "风矢端图 / 地面相对",
   );
 
   const windLevels = levels
@@ -2223,9 +2239,9 @@ function drawChartLegend() {
     ["Td", "#267d70", ""],
     ["Tw", "#3d9fc4", ""],
     ["Tv", "#8463a6", "7 4"],
-    ["Parcel", "#d39143", "3 4"],
-    ["CAPE", "#eaa66c", ""],
-    ["CIN", "#77a7c9", ""],
+    ["气块", "#d39143", "3 4"],
+    ["正浮力", "#eaa66c", ""],
+    ["负浮力", "#77a7c9", ""],
   ];
   let x = 250;
   entries.forEach(([label, color, dash]) => {
@@ -2235,9 +2251,9 @@ function drawChartLegend() {
       y1: 67,
       y2: 67,
       stroke: color,
-      "stroke-width": label === "CAPE" || label === "CIN" ? "6" : "2",
+      "stroke-width": label === "正浮力" || label === "负浮力" ? "6" : "2",
       "stroke-dasharray": dash,
-      opacity: label === "CAPE" || label === "CIN" ? "0.55" : "1",
+      opacity: label === "正浮力" || label === "负浮力" ? "0.55" : "1",
     });
     appendSvg(
       "text",
@@ -2249,7 +2265,7 @@ function drawChartLegend() {
       },
       label,
     );
-    x += label === "Parcel" ? 86 : 66;
+    x += label === "气块" ? 86 : 66;
   });
 }
 
@@ -2277,7 +2293,7 @@ function drawDiagnosticColumn(diagnostics) {
       "font-weight": "700",
       "letter-spacing": "0.6",
     },
-    "CONVECTIVE DIAGNOSTICS",
+    "对流诊断",
   );
   appendSvg("line", {
     x1: left,
@@ -2298,7 +2314,7 @@ function drawDiagnosticColumn(diagnostics) {
         "font-size": "11",
         "text-anchor": "middle",
       },
-      "Unavailable",
+      "暂无诊断",
     );
     drawConvectiveToneLegend();
     return;
@@ -2313,15 +2329,15 @@ function drawDiagnosticColumn(diagnostics) {
   const firstY = top + 44;
   const secondY = firstY + groupHeight + gap;
   drawDiagnosticGroup(
-    "PARCEL ENERGETICS",
+    "气块能量",
     [
-      ["cape", "SBCAPE", diagnostics.cape_j_kg, `${formatNumber(diagnostics.cape_j_kg, 0)} J/kg`],
-      ["cin", "SBCIN", diagnostics.cin_j_kg, `${formatNumber(diagnostics.cin_j_kg, 0)} J/kg`],
-      ["cape", "MLCAPE", diagnostics.mixed_layer_cape_j_kg, `${formatNumber(diagnostics.mixed_layer_cape_j_kg, 0)} J/kg`],
-      ["cin", "MLCIN", diagnostics.mixed_layer_cin_j_kg, `${formatNumber(diagnostics.mixed_layer_cin_j_kg, 0)} J/kg`],
-      ["cape", "MUCAPE", diagnostics.most_unstable_cape_j_kg, `${formatNumber(diagnostics.most_unstable_cape_j_kg, 0)} J/kg`],
-      ["cin", "MUCIN", diagnostics.most_unstable_cin_j_kg, `${formatNumber(diagnostics.most_unstable_cin_j_kg, 0)} J/kg`],
-      ["dcape", "DCAPE", diagnostics.dcape_j_kg, `${formatNumber(diagnostics.dcape_j_kg, 0)} J/kg`],
+      ["cape", "地面气块正能", diagnostics.cape_j_kg, `${formatNumber(diagnostics.cape_j_kg, 0)} J/kg`],
+      ["cin", "地面气块抑制", diagnostics.cin_j_kg, `${formatNumber(diagnostics.cin_j_kg, 0)} J/kg`],
+      ["cape", "混合层正能", diagnostics.mixed_layer_cape_j_kg, `${formatNumber(diagnostics.mixed_layer_cape_j_kg, 0)} J/kg`],
+      ["cin", "混合层抑制", diagnostics.mixed_layer_cin_j_kg, `${formatNumber(diagnostics.mixed_layer_cin_j_kg, 0)} J/kg`],
+      ["cape", "最不稳定正能", diagnostics.most_unstable_cape_j_kg, `${formatNumber(diagnostics.most_unstable_cape_j_kg, 0)} J/kg`],
+      ["cin", "最不稳定抑制", diagnostics.most_unstable_cin_j_kg, `${formatNumber(diagnostics.most_unstable_cin_j_kg, 0)} J/kg`],
+      ["dcape", "下沉对流能", diagnostics.dcape_j_kg, `${formatNumber(diagnostics.dcape_j_kg, 0)} J/kg`],
     ],
     firstX,
     firstY,
@@ -2329,14 +2345,14 @@ function drawDiagnosticColumn(diagnostics) {
     groupHeight,
   );
   drawDiagnosticGroup(
-    "LEVELS / MOISTURE",
+    "高度与水汽",
     [
-      ["lclHeight", "LCL AGL", diagnostics.lcl_height_agl_m, `${formatNumber(diagnostics.lcl_height_agl_m, 0)} m`],
-      ["lfcHeight", "LFC AGL", diagnostics.lfc_height_agl_m, `${formatNumber(diagnostics.lfc_height_agl_m, 0)} m`],
-      ["elHeight", "EL AGL", diagnostics.equilibrium_level_height_agl_m, `${formatNumber(diagnostics.equilibrium_level_height_agl_m, 0)} m`],
-      ["freezing", "0 °C AMSL", diagnostics.freezing_level_height_m, `${formatNumber(diagnostics.freezing_level_height_m, 0)} m`],
-      ["pwat", "PWAT", diagnostics.precipitable_water_mm, `${formatNumber(diagnostics.precipitable_water_mm, 1)} mm`],
-      ["lapse", "700–500 LAPSE", diagnostics.lapse_rate_700_500_c_km, `${formatNumber(diagnostics.lapse_rate_700_500_c_km, 1)} °C/km`],
+      ["lclHeight", "抬升凝结高度", diagnostics.lcl_height_agl_m, `${formatNumber(diagnostics.lcl_height_agl_m, 0)} m`],
+      ["lfcHeight", "自由对流高度", diagnostics.lfc_height_agl_m, `${formatNumber(diagnostics.lfc_height_agl_m, 0)} m`],
+      ["elHeight", "平衡高度", diagnostics.equilibrium_level_height_agl_m, `${formatNumber(diagnostics.equilibrium_level_height_agl_m, 0)} m`],
+      ["freezing", "零度层海拔", diagnostics.freezing_level_height_m, `${formatNumber(diagnostics.freezing_level_height_m, 0)} m`],
+      ["pwat", "整层可降水量", diagnostics.precipitable_water_mm, `${formatNumber(diagnostics.precipitable_water_mm, 1)} mm`],
+      ["lapse", "700—500递减率", diagnostics.lapse_rate_700_500_c_km, `${formatNumber(diagnostics.lapse_rate_700_500_c_km, 1)} °C/km`],
     ],
     secondX,
     firstY,
@@ -2344,16 +2360,16 @@ function drawDiagnosticColumn(diagnostics) {
     groupHeight,
   );
   drawDiagnosticGroup(
-    "WIND / HODOGRAPH",
+    "风场与风矢端图",
     [
       ["shear", "SHR 0–1 km", diagnostics.bulk_shear_0_1km_ms, `${formatNumber(diagnostics.bulk_shear_0_1km_ms, 1)} m/s`],
       ["shear", "SHR 0–3 km", diagnostics.bulk_shear_0_3km_ms, `${formatNumber(diagnostics.bulk_shear_0_3km_ms, 1)} m/s`],
       ["shear", "SHR 0–6 km", diagnostics.bulk_shear_0_6km_ms, `${formatNumber(diagnostics.bulk_shear_0_6km_ms, 1)} m/s`],
       ["srh", "SRH 0–1 km", diagnostics.storm_relative_helicity_0_1km_m2_s2, `${formatNumber(diagnostics.storm_relative_helicity_0_1km_m2_s2, 0)} m²/s²`],
       ["srh", "SRH 0–3 km", diagnostics.storm_relative_helicity_0_3km_m2_s2, `${formatNumber(diagnostics.storm_relative_helicity_0_3km_m2_s2, 0)} m²/s²`],
-      ["neutral", "BUNKERS RM", diagnostics.bunkers_right_motion_u_ms, vectorMotionText(diagnostics.bunkers_right_motion_u_ms, diagnostics.bunkers_right_motion_v_ms)],
-      ["neutral", "0–6 km MEAN", diagnostics.mean_wind_0_6km_u_ms, vectorMotionText(diagnostics.mean_wind_0_6km_u_ms, diagnostics.mean_wind_0_6km_v_ms)],
-      ["angle", "CRITICAL ANGLE", diagnostics.critical_angle_deg, `${formatNumber(diagnostics.critical_angle_deg, 0)}°`],
+      ["neutral", "右移风暴运动", diagnostics.bunkers_right_motion_u_ms, vectorMotionText(diagnostics.bunkers_right_motion_u_ms, diagnostics.bunkers_right_motion_v_ms)],
+      ["neutral", "0—6千米平均风", diagnostics.mean_wind_0_6km_u_ms, vectorMotionText(diagnostics.mean_wind_0_6km_u_ms, diagnostics.mean_wind_0_6km_v_ms)],
+      ["angle", "临界角", diagnostics.critical_angle_deg, `${formatNumber(diagnostics.critical_angle_deg, 0)}°`],
     ],
     firstX,
     secondY,
@@ -2361,13 +2377,13 @@ function drawDiagnosticColumn(diagnostics) {
     groupHeight,
   );
   drawDiagnosticGroup(
-    "COMPOSITE / CLASSIC",
+    "综合与传统指数",
     [
-      ["li", "LIFTED INDEX", diagnostics.lifted_index_c, `${formatNumber(diagnostics.lifted_index_c, 1)} °C`],
-      ["k", "K INDEX", diagnostics.k_index_c, formatNumber(diagnostics.k_index_c, 1)],
-      ["tt", "TOTAL TOTALS", diagnostics.total_totals_index, formatNumber(diagnostics.total_totals_index, 1)],
-      ["sweat", "SWEAT", diagnostics.sweat_index, formatNumber(diagnostics.sweat_index, 0)],
-      ["stp", "STP (FIXED)", diagnostics.significant_tornado_fixed, formatNumber(diagnostics.significant_tornado_fixed, 2)],
+      ["li", "抬升指数", diagnostics.lifted_index_c, `${formatNumber(diagnostics.lifted_index_c, 1)} °C`],
+      ["k", "K指数", diagnostics.k_index_c, formatNumber(diagnostics.k_index_c, 1)],
+      ["tt", "总指数", diagnostics.total_totals_index, formatNumber(diagnostics.total_totals_index, 1)],
+      ["sweat", "强天气威胁指数", diagnostics.sweat_index, formatNumber(diagnostics.sweat_index, 0)],
+      ["stp", "固定层显著龙卷参数", diagnostics.significant_tornado_fixed, formatNumber(diagnostics.significant_tornado_fixed, 2)],
     ],
     secondX,
     secondY,
@@ -2490,11 +2506,11 @@ function convectiveToneColor(key, value) {
 
 function drawConvectiveToneLegend() {
   const entries = [
-    ["WEAK", "#557a9b"],
-    ["POSSIBLE", "#d5aa18"],
-    ["FAVOURABLE", "#e47722"],
-    ["VERY FAVOURABLE", "#c83b4d"],
-    ["EXTREME", "#822c83"],
+    ["弱", "#557a9b"],
+    ["可能", "#d5aa18"],
+    ["有利", "#e47722"],
+    ["很有利", "#c83b4d"],
+    ["极端", "#822c83"],
   ];
   const left = CHART.hodoLeft;
   const right = CHART.thetaeRight;
@@ -2520,7 +2536,7 @@ function drawConvectiveToneLegend() {
       "font-weight": "700",
       "letter-spacing": "0.35",
     },
-    "CONVECTIVE FAVOURABILITY",
+    "对流有利程度",
   );
   entries.forEach(([label, color], index) => {
     const x = legendLeft + index * segmentWidth;

@@ -34,7 +34,34 @@
       article.innerHTML = `<div class="panel-rule"><span>${item.label || "WeatherNext Cyclones"}</span><b>${ready ? "成员可用" : "等待合规数据"}</b></div><h2>${ready ? item.members : item.member_target || 1000} 成员</h2><p>${ready ? "已读取真实 WNC 成员派生快照。" : "分析框架已经就绪；尚未取得可公开展示的 WNC 成员 feed，因此不生成虚假轨迹。"}</p><a href="${item.weather_lab_url || "https://www.weatherlab.ai/"}" target="_blank" rel="noopener">查看官方 Weather Lab →</a>`;
       $("#cyclone-status").replaceChildren(article);
       $("#cluster-count").textContent = ready ? "待计算" : "数据待接入";
+      if (ready) await loadWncProduct();
     } catch (_) { $("#cyclone-status").textContent = "WNC 状态暂不可用"; }
+  }
+  async function loadWncProduct() {
+    const response = await fetch("/api/v1/cyclones/wnc/latest", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "千成员产品读取失败");
+    const width = 1120, height = 500;
+    const x = (lon) => (Number(lon) + 180) / 360 * width;
+    const y = (lat) => (90 - Number(lat)) / 180 * height;
+    const colors = ["#7d6898", "#126e68", "#c8795d", "#b5a89c", "#9b514a"];
+    const grid = [-120,-60,0,60,120].map((lon) => `<line x1="${x(lon)}" y1="0" x2="${x(lon)}" y2="${height}"/>`).join("") + [-60,-30,0,30,60].map((lat) => `<line x1="0" y1="${y(lat)}" x2="${width}" y2="${y(lat)}"/>`).join("");
+    let count = 0;
+    const paths = data.systems.flatMap((system) => system.clusters.map((cluster, index) => {
+      count += 1;
+      const points = (cluster.representative_track || []).map((point) => `${x(point.lon).toFixed(1)},${y(point.lat).toFixed(1)}`).join(" ");
+      const support = Math.round(Number(cluster.member_support_rate || 0) * 100);
+      return `<g><polyline points="${points}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="${Math.max(1.5, 1 + support / 25)}" vector-effect="non-scaling-stroke"/><title>${escapeHtml(system.name || system.system_id)} · 第 ${index + 1} 簇 · ${support}% 成员</title></g>`;
+    })).join("");
+    $("#wnc-map").innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true"><g class="cyclone-graticule">${grid}</g>${paths}</svg>`;
+    $("#wnc-product-meta").textContent = `${data.system_count} 个系统 · ${data.members} 成员 · ${String(data.initialized_at || "").slice(0,16).replace("T"," ")} 世界时`;
+    $("#wnc-system-list").replaceChildren(...data.systems.map((system) => {
+      const article = document.createElement("article");
+      article.innerHTML = `<b>${escapeHtml(system.system_id)}</b><strong>${escapeHtml(system.name || "未命名系统")}</strong><span>${system.clusters.length} 个路径簇</span><span>生成概率 ${system.genesis_probability == null ? "—" : `${Math.round(system.genesis_probability * 100)}%`}</span>`;
+      return article;
+    }));
+    $("#cluster-count").textContent = `${count} 簇`;
+    $("#wnc-product").hidden = false;
   }
   async function searchHistory(query) {
     const results = $("#history-search-results"); results.textContent = "正在读取 IBTrACS 索引…";

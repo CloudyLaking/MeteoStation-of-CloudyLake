@@ -32,28 +32,28 @@ FIELDS: dict[str, ReanalysisField] = {
         "reanalysis-era5-single-levels",
         ("2m_temperature",),
         ("t2m", "2m_temperature"),
-        "2 m temperature",
+        "2 米气温",
         "°C",
     ),
     "mean_sea_level_pressure": ReanalysisField(
         "reanalysis-era5-single-levels",
         ("mean_sea_level_pressure",),
         ("msl", "mean_sea_level_pressure"),
-        "Mean sea level pressure",
+        "海平面气压",
         "hPa",
     ),
     "cape": ReanalysisField(
         "reanalysis-era5-single-levels",
         ("convective_available_potential_energy",),
         ("cape", "convective_available_potential_energy"),
-        "Convective available potential energy",
+        "对流有效位能",
         "J/kg",
     ),
     "temperature": ReanalysisField(
         "reanalysis-era5-pressure-levels",
         ("temperature",),
         ("t", "temperature"),
-        "Temperature",
+        "等压面气温",
         "°C",
         True,
     ),
@@ -61,7 +61,7 @@ FIELDS: dict[str, ReanalysisField] = {
         "reanalysis-era5-pressure-levels",
         ("relative_humidity",),
         ("r", "relative_humidity"),
-        "Relative humidity",
+        "等压面相对湿度",
         "%",
         True,
     ),
@@ -69,7 +69,7 @@ FIELDS: dict[str, ReanalysisField] = {
         "reanalysis-era5-pressure-levels",
         ("geopotential",),
         ("z", "geopotential"),
-        "Geopotential height",
+        "位势高度",
         "gpm",
         True,
     ),
@@ -77,7 +77,7 @@ FIELDS: dict[str, ReanalysisField] = {
         "reanalysis-era5-pressure-levels",
         ("u_component_of_wind", "v_component_of_wind"),
         ("u", "v"),
-        "Wind speed",
+        "风速",
         "m/s",
         True,
     ),
@@ -222,6 +222,12 @@ def retrieve_reanalysis_grid(
                 longitude = np.asarray(dataset[longitude_name].values, dtype=float)
                 latitude = np.asarray(dataset[latitude_name].values, dtype=float)
                 values = _field_values(dataset, specification, field_id)
+                wind_components = None
+                if field_id == "wind_speed":
+                    wind_components = (
+                        _data_array(dataset, ("u", "u_component_of_wind")),
+                        _data_array(dataset, ("v", "v_component_of_wind")),
+                    )
         except Exception as exc:
             raise ReanalysisUnavailable(f"Cannot decode ERA5 response: {exc}") from exc
 
@@ -233,9 +239,15 @@ def retrieve_reanalysis_grid(
     if latitude[0] > latitude[-1]:
         latitude = latitude[::-1]
         values = values[::-1, :]
+        if wind_components is not None:
+            wind_components = (wind_components[0][::-1, :], wind_components[1][::-1, :])
     if longitude[0] > longitude[-1]:
         longitude = longitude[::-1]
         values = values[:, ::-1]
+        if wind_components is not None:
+            wind_components = (wind_components[0][:, ::-1], wind_components[1][:, ::-1])
+    if wind_components is not None and np.asarray(wind_components[0]).shape != values.shape:
+        wind_components = None
 
     # Keep browser responses fast even for the largest permitted query box.
     latitude_stride = max(1, int(np.ceil(latitude.size / 181)))
@@ -243,6 +255,11 @@ def retrieve_reanalysis_grid(
     latitude = latitude[::latitude_stride]
     longitude = longitude[::longitude_stride]
     values = values[::latitude_stride, ::longitude_stride]
+    if wind_components is not None:
+        wind_components = (
+            np.asarray(wind_components[0])[::latitude_stride, ::longitude_stride],
+            np.asarray(wind_components[1])[::latitude_stride, ::longitude_stride],
+        )
     finite = values[np.isfinite(values)]
     if not finite.size:
         raise ReanalysisUnavailable("ERA5 returned no finite values for this area")
@@ -250,7 +267,7 @@ def retrieve_reanalysis_grid(
         [round(float(value), 3) if np.isfinite(value) else None for value in row]
         for row in values
     ]
-    return {
+    result = {
         "valid_at": valid_at.astimezone(timezone.utc).isoformat(),
         "field_id": field_id,
         "field_label": specification.label,
@@ -264,6 +281,10 @@ def retrieve_reanalysis_grid(
         "source": "Copernicus Climate Data Store · ERA5 hourly reanalysis",
         "temporary_query": True,
     }
+    if wind_components is not None:
+        result["u_wind"] = [[round(float(value), 2) for value in row] for row in wind_components[0]]
+        result["v_wind"] = [[round(float(value), 2) for value in row] for row in wind_components[1]]
+    return result
 
 
 def _unwrap_download(target: Path) -> Path:

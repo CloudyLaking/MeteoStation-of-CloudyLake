@@ -312,7 +312,7 @@ function renderObservationChart(series) {
     }));
   const latest = points.at(-1);
   return window.CloudyLakeWeatherSeriesRenderer.render(chart, {
-    title: `${series.station_name}站(#${series.station_id})24h实况序列${series.window_label ? ` · ${series.window_label}` : ""}`,
+    title: `${series.station_name}站(#${series.station_id})24 小时实况序列${series.window_label ? ` · ${series.window_label}` : ""}`,
     locationLine: `${series.latitude.toFixed(2)}°N  ${series.longitude.toFixed(2)}°E`,
     timeLine: latest ? `查询时次: ${timeLabelForHeader(latest.time)}` : "",
     points,
@@ -343,7 +343,7 @@ async function loadObservationSeries(station, mode) {
     query.set("window", historyWindow);
   }
   const historyWindowLabel = { "00-00": "00:00—次日 00:00（所选日期全天）", "08-08": "08:00—次日 08:00", "20-20": "20:00—次日 20:00" }[historyWindow] ?? "";
-  resultTitle.textContent = mode === "past24h" ? `${station.display_name} · WMO ${station.wmo_id} · 过去 24h` : `${station.display_name} · WMO ${station.wmo_id} · ${dateInput.value} ${historyWindowLabel}`;
+  resultTitle.textContent = mode === "past24h" ? `${station.display_name} · 站号 ${station.wmo_id} · 过去 24 小时` : `${station.display_name} · 站号 ${station.wmo_id} · ${dateInput.value} ${historyWindowLabel}`;
   try {
     const response = await fetch(`/api/v1/observations/series/${station.wmo_id}?${query}`);
     const series = await response.json();
@@ -501,11 +501,11 @@ async function loadChinaStationMap() {
         chinaMarkerLayer.eachLayer((item) => item.setStyle({ fillColor: "#126e68" }));
         marker.setStyle({ fillColor: "#f2c94c" });
         stationInput.value = station.display_name;
-        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
+        regionStatus.textContent = `${station.display_name} · 站号 ${station.wmo_id} · 点击按当前查询范围绘图`;
         queryForm.requestSubmit();
       });
       marker.on("mouseover", () => {
-        regionStatus.textContent = `${station.display_name} · WMO ${station.wmo_id} · 点击按当前查询范围绘图`;
+        regionStatus.textContent = `${station.display_name} · 站号 ${station.wmo_id} · 点击按当前查询范围绘图`;
       });
       chinaMarkerLayer.addLayer(marker);
     });

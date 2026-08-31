@@ -92,7 +92,7 @@ from meteostation.forecast.manifest import (
 )
 from meteostation.ensemble import ensemble_capability_report, load_snapshot, summarize_members, threshold_support, cluster_scenarios
 from meteostation.ensemble_sources import fetch_point_ensemble
-from meteostation.cyclone_products import cluster_tracks, cyclone_capability_report
+from meteostation.cyclone_products import cluster_tracks, cyclone_capability_report, load_wnc_snapshot
 from meteostation.historical_similarity import similarity_score
 from meteostation.ibtracs import analogs as ibtracs_analogs, search_storms as search_ibtracs_storms
 from meteostation.health import (
@@ -353,6 +353,17 @@ async def cyclones_status() -> dict[str, object]:
         ],
         "policy": "WNC 1000-member tracks are never substituted with WN2, AIFS or official warning tracks.",
     }
+
+
+@app.get("/api/v1/cyclones/wnc/latest")
+async def wnc_latest() -> dict[str, object]:
+    path = PRODUCT_DATA_DIR / "cyclones" / "wnc-latest.json"
+    if not path.exists():
+        raise HTTPException(status_code=503, detail="尚未取得可公开展示的 WeatherNext Cyclones 派生轨迹")
+    try:
+        return await asyncio.to_thread(load_wnc_snapshot, path)
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=503, detail=f"WNC 派生产品校验失败：{exc}") from exc
 
 
 @app.get("/api/v1/cyclones/current")
@@ -673,8 +684,8 @@ async def metrics() -> dict[str, object]:
 @app.get("/api/v1/status")
 async def project_status() -> dict[str, object]:
     return {
-        "version": "V2.3.0",
-        "stage": "observatory-home-and-honest-ensemble-boundaries",
+        "version": "V2.4.0",
+        "stage": "compact-observatory-and-operational-derived-products",
         "updated_at": "2026-08-31",
         "archive_policy": "soundings-saved-surface-query-no-store",
         "modules": [
@@ -684,8 +695,8 @@ async def project_status() -> dict[str, object]:
                 "status": "automatic-analysis-running",
             },
             {"id": "historical-reanalysis", "label": "历史再分析", "status": "query-on-demand"},
-            {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "adapter-ready-not-configured"},
-            {"id": "wn2", "label": "WeatherNext 2全球集合", "status": "adapter-ready-not-configured"},
+            {"id": "aifs-ens", "label": "AIFS ENS预报", "status": "real-point-ensemble-on-demand"},
+            {"id": "wn2", "label": "WeatherNext 2全球集合", "status": "real-point-ensemble-on-demand"},
             {"id": "wnc", "label": "WeatherNext Cyclones千成员", "status": "adapter-ready-not-configured"},
             {
                 "id": "sounding",

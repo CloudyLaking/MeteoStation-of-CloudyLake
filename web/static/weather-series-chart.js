@@ -254,7 +254,7 @@
     const x = (index) => plot.left + dataInset
       + index / Math.max(points.length - 1, 1)
       * (plot.right - plot.left - dataInset * 2);
-    const title = configuration.title || "24h实况序列";
+    const title = configuration.title || "24 小时实况序列";
     svg.append(
       node("text", { x: WIDTH / 2, y: 45, "text-anchor": "middle", "font-size": 31, "font-weight": 400, fill: "#111" }, title),
       node("text", { x: 18, y: 28, "font-size": 16, fill: "#111" }, configuration.locationLine || ""),

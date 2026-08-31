@@ -9,9 +9,9 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.5-0831f" />
-    <script src="/static/site.js?v=2.3.5-0831f" defer></script>
-    <script src="/static/app.js?v=2.2.1-0810a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.0-0831a" />
+    <script src="/static/site.js?v=2.4.0-0831a" defer></script>
+    <script src="/static/app.js?v=2.4.0-0831a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -186,7 +186,7 @@
               aria-selected="true"
               data-view="skewt"
             >
-              Skew‑T
+              斜温图
             </button>
             <button
               type="button"
@@ -194,7 +194,7 @@
               aria-selected="false"
               data-view="stuve"
             >
-              Stüve
+              斯图夫图
             </button>
             <button
               type="button"
@@ -261,19 +261,23 @@
         <aside class="level-inspector" aria-live="polite">
           <span class="level-inspector__eyebrow">当前层次</span>
           <strong id="level-pressure">— hPa</strong>
-          <span id="level-height">Geopotential height —</span>
+          <span id="level-height">位势高度 —</span>
           <dl id="level-values">
-            <div><dt>Temperature</dt><dd>—</dd></div>
-            <div><dt>Dew point</dt><dd>—</dd></div>
-            <div><dt>Wet-bulb temperature</dt><dd>—</dd></div>
-            <div><dt>Virtual temperature</dt><dd>—</dd></div>
-            <div><dt>Parcel temperature</dt><dd>—</dd></div>
-            <div><dt>Relative humidity</dt><dd>—</dd></div>
-            <div><dt>Wind</dt><dd>—</dd></div>
+            <div><dt>气温</dt><dd>—</dd></div>
+            <div><dt>露点</dt><dd>—</dd></div>
+            <div><dt>湿球温度</dt><dd>—</dd></div>
+            <div><dt>虚温</dt><dd>—</dd></div>
+            <div><dt>气块温度</dt><dd>—</dd></div>
+            <div><dt>相对湿度</dt><dd>—</dd></div>
+            <div><dt>风</dt><dd>—</dd></div>
           </dl>
+          <section class="sounding-structures" aria-labelledby="sounding-structures-title">
+            <header><strong id="sounding-structures-title">自动识别的垂直结构</strong><small>仅依据当前实测层</small></header>
+            <div id="sounding-structures-list"><p>读取探空后自动识别逆温、湿层、干层、低空急流和对流层顶候选。</p></div>
+          </section>
           <form class="sounding-correction" id="sounding-correction">
             <header>
-              <span>Surface Correction</span>
+              <span>地面层订正</span>
               <button id="correction-reset" type="button">恢复原始</button>
             </header>
             <label class="sounding-correction__time">
@@ -307,13 +311,13 @@
         <table class="source-table">
           <thead>
             <tr>
-              <th>Pressure</th>
-              <th>Height</th>
-              <th>Temperature</th>
-              <th>Dew point</th>
-              <th>RH</th>
-              <th>Wind direction</th>
-              <th>Wind speed</th>
+              <th>气压</th>
+              <th>高度</th>
+              <th>气温</th>
+              <th>露点</th>
+              <th>相对湿度</th>
+              <th>风向</th>
+              <th>风速</th>
             </tr>
           </thead>
           <tbody id="source-table-body"></tbody>
@@ -325,7 +329,7 @@
       <header><h2 id="home-method-heading">中国天气分析说明</h2></header>
       <div>
         <article><h3>处理方法</h3><p>以 ECMWF IFS 场为连续背景，对海平面气压和等高线作尺度受控的平滑；地面锋面由热力锋参数、锋生、形变/辐合和温度平流联合识别，500 hPa 槽脊轴由位势高度曲率、地转风零线及连续性筛选。探空点独立显示实测资料是否已经更新。</p></article>
-        <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">ECMWF Open Data</a>、<a href="https://weather.uwyo.edu/upperair/sounding.html" target="_blank" rel="noopener">University of Wyoming</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">WMO WIS 2.0</a> 与天地图标准地图服务。</p></article>
+        <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">欧洲中期天气预报中心开放资料</a>、<a href="https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive" target="_blank" rel="noopener">美国国家环境信息中心全球探空档案</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">世界气象信息系统 2.0</a> 与天地图标准地图服务。</p></article>
         <article><h3>阅读提示</h3><p>蓝色三角线、黄色圆点线和青黄交替线分别表示客观冷锋、暖锋和静止锋；500 hPa 蓝色、黄色虚线分别表示槽轴和脊轴。自动诊断不等同于预报员手工分析或预警结论。</p></article>
       </div>
     </section>

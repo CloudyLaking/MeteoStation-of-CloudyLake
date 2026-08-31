@@ -7,12 +7,12 @@
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.5-0831f" />
-    <script src="/static/site.js?v=2.3.5-0831f" defer></script>
-    <script src="/static/app.js?v=2.2.1-0810a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.0-0831a" />
+    <script src="/static/site.js?v=2.4.0-0831a" defer></script>
+    <script src="/static/app.js?v=2.4.0-0831a" defer></script>
     <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
     <script src="/static/location-suggest.js?v=2.2.1-0810a" defer></script>
-    <script src="/static/sounding-forecast.js?v=2.2.1-0810a" defer></script>
+    <script src="/static/sounding-forecast.js?v=2.4.0-0831a" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -127,8 +127,8 @@
         <div class="viewer-settings">
           <span>探空显示</span>
           <div class="viewer-switch" role="tablist" aria-label="预报探空显示方式">
-            <button class="is-active" type="button" role="tab" aria-selected="true" data-view="skewt">Skew‑T</button>
-            <button type="button" role="tab" aria-selected="false" data-view="stuve">Stüve</button>
+            <button class="is-active" type="button" role="tab" aria-selected="true" data-view="skewt">斜温图</button>
+            <button type="button" role="tab" aria-selected="false" data-view="stuve">斯图夫图</button>
             <button type="button" role="tab" aria-selected="false" data-view="source">源数据</button>
           </div>
         </div>
@@ -178,13 +178,13 @@
           <strong id="level-pressure">— hPa</strong>
           <span id="level-height">Geopotential height —</span>
           <dl id="level-values">
-            <div><dt>Temperature</dt><dd>—</dd></div>
-            <div><dt>Dew point</dt><dd>—</dd></div>
-            <div><dt>Wet-bulb temperature</dt><dd>—</dd></div>
-            <div><dt>Virtual temperature</dt><dd>—</dd></div>
-            <div><dt>Parcel temperature</dt><dd>—</dd></div>
-            <div><dt>Relative humidity</dt><dd>—</dd></div>
-            <div><dt>Wind</dt><dd>—</dd></div>
+            <div><dt>气温</dt><dd>—</dd></div>
+            <div><dt>露点</dt><dd>—</dd></div>
+            <div><dt>湿球温度</dt><dd>—</dd></div>
+            <div><dt>虚温</dt><dd>—</dd></div>
+            <div><dt>气块温度</dt><dd>—</dd></div>
+            <div><dt>相对湿度</dt><dd>—</dd></div>
+            <div><dt>风</dt><dd>—</dd></div>
           </dl>
         </aside>
       </div>
@@ -193,13 +193,13 @@
         <table class="source-table">
           <thead>
             <tr>
-              <th>Pressure</th>
-              <th>Height</th>
-              <th>Temperature</th>
-              <th>Dew point</th>
+              <th>气压</th>
+              <th>高度</th>
+              <th>气温</th>
+              <th>露点</th>
               <th>RH</th>
-              <th>Wind direction</th>
-              <th>Wind speed</th>
+              <th>风向</th>
+              <th>风速</th>
             </tr>
           </thead>
           <tbody id="source-table-body"></tbody>

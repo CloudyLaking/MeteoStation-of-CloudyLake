@@ -1,6 +1,6 @@
 # 生产存储策略
 
-生产根盘约 40 GB，目标长期使用率低于 70%–75%，保留下载峰值和回滚空间。
+生产根盘约 50 GB，目标长期使用率低于 70%–75%，保留下载峰值和回滚空间。
 
 ## 分层
 
@@ -15,10 +15,14 @@
 
 AIFS ENS、WeatherNext 2 与 WeatherNext Cyclones 的即时处理只接收任务所需的派生字段，任务成功、失败或超时都清理临时文件；长期保存起报时间、成员计数、分位数、概率、轨迹、身份映射、聚类和检验结果，不保存完整全球三维成员场。WNC 1000 条轨迹可保存，成员格点场只能临时处理。
 
+系统日志限制为 512 MB、最长 14 天，并至少给根盘保留 5 GB。IFS/AIFS 仍各保留当前与上一完整周期，避免以牺牲线上回退能力换取短期空间；这部分约占 15 GB。若根盘逼近阈值，先清理日志、过期临时文件和已过宽限期的退役周期，再考虑减少完整周期。
+
 服务安装：
 
 ```bash
 sudo cp deploy/meteostation-storage.service deploy/meteostation-storage.timer /etc/systemd/system/
+sudo install -D -m 0644 deploy/meteostation-journald.conf /etc/systemd/journald.conf.d/meteostation-storage.conf
+sudo systemctl restart systemd-journald
 sudo systemctl daemon-reload
 sudo systemctl enable --now meteostation-storage.timer
 sudo -u meteostation .venv/bin/python scripts/storage_maintenance.py --dry-run
