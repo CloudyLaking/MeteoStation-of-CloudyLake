@@ -247,7 +247,7 @@ async def count_application_traffic(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 async def homepage() -> FileResponse:
-    return FileResponse(STATIC_DIR / "home.html")
+    return FileResponse(STATIC_DIR / "about.html")
 
 
 @app.get("/analysis", include_in_schema=False)

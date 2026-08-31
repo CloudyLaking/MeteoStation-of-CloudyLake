@@ -3,115 +3,83 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="云海观象台、项目更新日志、私密信箱与气象友情链接。" />
-    <title>关于 · 云海观象台</title>
+    <meta name="description" content="云海观象台首页：气象实况、探空、预报、台风和历史资料工作台入口。" />
+    <title>云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.2-0831c" />
-    <script src="/static/site.js?v=2.3.2-0831c" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.3.3-0831d" />
+    <script src="/static/site.js?v=2.3.3-0831d" defer></script>
     <script src="/static/about.js?v=2.2.1-0810a" defer></script>
   </head>
   <body>
-    <header class="site-header">
-      <div class="brand-row">
-        <a class="brand" href="/" aria-label="云海观象台首页">
-          <img src="/brand/logo-cn-blue.png" alt="" />
-          <span><span class="brand-title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></span>
-        </a>
-        <a class="header-motto" href="/admin" title="打开运维监视器"><strong>服务器状态读取中</strong><span>资料状态</span></a>
-      </div>
-      <nav class="main-nav" aria-label="主导航">
-        <div class="main-nav__inner">
-          <div class="main-nav__links">
-            <details class="nav-menu"><summary class="nav-menu__trigger">实况分析</summary><div class="nav-menu__panel"><a href="/">中国天气</a><a href="/observations">气象站实况</a></div></details>
-            <details class="nav-menu"><summary class="nav-menu__trigger">模式预报</summary><div class="nav-menu__panel"><a href="/forecast">单点预报</a><a href="/sounding-forecast">探空预报</a></div></details>
-            <details class="nav-menu"><summary class="nav-menu__trigger">实验性功能</summary><div class="nav-menu__panel"><a href="/colorbar-translator">色条翻译器</a><a href="/reanalysis">历史再分析</a><button type="button" disabled>AIFS ENS 预报<small>敬请期待</small></button></div></details>
-            <a class="main-nav__direct is-active" href="/about">关于</a>
+    <header></header>
+
+    <main class="about-page station-home">
+      <section class="station-home-hero signature-corner">
+        <div class="station-home-identity">
+          <img src="/brand/logo-cn-blue.png" alt="云海观象台标志" />
+          <div>
+            <h1>云海观象台</h1>
+            <p>由堡状云维护的个人气象资料站。这里集中整理实况、探空、数值预报、台风和历史资料，并明确标出资料时间、来源与可用状态。</p>
           </div>
-          <div class="main-nav__status"><i aria-hidden="true"></i></div>
         </div>
-      </nav>
-    </header>
+        <dl class="station-home-facts">
+          <div><dt>资料范围</dt><dd>实况 / 预报 / 历史</dd></div>
+          <div><dt>更新方式</dt><dd>自动采集，按需制图</dd></div>
+          <div><dt>使用边界</dt><dd>研究与天气爱好</dd></div>
+        </dl>
+      </section>
 
-    <main class="about-page about-page--expanded">
-      <section class="identity-panel">
-        <img src="/brand/logo-cn-blue.png" alt="云海观象台标志" />
-        <div class="identity-panel__copy">
-          <p class="eyebrow">站点说明</p>
-          <h1>云海观象台</h1>
-          <p>由 CloudyLake（堡状云）发起的个人气象资料可视化项目。</p>
-        </div>
-        <div class="social-links" aria-label="社交媒体账号">
-          <a href="https://space.bilibili.com/228372829" target="_blank" rel="noopener"><span>哔哩哔哩</span><strong>云海观象台-堡状云</strong></a>
-          <a href="https://www.xiaohongshu.com/user/profile/64a778a200000000110001cc" target="_blank" rel="noopener"><span>小红书</span><strong>云海观象台</strong></a>
+      <section class="station-home-section station-home-index" aria-labelledby="workspace-heading">
+        <header><span>01</span><div><h2 id="workspace-heading">选择工作台</h2><p>每个入口对应一项明确任务，页面缺少资料时会直接说明原因。</p></div></header>
+        <div class="station-home-routes">
+          <a href="/observations"><span>实况</span><strong>气象站实况</strong><p>查询国家站逐小时观测与历史日界资料。</p><b>进入</b></a>
+          <a href="/analysis"><span>分析</span><strong>中国天气分析</strong><p>查看最新天气图、地面站与高空形势。</p><b>进入</b></a>
+          <a href="/ensemble"><span>预报</span><strong>集合预报</strong><p>读取集合成员、分位区间与预报离散度。</p><b>进入</b></a>
+          <a href="/forecast"><span>预报</span><strong>单点预报</strong><p>按地点读取逐时天气要素和模式时间序列。</p><b>进入</b></a>
+          <a href="/sounding-forecast"><span>垂直</span><strong>探空预报</strong><p>查看模式垂直廓线、风场和对流诊断。</p><b>进入</b></a>
+          <a href="/cyclones"><span>台风</span><strong>全球热带系统</strong><p>统一查看系统识别、路径情景与资料边界。</p><b>进入</b></a>
+          <a href="/history/similar"><span>历史</span><strong>历史相似台风</strong><p>查找相似路径案例并联动历史环境场。</p><b>进入</b></a>
+          <a href="/reanalysis"><span>历史</span><strong>历史再分析</strong><p>自由点取两个角点，按时次和要素读取历史场。</p><b>进入</b></a>
+          <a href="/colorbar-translator"><span>工具</span><strong>色条翻译器</strong><p>从气象图片识别色标并导出可复用色表。</p><b>进入</b></a>
         </div>
       </section>
 
-      <section class="about-section" aria-labelledby="changelog-heading">
-        <header><p class="eyebrow">更新记录</p><h2 id="changelog-heading">网页更新日志</h2></header>
-        <div class="changelog-list">
-          <article><time>V2.2.1 · 2026-08-10</time><h3>资料链路与查询工作台增强</h3><p>天气图自动选择最近完成时次并加强平滑与站点显示；探空支持站名检索和全球地图选站；24 小时实况补齐跨日序列；色条翻译器增加离散边界、采样位置与 GMT/CPT 输出；历史再分析开放区域框选、悬停读值和按需制图。</p></article>
-          <article><time>V2.1.1 · 2026-08</time><h3>服务器正式部署与专业图形增强</h3><p>新增运维监视器、流量统计、天气图自动任务、全球探空归档；完善 Hodograph、风羽、强对流诊断、固定层标注、产品署名与统一配色；气象站页增加七区可点击站点地图和历史 08—08、20—20 查询；实验性功能增加色条翻译器。</p></article>
-          <article><time>V2.0.1 · 2026-07</time><h3>网页化与交互探空</h3><p>建立中国天气主页、实况查询、Skew-T / Stüve 交互廓线、地面订正、单点预报和探空预报基础流程。</p></article>
-        </div>
-      </section>
+      <div class="station-home-two-column">
+        <section class="station-home-section station-home-principles" aria-labelledby="principles-heading">
+          <header><span>02</span><div><h2 id="principles-heading">关于本站</h2><p>功能以真实可用和可追溯为准。</p></div></header>
+          <dl>
+            <div><dt>资料真实</dt><dd>不使用静态占位结果冒充实时资料；来源中断或数据不足时明确显示。</dd></div>
+            <div><dt>时间明确</dt><dd>观测、起报、有效和接收时间分别标注，并说明使用的时区。</dd></div>
+            <div><dt>储存克制</dt><dd>优先保存派生结果与必要索引，大体积原始文件按需读取并及时清理。</dd></div>
+            <div><dt>用途有限</dt><dd>自动诊断只用于资料阅读，不代替官方预报、预警或人工分析。</dd></div>
+          </dl>
+          <div class="social-links" aria-label="社交媒体账号">
+            <a href="https://space.bilibili.com/228372829" target="_blank" rel="noopener"><span>哔哩哔哩</span><strong>云海观象台－堡状云</strong></a>
+            <a href="https://www.xiaohongshu.com/user/profile/64a778a200000000110001cc" target="_blank" rel="noopener"><span>小红书</span><strong>云海观象台</strong></a>
+          </div>
+        </section>
 
-      <section class="about-section guestbook-section" aria-labelledby="guestbook-heading">
-        <header><p class="eyebrow">站内信箱</p><h2 id="guestbook-heading">信箱</h2><p>来信不会公开展示，仅站长可在后台查看。</p></header>
+        <section class="station-home-section station-home-updates" aria-labelledby="updates-heading">
+          <header><span>03</span><div><h2 id="updates-heading">更新记录</h2><p>只记录已经上线的变化。</p></div></header>
+          <ol>
+            <li><time>2026-08-31</time><div><strong>全站界面与导航统一</strong><p>重做公共顶栏、首页、页面结构、移动端导航和交互网格背景。</p></div></li>
+            <li><time>2026-08-10</time><div><strong>查询链路增强</strong><p>加强天气图时次选择、全球探空选站、实况跨日序列和再分析框选。</p></div></li>
+            <li><time>2026-07</time><div><strong>工作台网页化</strong><p>建立天气分析、实况、交互探空和预报的基础流程。</p></div></li>
+          </ol>
+        </section>
+      </div>
+
+      <section class="station-home-section station-home-contact" aria-labelledby="contact-heading">
+        <header><span>04</span><div><h2 id="contact-heading">给站长留言</h2><p>来信不会公开展示，仅站长可以在后台查看。</p></div></header>
         <form id="guestbook-form" class="guestbook-form">
-          <label><span>称呼</span><input id="guestbook-name" maxlength="30" required /></label>
-          <label><span>来信</span><textarea id="guestbook-message" minlength="2" maxlength="500" required></textarea></label>
-          <button type="submit">投递</button><p id="guestbook-status" role="status"></p>
+          <label><span>称呼</span><input id="guestbook-name" maxlength="30" autocomplete="name" required /></label>
+          <label><span>来信内容</span><textarea id="guestbook-message" minlength="2" maxlength="500" required></textarea></label>
+          <button type="submit">投递</button>
+          <p id="guestbook-status" role="status"></p>
         </form>
       </section>
-
-      <section class="about-section" aria-labelledby="links-heading">
-        <header><p class="eyebrow">气象资料链接</p><h2 id="links-heading">气象友情链接</h2><p>主要参考自 CloudyLake 的收藏夹；链接跳转到第三方网站。</p></header>
-        <div class="friend-link-groups">
-          <section><h3>台风与中尺度</h3><div class="friend-links">
-            <a href="https://www.easterlywave.com/" target="_blank" rel="noopener"><strong>Easterlywave · 东风波</strong><span>预报、模式与实时天气</span></a>
-            <a href="https://www.dapiya.top/" target="_blank" rel="noopener"><strong>Dapiya · 大皮鸭</strong><span>卫星与热带气旋资料</span></a>
-            <a href="https://cyclonicwx.com/" target="_blank" rel="noopener"><strong>CyclonicWx</strong><span>热带气旋分析</span></a>
-            <a href="https://www.weathernerds.org/" target="_blank" rel="noopener"><strong>WeatherNerds</strong><span>TC guidance</span></a>
-            <a href="https://www.tropicaltidbits.com/" target="_blank" rel="noopener"><strong>Tropical Tidbits</strong><span>热带气旋与模式</span></a>
-            <a href="https://rammb.cira.colostate.edu/" target="_blank" rel="noopener"><strong>RAMMB</strong><span>卫星与热带气旋</span></a>
-            <a href="https://tropic.ssec.wisc.edu/" target="_blank" rel="noopener"><strong>CIMSS Tropical</strong><span>卫星与强度诊断</span></a>
-            <a href="https://www.typhoon2000.ph/" target="_blank" rel="noopener"><strong>Typhoon2000</strong><span>机构路径与历史资料</span></a>
-            <a href="https://www.tcfa.top/" target="_blank" rel="noopener"><strong>TCFA</strong><span>气象环境遥感分析</span></a>
-            <a href="https://www.tybbs.org.cn/" target="_blank" rel="noopener"><strong>台风论坛</strong><span>热带气旋交流社区</span></a>
-          </div></section>
-          <section><h3>卫星、雷达与海面风</h3><div class="friend-links">
-            <a href="https://zoom.earth/" target="_blank" rel="noopener"><strong>Zoom Earth</strong><span>全球卫星与天气</span></a>
-            <a href="https://www.windy.com/" target="_blank" rel="noopener"><strong>Windy</strong><span>交互式天气场</span></a>
-            <a href="https://earth.nullschool.net/" target="_blank" rel="noopener"><strong>earth.nullschool</strong><span>全球风场可视化</span></a>
-            <a href="https://manati.star.nesdis.noaa.gov/" target="_blank" rel="noopener"><strong>NOAA ASCAT</strong><span>散射计海面风</span></a>
-            <a href="https://scatterometer.knmi.nl/" target="_blank" rel="noopener"><strong>KNMI Scatterometer</strong><span>海面风资料</span></a>
-            <a href="https://www.star.nesdis.noaa.gov/" target="_blank" rel="noopener"><strong>NOAA STAR</strong><span>卫星与 SAR 风场</span></a>
-            <a href="https://www.nmc.cn/" target="_blank" rel="noopener"><strong>中央气象台</strong><span>天气、雷达与台风业务产品</span></a>
-            <a href="https://www.nsmc.org.cn/" target="_blank" rel="noopener"><strong>国家卫星气象中心</strong><span>风云卫星资料</span></a>
-          </div></section>
-          <section><h3>模式与人工智能</h3><div class="friend-links">
-            <a href="https://www.easterlywave.com/" target="_blank" rel="noopener"><strong>Easterlywave ECMWF</strong><span>中国区域模式产品</span></a>
-            <a href="https://www.tropicaltidbits.com/" target="_blank" rel="noopener"><strong>Tropical Tidbits Models</strong><span>全球数值模式</span></a>
-            <a href="https://deepmind.google.com/science/weatherlab" target="_blank" rel="noopener"><strong>Google Weather Lab</strong><span>AI 气旋预报实验</span></a>
-            <a href="https://www.smca.fun/" target="_blank" rel="noopener"><strong>菜园子的天气栈</strong><span>AI 台风集合预报</span></a>
-            <a href="https://polarwx.com/" target="_blank" rel="noopener"><strong>PolarWx</strong><span>热带模式产品</span></a>
-            <a href="https://wxcharts.com/" target="_blank" rel="noopener"><strong>WXCharts</strong><span>全球数值模式图</span></a>
-            <a href="https://meteologix.com/" target="_blank" rel="noopener"><strong>Meteologix</strong><span>模式与观测产品</span></a>
-          </div></section>
-          <section><h3>探空与地面实况</h3><div class="friend-links">
-            <a href="https://weather.uwyo.edu/upperair/sounding.html" target="_blank" rel="noopener"><strong>University of Wyoming</strong><span>全球探空归档</span></a>
-            <a href="https://mesovortices.com/" target="_blank" rel="noopener"><strong>Mesovortices</strong><span>探空与对流诊断</span></a>
-            <a href="https://www.easterlywave.com/" target="_blank" rel="noopener"><strong>Easterlywave Realtime</strong><span>实时天气资料</span></a>
-            <a href="https://q-weather.info/" target="_blank" rel="noopener"><strong>q-weather</strong><span>国家站逐小时资料</span></a>
-            <a href="https://www.ogimet.com/home.phtml.en" target="_blank" rel="noopener"><strong>OGIMET</strong><span>全球 SYNOP、METAR 与历史观测</span></a>
-            <a href="https://aviationweather.gov/data/api/" target="_blank" rel="noopener"><strong>Aviation Weather</strong><span>METAR 与航空资料</span></a>
-            <a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener"><strong>WMO WIS 2.0</strong><span>全球实时交换资料</span></a>
-          </div></section>
-        </div>
-      </section>
-
     </main>
 
-    <footer class="site-footer"><span>© 2026 云海观象台 · 保留所有权利</span><a href="mailto:cloudylaking@outlook.com">联系：cloudylaking@outlook.com</a><span>由技术工具协助构建</span></footer>
+    <footer></footer>
   </body>
 </html>

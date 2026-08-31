@@ -7,8 +7,8 @@
     <title>历史再分析 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.2-0831c" />
-    <script src="/static/site.js?v=2.3.2-0831c" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.3.3-0831d" />
+    <script src="/static/site.js?v=2.3.3-0831d" defer></script>
     <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
     <script src="/static/vendor/plotly/plotly-2.35.2.min.js?v=2.35.2" defer></script>
     <script src="/static/reanalysis.js?v=2.2.1-0812f" defer></script>
@@ -37,7 +37,6 @@
 
     <main class="reanalysis-page">
       <section class="reanalysis-heading">
-        <p class="eyebrow">历史再分析</p>
         <h1>历史再分析</h1>
         <p>选择历史时次和要素，在地图上依次点取任意两个角点；结果可悬停读值并继续框选放大。</p>
       </section>
@@ -67,13 +66,13 @@
           </div>
           <button class="reanalysis-submit" type="submit">查询并绘制</button>
         </form>
-        <div class="reanalysis-map-panel">
+        <div class="reanalysis-map-panel signature-corner signature-corner--orange">
           <header><h2>范围选取</h2><p>依次点击两个角点生成查询框；第三次点击重新开始，仍可平移或缩放地图。</p></header>
           <div id="reanalysis-map" role="application" aria-label="ERA5 查询范围地图"></div>
         </div>
       </section>
 
-      <section class="reanalysis-result" id="reanalysis-result" hidden>
+      <section class="reanalysis-result signature-corner signature-corner--violet" id="reanalysis-result" hidden>
         <header><div><p class="eyebrow">交互气象场</p><h2 id="reanalysis-result-title">ERA5 历史场</h2></div><p id="reanalysis-result-meta"></p></header>
         <div id="reanalysis-plot" role="img" aria-label="可缩放并悬停读值的 ERA5 历史场"></div>
       </section>

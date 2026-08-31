@@ -29,7 +29,7 @@
     "nav.about": ["关于", "About"],
   });
   const navItems = [
-    ["nav.home", "/", ["/"]],
+    ["nav.home", "/", ["/", "/about"]],
     ["nav.live", "/observations", ["/observations"]],
     ["nav.analysis", "/analysis", ["/analysis"]],
     ["nav.ensemble", "/ensemble", ["/ensemble"]],
@@ -39,7 +39,6 @@
     ["nav.history", "/history/similar", ["/history"]],
     ["nav.reanalysis", "/reanalysis", ["/reanalysis"]],
     ["nav.colorbar", "/colorbar-translator", ["/colorbar-translator"]],
-    ["nav.about", "/about", ["/about"]],
   ];
 
   function currentNavItem(paths) {
@@ -56,7 +55,7 @@
     document.body.classList.add("unified-page");
     const header = document.createElement("header");
     header.className = "floating-site-header";
-    header.innerHTML = `<div class="floating-site-header__bar"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">云海观象台</span><span class="floating-site-header__title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><nav class="floating-site-nav" aria-label="主导航">${navMarkup()}</nav><div class="floating-site-actions"><a class="header-data-status" href="/health/data">资料状态读取中</a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div>`;
+    header.innerHTML = `<div class="floating-site-header__bar"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">云海观象台</span><span class="floating-site-header__title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><nav class="floating-site-nav" aria-label="主导航">${navMarkup()}</nav><div class="floating-site-actions"><a class="header-data-status" href="/health/data" aria-label="查看资料状态"><i aria-hidden="true"></i><span><small>资料状态</small><strong data-status-label>读取中</strong></span><b aria-hidden="true"></b><span><small>本月访问</small><strong data-visit-count>—</strong></span></a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div>`;
     const legacy = document.querySelector("body > header");
     if (legacy) legacy.replaceWith(header);
     else document.body.prepend(header);
@@ -86,7 +85,34 @@
   }
   async function applyServerSummary() {
     const targets = document.querySelectorAll(".header-motto, .header-data-status"); if (!targets.length) return;
-    try { const response = await fetch("/api/v1/site/stats", { cache: "no-store" }); if (!response.ok) return; const stats = await response.json(); const raw = stats.congestion?.data_status || stats.data_health?.status || "unknown"; const status = ({ fresh: "资料新鲜", degraded: "资料降级", stale: "资料过期", unknown: "状态未知" }[raw] || "状态未知"); targets.forEach((target) => { target.textContent = `${status} · ${stats.monthly_page_views || 0} 次访问`; }); } catch (_) {}
+    try {
+      const response = await fetch("/api/v1/site/stats", { cache: "no-store" });
+      if (!response.ok) return;
+      const stats = await response.json();
+      const raw = stats.congestion?.data_status || stats.data_health?.status || "unknown";
+      const status = ({ fresh: "正常", degraded: "部分延迟", stale: "更新延迟", unknown: "待确认" }[raw] || "待确认");
+      targets.forEach((target) => {
+        target.dataset.health = raw;
+        const statusLabel = target.querySelector?.("[data-status-label]");
+        const visitCount = target.querySelector?.("[data-visit-count]");
+        if (statusLabel && visitCount) {
+          statusLabel.textContent = status;
+          visitCount.textContent = new Intl.NumberFormat("zh-CN").format(stats.monthly_page_views || 0);
+        } else {
+          target.textContent = `资料${status} · ${new Intl.NumberFormat("zh-CN").format(stats.monthly_page_views || 0)} 次访问`;
+        }
+      });
+    } catch (_) {}
+  }
+
+  function installUnifiedFooter() {
+    if (window.location.pathname.startsWith("/admin")) return;
+    const footer = document.createElement("footer");
+    footer.className = "unified-site-footer";
+    footer.innerHTML = `<div class="unified-site-footer__main"><div><strong>云海观象台</strong><p>个人气象资料可视化与研究工具</p></div><nav aria-label="页脚导航"><a href="/health/data">资料健康</a><i aria-hidden="true"></i><a href="/reanalysis">历史再分析</a><i aria-hidden="true"></i><a href="mailto:cloudylaking@outlook.com">联系站长</a></nav></div><div class="unified-site-footer__meta"><span>© 2026 云海观象台</span><span>自动分析不构成官方预报、预警或人工天气分析结论</span></div>`;
+    const legacy = document.querySelector("body > footer");
+    if (legacy) legacy.replaceWith(footer);
+    else document.body.append(footer);
   }
 
   function installAtmosphericGrid() {
@@ -145,5 +171,5 @@
     reduced.addEventListener?.("change", () => { cancelAnimationFrame(state.frame); draw(performance.now()); });
     resize(); draw(performance.now());
   }
-  document.addEventListener("DOMContentLoaded", () => { installUnifiedHeader(); installLanguageToggle(); applyLanguage(); applySiteConfiguration(); applyServerSummary(); installAtmosphericGrid(); window.setInterval(applyServerSummary, 60000); window.addEventListener("scroll", () => document.documentElement.classList.toggle("has-scrolled", window.scrollY > 12), { passive: true }); });
+  document.addEventListener("DOMContentLoaded", () => { installUnifiedHeader(); installUnifiedFooter(); installLanguageToggle(); applyLanguage(); applySiteConfiguration(); applyServerSummary(); installAtmosphericGrid(); window.setInterval(applyServerSummary, 60000); window.addEventListener("scroll", () => document.documentElement.classList.toggle("has-scrolled", window.scrollY > 12), { passive: true }); });
 })();
