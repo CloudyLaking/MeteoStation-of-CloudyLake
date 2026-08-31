@@ -208,7 +208,7 @@ async function loadWeatherMapProduct() {
     const product = data.products[0];
     if (product) {
       void loadWeatherMapGeometry(product.metadata_url);
-      weatherMapImage.src = product.image_url;
+      weatherMapImage.src = versionedWeatherMapUrl(product);
       weatherMapImage.alt =
         `${layer?.label ?? selectedWeatherLayer} ${archiveDate.value} ${selectedCycle()} UTC`;
       weatherMapImage.hidden = false;
@@ -232,7 +232,7 @@ async function loadWeatherMapProduct() {
         const preview = previewData.previews[0];
         if (preview) {
           void loadWeatherMapGeometry(preview.metadata_url);
-          weatherMapImage.src = preview.image_url;
+          weatherMapImage.src = versionedWeatherMapUrl(preview);
           weatherMapImage.alt =
             `${layer?.label ?? selectedWeatherLayer} ECMWF 天气场开发预览`;
           weatherMapImage.hidden = false;
@@ -285,6 +285,12 @@ async function loadWeatherMapProduct() {
     weatherMapStatus.textContent = "天气图读取失败";
     weatherMapDescription.textContent = error.message;
   }
+}
+
+function versionedWeatherMapUrl(product) {
+  const url = new URL(product.image_url, window.location.origin);
+  if (product.generated_at) url.searchParams.set("v", product.generated_at);
+  return `${url.pathname}${url.search}`;
 }
 
 async function loadWeatherMapGeometry(metadataUrl) {

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.font_manager import FontProperties
+from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.collections import LineCollection
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy.ndimage import maximum_filter, minimum_filter
@@ -31,22 +31,22 @@ from .models import (
 
 WIND_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-wind",
-    ["#ffffff", "#e8f4f4", "#c2e3e1", "#f7e8a5", "#5ba99f", "#126e68"],
+    ["#f8faf9", "#d9eceb", "#91c8c3", "#f1d993", "#d58b63", "#a2544c", "#71537f"],
 )
 HUMIDITY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-humidity",
-    ["#356ea6", "#b9d7e4", "#ffffff", "#f8edbd", "#9bc9bd", "#16867b"],
+    ["#9b765e", "#d6c1ad", "#f6f3ed", "#c8dfda", "#68aaa2", "#126e68"],
 )
 HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
     "cloudylake-height-anomaly",
     [
-        "#2f67a2",
-        "#9dc9dc",
-        "#e8f3f4",
-        "#ffffff",
-        "#fff4c7",
-        "#f4d66d",
-        "#c69a1b",
+        "#5d4b78",
+        "#998aae",
+        "#d8d0df",
+        "#f7f5f1",
+        "#edcfb7",
+        "#c8795d",
+        "#964b46",
     ],
 )
 FIGURE_SIZE_INCHES = (12.0, 8.5)
@@ -98,6 +98,9 @@ def render_weather_map_preview(
         if font_path and Path(font_path).exists()
         else None
     )
+    if font is not None:
+        fontManager.addfont(str(font_path))
+        plt.rcParams["font.family"] = font.get_name()
     longitude_grid, latitude_grid = np.meshgrid(
         subset.longitude,
         subset.latitude,
@@ -112,7 +115,7 @@ def render_weather_map_preview(
         )
     if layer_id in {"surface", "composite"}:
         draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "Surface · MSLP / 10 m Wind / Features"
+        title = "地面综合分析 · 海平面气压 / 十米风 / 天气系统"
     elif layer_id == "850":
         draw_pressure_level(
             axis,
@@ -123,7 +126,7 @@ def render_weather_map_preview(
             pressure_hpa=850,
             shade="humidity",
         )
-        title = "850 hPa · Humidity / Height / Wind"
+        title = "850 hPa · 相对湿度 / 位势高度 / 风场"
     elif layer_id == "500":
         draw_pressure_level(
             axis,
@@ -134,7 +137,7 @@ def render_weather_map_preview(
             pressure_hpa=500,
             shade="height_anomaly",
         )
-        title = "500 hPa · Height Anomaly / Height / Wind"
+        title = "500 hPa · 高度距平 / 位势高度 / 风场"
     elif layer_id == "200":
         draw_pressure_level(
             axis,
@@ -145,7 +148,7 @@ def render_weather_map_preview(
             pressure_hpa=200,
             shade="wind",
         )
-        title = "200 hPa · Wind / Height"
+        title = "200 hPa · 高空风场 / 位势高度"
     else:
         plt.close(figure)
         raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
@@ -241,9 +244,9 @@ def render_weather_map_preview(
         spine.set_color("#264b4a")
         spine.set_linewidth(0.85)
     axis.set_title(
-        f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
+        f"{title}\n{subset.valid_at:%Y-%m-%d %H:00} 世界时",
         loc="left",
-        fontsize=17,
+        fontsize=14.5,
         fontweight=650,
         fontproperties=font,
         color="#263943",
@@ -251,6 +254,11 @@ def render_weather_map_preview(
         pad=14,
     )
     source_note = subset.source
+    source_note = (
+        source_note.replace("Open Data", "开放资料")
+        .replace("UTC", "世界时")
+        .replace(" h", " 小时")
+    )
     if layer_id == "500":
         normal_metadata = subset.metadata.get(
             "height_climatology_500",
@@ -265,7 +273,7 @@ def render_weather_map_preview(
     figure.text(
         MAP_FIGURE_BOUNDS["left"],
         0.035,
-        f"Source: {source_note} · CloudyLake's Observatory · meteostation.top",
+        f"资料来源：{source_note} · 云海观象台 · meteostation.top",
         fontsize=9.5,
         color="#607176",
         fontproperties=font,
@@ -273,7 +281,7 @@ def render_weather_map_preview(
     figure.text(
         MAP_FIGURE_BOUNDS["right"],
         0.955,
-        "@CloudyLake",
+        "云海观象台",
         ha="right",
         va="top",
         fontsize=11,
@@ -398,11 +406,11 @@ def draw_synoptic_features(
 ) -> None:
     """Draw objective fronts and upper-air axes with restrained symbology."""
     styles = {
-        "cold-front": ("#1769aa", "-", "COLD FRONT"),
-        "warm-front": ("#d6a313", "-", "WARM FRONT"),
-        "stationary-front": ("#147f78", "-", "STNRY FRONT"),
-        "trough-axis": ("#1769aa", "--", "TROUGH"),
-        "ridge-axis": ("#d6a313", "--", "RIDGE"),
+        "cold-front": ("#1769aa", "-", "冷锋"),
+        "warm-front": ("#d6a313", "-", "暖锋"),
+        "stationary-front": ("#147f78", "-", "静止锋"),
+        "trough-axis": ("#1769aa", "--", "槽线"),
+        "ridge-axis": ("#d6a313", "--", "脊线"),
     }
     x_min, x_max = sorted(axis.get_xlim())
     y_min, y_max = sorted(axis.get_ylim())
@@ -648,7 +656,7 @@ def draw_south_china_sea_inset(
         spine.set_color("#41645f")
         spine.set_linewidth(0.72)
     inset.set_title(
-        "SOUTH CHINA SEA",
+        "南海诸岛",
         fontsize=7.5,
         fontweight=650,
         fontproperties=font,
@@ -689,7 +697,7 @@ def draw_surface(
         levels=np.linspace(0, maximum, 13),
         cmap=WIND_COLORS,
         extend="max",
-        alpha=0.52,
+        alpha=0.72,
     )
     contour_levels = np.arange(
         np.floor(np.nanmin(mslp) / 4) * 4,
@@ -702,7 +710,7 @@ def draw_surface(
         mslp,
         levels=contour_levels,
         colors="#243e44",
-        linewidths=0.68,
+        linewidths=0.82,
         alpha=0.86,
     )
     contour_labels = axis.clabel(
@@ -723,7 +731,7 @@ def draw_surface(
     add_weather_colorbar(
         figure,
         shaded,
-        "10 m wind speed (m/s)",
+        "十米风速（米/秒）",
     )
 
 
@@ -768,7 +776,7 @@ def draw_surface_objective_features(
             alpha=0.68,
             zorder=4.8,
         )
-        axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=9.2)
+        axis.clabel(wet_outline, fmt={wet_threshold: "湿区"}, fontsize=9.2)
 
     _draw_temperature_extrema(axis, longitude, latitude, temperature)
 
@@ -802,8 +810,8 @@ def _draw_temperature_extrema(
     )
     selected: list[tuple[float, float]] = []
     for candidates, label, color, reverse in (
-        (high_candidates, "HOT", "#b77900", True),
-        (low_candidates, "COLD", "#2563a9", False),
+        (high_candidates, "暖中心", "#a95c38", True),
+        (low_candidates, "冷中心", "#516591", False),
     ):
         ranked = sorted(
             candidates,
@@ -880,9 +888,9 @@ def draw_pressure_level(
             levels=np.arange(10, 101, 10),
             cmap=HUMIDITY_COLORS,
             extend="both",
-            alpha=0.50,
+            alpha=0.70,
         )
-        colorbar_label = "Relative humidity (%)"
+        colorbar_label = "相对湿度（%）"
     elif shade == "height_anomaly":
         climatology_height = require_field(
             grid,
@@ -913,9 +921,9 @@ def draw_pressure_level(
             levels=np.linspace(-maximum, maximum, 13),
             cmap=HEIGHT_ANOMALY_COLORS,
             extend="both",
-            alpha=0.54,
+            alpha=0.72,
         )
-        colorbar_label = "500 hPa height anomaly (gpm)"
+        colorbar_label = "500 hPa 高度距平（位势米）"
     else:
         shaded_values = smooth_field(
             np.hypot(u_wind, v_wind),
@@ -937,9 +945,9 @@ def draw_pressure_level(
             levels=np.linspace(0, maximum, 13),
             cmap=WIND_COLORS,
             extend="max",
-            alpha=0.52,
+            alpha=0.72,
         )
-        colorbar_label = f"{pressure_hpa} hPa wind speed (m/s)"
+        colorbar_label = f"{pressure_hpa} hPa 风速（米/秒）"
     height = smooth_field(
         height,
         sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
@@ -976,7 +984,7 @@ def draw_pressure_level(
         height,
         levels=height_levels,
         colors="#243e44",
-        linewidths=0.68,
+        linewidths=0.82,
         alpha=0.84,
     )
     # Match the pressure-level station model convention: 588 dagpm instead

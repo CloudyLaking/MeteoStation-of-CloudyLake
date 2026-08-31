@@ -204,7 +204,7 @@ async def _warm_primary_observation() -> None:
 app = FastAPI(
     title="云海观象台 API",
     description="CloudyLake's Observatory 网站与气象数据服务。Powered with Codex & Deepseek.",
-    version="2.3.0",
+    version="2.4.1",
     lifespan=application_lifespan,
 )
 
@@ -245,60 +245,72 @@ async def count_application_traffic(request: Request, call_next):
     return response
 
 
+def public_html(filename: str) -> FileResponse:
+    """Serve the current shell without allowing an old release to linger."""
+    return FileResponse(
+        STATIC_DIR / filename,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 @app.get("/", include_in_schema=False)
 async def homepage() -> FileResponse:
-    return FileResponse(STATIC_DIR / "about.html")
+    return public_html("about.html")
 
 
 @app.get("/analysis", include_in_schema=False)
 async def analysis_page() -> FileResponse:
     """Legacy China analysis workbench, now with an explicit route."""
-    return FileResponse(STATIC_DIR / "index.html")
+    return public_html("index.html")
 
 
 @app.get("/observations", include_in_schema=False)
 async def observations_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "observations.html")
+    return public_html("observations.html")
 
 
 @app.get("/forecast", include_in_schema=False)
 async def forecast_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "forecast.html")
+    return public_html("forecast.html")
 
 
 @app.get("/sounding-forecast", include_in_schema=False)
 async def sounding_forecast_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "sounding-forecast.html")
+    return public_html("sounding-forecast.html")
 
 
 @app.get("/reanalysis", include_in_schema=False)
 async def reanalysis_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "reanalysis.html")
+    return public_html("reanalysis.html")
 
 
 @app.get("/about", include_in_schema=False)
 async def about_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "about.html")
+    return public_html("about.html")
 
 
 @app.get("/colorbar-translator", include_in_schema=False)
 async def colorbar_translator_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "colorbar-translator.html")
+    return public_html("colorbar-translator.html")
 
 
 @app.get("/ensemble", include_in_schema=False)
 async def ensemble_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "ensemble.html")
+    return public_html("ensemble.html")
 
 
 @app.get("/cyclones", include_in_schema=False)
 async def cyclones_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "cyclones.html")
+    return public_html("cyclones.html")
 
 
 @app.get("/history/similar", include_in_schema=False)
 async def similar_history_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "history-similar.html")
+    return public_html("history-similar.html")
 
 
 @app.get("/api/v1/ensemble/status")
@@ -684,7 +696,7 @@ async def metrics() -> dict[str, object]:
 @app.get("/api/v1/status")
 async def project_status() -> dict[str, object]:
     return {
-        "version": "V2.4.0",
+        "version": "V2.4.1",
         "stage": "compact-observatory-and-operational-derived-products",
         "updated_at": "2026-08-31",
         "archive_policy": "soundings-saved-surface-query-no-store",
@@ -729,31 +741,31 @@ async def project_status() -> dict[str, object]:
         "sources": [
             {
                 "id": "wyoming",
-                "label": "Wyoming 探空回退",
+                "label": "全球探空档案（历史回退）",
                 "role": "fallback",
-                "url": "https://weather.uwyo.edu/wsgi/sounding",
+                "url": "https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive",
             },
             {
                 "id": "metar",
-                "label": "Aviation Weather METAR",
+                "label": "航空例行天气报",
                 "role": "supplement",
                 "url": "https://aviationweather.gov/data/api/",
             },
             {
                 "id": "q-weather",
-                "label": "q-weather 逐小时 / 实时",
+                "label": "逐小时地面实况",
                 "role": "primary-v1",
                 "url": "https://q-weather.info/",
             },
             {
                 "id": "wis2",
-                "label": "WMO WIS 2.0",
+                "label": "世界气象组织资料交换 2.0",
                 "role": "primary",
                 "url": "https://community.wmo.int/en/activity-areas/wis/wis2-overview",
             },
             {
                 "id": "ecmwf-open-data",
-                "label": "ECMWF Open Data",
+                "label": "欧洲中期天气预报中心开放资料",
                 "role": "background",
                 "url": "https://www.ecmwf.int/en/forecasts/datasets/open-data",
             },
