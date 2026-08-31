@@ -6088,14 +6088,14 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading, .identity-panel__copy, .luna-main) h1 {
   margin-top: 0;
   color: var(--ink);
-  font-size: clamp(38px, 5vw, 64px);
+  font-size: clamp(28px, 3.2vw, 42px);
   font-weight: 660;
-  line-height: 1.06;
-  letter-spacing: -.04em;
+  line-height: 1.12;
+  letter-spacing: -.025em;
 }
 .unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading) {
-  padding-top: 34px;
-  padding-bottom: 34px;
+  padding-top: 18px;
+  padding-bottom: 18px;
 }
 .unified-page :is(.eyebrow, .home-kicker, .level-inspector__eyebrow) { text-transform: none; letter-spacing: .06em; }
 .unified-page :is(.map-panel, .sounding-panel, .station-query-panel, .station-query-map-panel, .realtime-panel, .station-image-result, .forecast-form, .forecast-section, .reanalysis-form, .reanalysis-map-panel, .reanalysis-result, .translator-source-panel, .translator-settings-panel, .translator-output, .identity-panel, .about-section, .cyclone-registry, .ensemble-chart-panel, .ensemble-query, .history-analog) {
@@ -6142,7 +6142,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .station-home-hero::before { top: 30px; left: 0; }
 .station-home-identity { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 28px; align-items: center; }
 .station-home-identity img { display: block; width: 108px; height: 108px; object-fit: contain; }
-.station-home-identity h1 { margin: 0; font-size: clamp(42px, 6vw, 76px); font-weight: 660; line-height: 1; letter-spacing: -.055em; }
+.station-home-identity h1 { margin: 0; font-size: clamp(34px, 4.2vw, 52px); font-weight: 660; line-height: 1.06; letter-spacing: -.035em; }
 .station-home-identity p { max-width: 710px; margin: 22px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.9; }
 .station-home-facts { margin: 0; border-top: 1px solid var(--ink); }
 .station-home-facts div { display: grid; grid-template-columns: 78px 1fr; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--rule); }
@@ -6219,7 +6219,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 
 /* Compact status readout: status and traffic are subordinate to navigation. */
 .floating-site-actions .header-data-status { display: grid; grid-template-columns: 6px auto 1px auto; gap: 9px; align-items: center; padding: 4px 0; color: var(--ink); }
-.floating-site-actions .header-data-status > i { width: 6px; height: 6px; background: var(--teal); }
+.floating-site-actions .header-data-status > i { width: 10px; height: 10px; background: var(--teal); }
 .floating-site-actions .header-data-status[data-health="degraded"] > i,
 .floating-site-actions .header-data-status[data-health="stale"] > i { background: var(--orange); }
 .floating-site-actions .header-data-status[data-health="unknown"] > i { background: var(--taupe); }
@@ -6235,7 +6235,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
   .station-home-hero { padding-top: 42px; }
   .station-home-identity { grid-template-columns: 76px minmax(0, 1fr); gap: 18px; }
   .station-home-identity img { width: 76px; height: 76px; }
-  .station-home-identity h1 { font-size: clamp(36px, 11vw, 54px); }
+  .station-home-identity h1 { font-size: clamp(32px, 9vw, 44px); }
   .station-home-identity p { margin-top: 15px; font-size: 13px; }
   .station-home-routes a { grid-template-columns: 50px 1fr 32px; gap: 12px; padding: 13px 4px 13px 0; }
   .station-home-routes a > p { grid-column: 2 / -1; grid-row: 2; }
