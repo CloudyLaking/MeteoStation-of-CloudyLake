@@ -7,8 +7,8 @@
     <title>探空预报 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
     <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.3.1-0831b" />
-    <script src="/static/site.js?v=2.3.1-0831b" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.3.2-0831c" />
+    <script src="/static/site.js?v=2.3.2-0831c" defer></script>
     <script src="/static/app.js?v=2.2.1-0810a" defer></script>
     <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
     <script src="/static/location-suggest.js?v=2.2.1-0810a" defer></script>
@@ -25,7 +25,7 @@
         </a>
         <a class="header-motto" href="/admin" title="打开运维监视器">
           <strong>服务器状态读取中</strong>
-          <span>SERVER STATUS</span>
+          <span>资料状态</span>
         </a>
       </div>
       <nav class="main-nav" aria-label="主导航">
@@ -54,14 +54,14 @@
 
     <main class="forecast-page">
       <section class="forecast-heading">
-        <p class="eyebrow">Forecast Sounding</p>
+        <p class="eyebrow">模式探空预报</p>
         <h1>探空预报</h1>
         <p>输入国家站号、站名或经纬度，读取 0–144 小时任一模式层结并进入交互图。</p>
       </section>
 
       <section class="forecast-world-picker" aria-labelledby="forecast-world-picker-title">
         <header>
-          <div><p class="eyebrow">World Map</p><h2 id="forecast-world-picker-title">世界地图选点</h2></div>
+          <div><p class="eyebrow">世界地图</p><h2 id="forecast-world-picker-title">世界地图选点</h2></div>
           <p id="forecast-world-coordinate">正在读取全球探空站；也可点击任意位置选取模式格点。</p>
         </header>
         <div id="sounding-world-map" role="application" aria-label="探空预报世界地图选点"></div>
@@ -120,7 +120,7 @@
 
       <section class="forecast-section forecast-sounding-entry" id="sounding-section" hidden>
         <header>
-          <p class="eyebrow">Interactive Forecast Profile</p>
+          <p class="eyebrow">交互预报廓线</p>
           <h2 id="sounding-title">探空廓线预报</h2>
           <p id="sounding-source">—</p>
         </header>
@@ -151,7 +151,7 @@
     <section class="profile-workspace" id="profile-workspace" aria-labelledby="profile-workspace-title" hidden>
       <header class="profile-workspace__header">
         <div>
-          <p class="eyebrow">Interactive Forecast Sounding</p>
+          <p class="eyebrow">交互预报探空</p>
           <h2 id="profile-workspace-title">交互式探空预报</h2>
           <p id="profile-workspace-meta">选择模式、起报时次和预报时效后查看垂直廓线。</p>
         </div>
@@ -174,7 +174,7 @@
           <p class="chart-gesture">移动鼠标或在图中拖动，读取最近的模式层；点击可固定该层。手机端可横向滑动或双指缩放。</p>
         </div>
         <aside class="level-inspector" aria-live="polite">
-          <span class="level-inspector__eyebrow">Selected Level</span>
+          <span class="level-inspector__eyebrow">当前层次</span>
           <strong id="level-pressure">— hPa</strong>
           <span id="level-height">Geopotential height —</span>
           <dl id="level-values">
@@ -210,7 +210,7 @@
     <footer class="site-footer">
       <span>© 2026 云海观象台 · 保留所有权利</span>
       <a href="mailto:cloudylaking@outlook.com">联系：cloudylaking@outlook.com</a>
-      <span>由 Codex 与 DeepSeek 协助构建</span>
+      <span>由技术工具协助构建</span>
     </footer>
   </body>
 </html>

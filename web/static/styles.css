@@ -6005,3 +6005,126 @@ button, input, select, textarea { border-radius: 0 !important; font: inherit; }
 .home-page *, .luna-page *, body:not(.home-page):not(.luna-page) * { border-radius: 0 !important; }
 .station, .station i, .map-sounding-station, .leaflet-marker-icon, input[type="radio"], input[type="checkbox"],
 .server-congestion__blocks i, .legend-symbol--station-ready, .legend-symbol--station-pending { border-radius: 50% !important; }
+
+/* Shared floating navigation: one route map and one visual frame for every public page. */
+body.unified-page { padding-top: 94px; }
+html, body.unified-page { max-width: 100%; overflow-x: clip; }
+.floating-site-header {
+  position: fixed !important;
+  top: 14px;
+  left: 50%;
+  z-index: 1000 !important;
+  width: min(1320px, calc(100% - 28px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(181,168,156,.62);
+  background: rgba(251,251,248,.76);
+  box-shadow: 0 10px 36px rgba(36,52,58,.055);
+  backdrop-filter: blur(22px) saturate(1.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.18);
+  transition: top .28s ease, width .28s ease, background-color .28s ease, box-shadow .28s ease;
+}
+.has-scrolled .floating-site-header {
+  top: 8px;
+  width: min(1260px, calc(100% - 20px));
+  background: rgba(251,251,248,.88);
+  box-shadow: 0 14px 42px rgba(36,52,58,.09);
+}
+.floating-site-header__bar {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  min-height: 64px;
+  padding: 0 16px 0 14px;
+  gap: 18px;
+}
+.floating-site-header .home-brand { min-width: max-content; }
+.floating-site-header .home-brand__mark { width: 38px; height: 38px; flex-basis: 38px; }
+.floating-site-header__title strong { font-size: 14px; }
+.floating-site-header__title small { font-size: 9px; }
+.floating-site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+.floating-site-nav::-webkit-scrollbar { display: none; }
+.floating-site-nav a {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 23px 10px 21px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color .2s ease, transform .2s ease;
+}
+.floating-site-nav a:hover { color: var(--teal); transform: translateY(-1px); }
+.floating-site-nav a.is-current { color: var(--ink); font-weight: 750; }
+.floating-site-nav a.is-current::after {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  left: 10px;
+  height: 2px;
+  background: var(--orange);
+  content: "";
+}
+.floating-site-nav i { width: 1px; height: 13px; flex: 0 0 1px; background: var(--rule); }
+.floating-site-actions { display: flex; align-items: center; gap: 10px; min-width: max-content; }
+.floating-site-actions .header-data-status { font-size: 10px; text-decoration: none; white-space: nowrap; }
+.floating-site-actions .lang-toggle { min-height: 34px; padding: 0 9px; font-size: 10px; }
+
+/* Normalize page widths, title rhythm and instrument surfaces across legacy and new workbenches. */
+.unified-page .unified-main-shell {
+  width: min(1240px, calc(100% - 48px));
+  margin-right: auto;
+  margin-left: auto;
+}
+.unified-page .unified-main-shell > * { min-width: 0; max-width: 100%; }
+.unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading, .identity-panel__copy, .luna-main) h1 {
+  margin-top: 0;
+  color: var(--ink);
+  font-size: clamp(38px, 5vw, 64px);
+  font-weight: 660;
+  line-height: 1.06;
+  letter-spacing: -.04em;
+}
+.unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading) {
+  padding-top: 34px;
+  padding-bottom: 34px;
+}
+.unified-page :is(.eyebrow, .home-kicker, .level-inspector__eyebrow) { text-transform: none; letter-spacing: .06em; }
+.unified-page :is(.map-panel, .sounding-panel, .station-query-panel, .station-query-map-panel, .realtime-panel, .station-image-result, .forecast-form, .forecast-section, .reanalysis-form, .reanalysis-map-panel, .reanalysis-result, .translator-source-panel, .translator-settings-panel, .translator-output, .identity-panel, .about-section, .cyclone-registry, .ensemble-chart-panel, .ensemble-query, .history-analog) {
+  background: rgba(255,255,255,.76);
+  border-color: var(--rule) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 1080px) {
+  body.unified-page { padding-top: 138px; }
+  .floating-site-header__bar { grid-template-columns: auto 1fr auto; padding-top: 7px; }
+  .floating-site-nav { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; width: 100%; border-top: 1px solid rgba(217,211,202,.7); }
+  .floating-site-nav a { padding-top: 15px; padding-bottom: 14px; }
+  .floating-site-nav a.is-current::after { bottom: 6px; }
+  .floating-site-actions .header-data-status { display: none; }
+}
+@media (max-width: 560px) {
+  body.unified-page { padding-top: 126px; }
+  .floating-site-header { top: 8px; width: calc(100% - 16px); }
+  .has-scrolled .floating-site-header { top: 5px; width: calc(100% - 10px); }
+  .floating-site-header__bar { min-height: 54px; padding: 5px 9px 0; gap: 9px; }
+  .floating-site-header__title strong { font-size: 13px; }
+  .floating-site-header__title small { display: none; }
+  .floating-site-header .home-brand__mark { width: 34px; height: 34px; flex-basis: 34px; }
+  .floating-site-actions .lang-toggle { min-height: 32px; padding: 0 7px; }
+  .floating-site-nav a { padding: 13px 8px 12px; font-size: 11px; }
+  .floating-site-nav i { height: 11px; }
+  .unified-page .unified-main-shell { width: calc(100% - 24px); }
+  .unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading, .identity-panel__copy, .luna-main) h1 { max-width: 100%; font-size: 32px; overflow-wrap: anywhere; }
+  .unified-page :is(.panel-heading, .station-query-heading, .forecast-heading, .reanalysis-heading, .translator-heading) { padding-top: 24px; padding-bottom: 24px; }
+  .unified-page :is(.map-panel, .station-query-map-panel, .reanalysis-map-panel, .forecast-section, .translator-workspace) { min-width: 0 !important; max-width: 100%; }
+}

@@ -298,7 +298,7 @@ async def cyclones_page() -> FileResponse:
 
 @app.get("/history/similar", include_in_schema=False)
 async def similar_history_page() -> FileResponse:
-    return FileResponse(STATIC_DIR / "cyclones.html")
+    return FileResponse(STATIC_DIR / "history-similar.html")
 
 
 @app.get("/api/v1/ensemble/status")

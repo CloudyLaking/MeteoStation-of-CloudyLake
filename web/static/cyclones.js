@@ -63,7 +63,7 @@
       }); target.append(list);
     } catch (error) { target.textContent = error.message; }
   }
-  $("#history-search-form").addEventListener("submit", (event) => { event.preventDefault(); searchHistory($("#history-search").value); });
-  if (location.pathname.includes("history")) $("#history-analog").scrollIntoView({ block: "start" });
+  const historyForm = $("#history-search-form");
+  if (historyForm) historyForm.addEventListener("submit", (event) => { event.preventDefault(); searchHistory($("#history-search").value); });
   loadRegistry(); loadWnc();
 })();

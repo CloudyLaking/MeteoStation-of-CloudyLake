@@ -2,7 +2,7 @@
 (function () {
   const dictionary = {
     "nav.home": ["首页", "Home"], "nav.live": ["实况", "Live"], "nav.forecast": ["预报", "Forecast"],
-    "nav.sounding": ["探空", "Soundings"], "nav.cyclones": ["台风", "Cyclones"], "nav.history": ["历史", "History"], "nav.tools": ["工具", "Tools"],
+    "nav.sounding": ["探空", "Soundings"], "nav.cyclones": ["台风", "Cyclones"], "nav.history": ["历史相似", "Analogs"], "nav.tools": ["工具", "Tools"],
     "home.kicker": ["真实资料 · 可追溯 · 可解释", "Observed data · Traceable · Explainable"],
     "home.title": ["从观测到集合，读懂天气的不确定性", "From observations to ensembles, understand uncertainty"],
     "home.intro": ["把探空、地面实况、模式背景和集合信号放在同一张清晰的时间轴上。每个产品都标明来源、时效、质量和回退状态。", "Bring soundings, surface observations, model fields and ensemble signals onto one clear timeline. Every product states its source, validity, quality and fallback state."],
@@ -19,14 +19,27 @@
     ,"cyclone.lede": ["在同一画面区分官方实况、官方警报参考、WNC 生成候选与路径情景。任何来源都不会被冒充为另一种产品。", "Separate official observations, warning references, WNC candidates and track scenarios in one view. Sources are never relabelled as another product."]
   };
   function language() { return localStorage.getItem("cloudylake-language") || "zh"; }
+  Object.assign(dictionary, {
+    "nav.analysis": ["天气分析", "Weather analysis"],
+    "nav.ensemble": ["集合预报", "Ensembles"],
+    "nav.point": ["单点预报", "Point forecast"],
+    "nav.sounding_forecast": ["探空预报", "Sounding forecast"],
+    "nav.reanalysis": ["历史再分析", "Reanalysis"],
+    "nav.colorbar": ["色条工具", "Colorbar tool"],
+    "nav.about": ["关于", "About"],
+  });
   const navItems = [
     ["nav.home", "/", ["/"]],
     ["nav.live", "/observations", ["/observations"]],
-    ["nav.forecast", "/ensemble", ["/ensemble", "/forecast", "/sounding-forecast"]],
-    ["nav.sounding", "/analysis", ["/analysis"]],
+    ["nav.analysis", "/analysis", ["/analysis"]],
+    ["nav.ensemble", "/ensemble", ["/ensemble"]],
+    ["nav.point", "/forecast", ["/forecast"]],
+    ["nav.sounding_forecast", "/sounding-forecast", ["/sounding-forecast"]],
     ["nav.cyclones", "/cyclones", ["/cyclones"]],
     ["nav.history", "/history/similar", ["/history"]],
-    ["nav.tools", "/colorbar-translator", ["/colorbar-translator", "/reanalysis", "/about"]],
+    ["nav.reanalysis", "/reanalysis", ["/reanalysis"]],
+    ["nav.colorbar", "/colorbar-translator", ["/colorbar-translator"]],
+    ["nav.about", "/about", ["/about"]],
   ];
 
   function currentNavItem(paths) {
@@ -41,12 +54,14 @@
   function installUnifiedHeader() {
     if (window.location.pathname.startsWith("/admin")) return;
     document.body.classList.add("unified-page");
-    const legacy = document.querySelector("header.site-header:not(.site-header--home)");
-    if (legacy) {
-      legacy.className = "site-header site-header--home public-header";
-      legacy.innerHTML = `<div class="home-header-row"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">CL</span><span><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><div class="home-header-actions"><a class="header-data-status" href="/health/data">正在读取资料状态</a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div><nav class="home-nav" aria-label="主导航">${navMarkup()}</nav>`;
-    }
-    document.querySelectorAll(".home-nav, .luna-nav").forEach((nav) => { nav.innerHTML = navMarkup(); });
+    const header = document.createElement("header");
+    header.className = "floating-site-header";
+    header.innerHTML = `<div class="floating-site-header__bar"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">云海观象台</span><span class="floating-site-header__title"><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><nav class="floating-site-nav" aria-label="主导航">${navMarkup()}</nav><div class="floating-site-actions"><a class="header-data-status" href="/health/data">资料状态读取中</a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div>`;
+    const legacy = document.querySelector("body > header");
+    if (legacy) legacy.replaceWith(header);
+    else document.body.prepend(header);
+    const main = document.querySelector("body > main");
+    if (main) main.classList.add("unified-main-shell");
     const firstPanel = ["main .map-panel", "main .station-query-form", "main .forecast-form", "main .reanalysis-form", "main .translator-source-panel", "main section"]
       .map((selector) => document.querySelector(selector)).find(Boolean);
     if (firstPanel) firstPanel.classList.add("signature-corner");
