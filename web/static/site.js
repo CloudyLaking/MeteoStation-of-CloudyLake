@@ -15,6 +15,38 @@
     "home.tools_label": ["工作台", "Workspaces"], "home.open_data": ["本地读取", "Local read"], "home.obs_link": ["气象站实况", "Station observations"], "home.obs_desc": ["24 小时与历史窗口", "24-hour and historical windows"], "home.era5_link": ["ERA5 再分析", "ERA5 reanalysis"], "home.era5_desc": ["按需框选区域", "Draw a region on demand"], "home.colorbar_link": ["色条翻译器", "Colorbar translator"], "home.colorbar_desc": ["图片默认不上传", "Images stay local by default"], "home.about_link": ["关于与资料说明", "About and sources"], "home.disclaimer": ["自动诊断不等同于官方预报、预警或人工天气分析。", "Automatic diagnostics are not official forecasts, warnings or human analysis."]
   };
   function language() { return localStorage.getItem("cloudylake-language") || "zh"; }
+  const navItems = [
+    ["nav.home", "/", ["/"]],
+    ["nav.live", "/observations", ["/observations"]],
+    ["nav.forecast", "/ensemble", ["/ensemble", "/forecast", "/sounding-forecast"]],
+    ["nav.sounding", "/analysis", ["/analysis"]],
+    ["nav.cyclones", "/cyclones", ["/cyclones"]],
+    ["nav.history", "/history/similar", ["/history"]],
+    ["nav.tools", "/colorbar-translator", ["/colorbar-translator", "/reanalysis", "/about"]],
+  ];
+
+  function currentNavItem(paths) {
+    const path = window.location.pathname.replace(/\/$/, "") || "/";
+    return paths.some((candidate) => candidate === "/" ? path === "/" : path === candidate || path.startsWith(`${candidate}/`));
+  }
+
+  function navMarkup() {
+    return navItems.map(([key, href, paths], index) => `${index ? '<i aria-hidden="true"></i>' : ''}<a href="${href}" data-i18n="${key}"${currentNavItem(paths) ? ' class="is-current" aria-current="page"' : ''}>${dictionary[key][0]}</a>`).join("");
+  }
+
+  function installUnifiedHeader() {
+    if (window.location.pathname.startsWith("/admin")) return;
+    document.body.classList.add("unified-page");
+    const legacy = document.querySelector("header.site-header:not(.site-header--home)");
+    if (legacy) {
+      legacy.className = "site-header site-header--home public-header";
+      legacy.innerHTML = `<div class="home-header-row"><a class="home-brand" href="/" aria-label="云海观象台首页"><span class="home-brand__mark" aria-hidden="true">CL</span><span><strong>云海观象台</strong><small>CloudyLake's Observatory</small></span></a><div class="home-header-actions"><a class="header-data-status" href="/health/data">正在读取资料状态</a><button class="lang-toggle" type="button" data-lang-toggle aria-label="切换语言">中 / EN</button></div></div><nav class="home-nav" aria-label="主导航">${navMarkup()}</nav>`;
+    }
+    document.querySelectorAll(".home-nav, .luna-nav").forEach((nav) => { nav.innerHTML = navMarkup(); });
+    const firstPanel = ["main .map-panel", "main .station-query-form", "main .forecast-form", "main .reanalysis-form", "main .translator-source-panel", "main section"]
+      .map((selector) => document.querySelector(selector)).find(Boolean);
+    if (firstPanel) firstPanel.classList.add("signature-corner");
+  }
   function applyLanguage() {
     const lang = language();
     document.documentElement.lang = lang === "en" ? "en" : "zh-CN";
@@ -34,8 +66,65 @@
     try { const response = await fetch("/api/v1/site/config", { cache: "no-store" }); if (!response.ok) return; const site = await response.json(); const root = document.documentElement; for (const [key, value] of Object.entries(site.theme || {})) root.style.setProperty(`--site-${key}`, value); document.querySelectorAll(".site-footer").forEach((footer) => { const text = footer.querySelector("span:first-child"); if (text && site.footer?.copyright) text.textContent = site.footer.copyright; }); } catch (_) {}
   }
   async function applyServerSummary() {
-    const target = document.querySelector(".header-motto"); if (!target) return;
-    try { const response = await fetch("/api/v1/site/stats", { cache: "no-store" }); if (!response.ok) return; const stats = await response.json(); const raw = stats.congestion?.data_status || stats.data_health?.status || "unknown"; const status = ({ fresh: "新鲜", degraded: "降级", stale: "过期", unknown: "未知" }[raw] || "未知"); target.textContent = `资料：${status} · ${stats.monthly_page_views || 0} 次访问`; } catch (_) {}
+    const targets = document.querySelectorAll(".header-motto, .header-data-status"); if (!targets.length) return;
+    try { const response = await fetch("/api/v1/site/stats", { cache: "no-store" }); if (!response.ok) return; const stats = await response.json(); const raw = stats.congestion?.data_status || stats.data_health?.status || "unknown"; const status = ({ fresh: "资料新鲜", degraded: "资料降级", stale: "资料过期", unknown: "状态未知" }[raw] || "状态未知"); targets.forEach((target) => { target.textContent = `${status} · ${stats.monthly_page_views || 0} 次访问`; }); } catch (_) {}
   }
-  document.addEventListener("DOMContentLoaded", () => { installLanguageToggle(); applyLanguage(); applySiteConfiguration(); applyServerSummary(); window.setInterval(applyServerSummary, 60000); window.addEventListener("scroll", () => document.documentElement.classList.toggle("has-scrolled", window.scrollY > 12), { passive: true }); });
+
+  function installAtmosphericGrid() {
+    if (!document.body.matches(".home-page, .luna-page, .unified-page")) return;
+    const canvas = document.createElement("canvas");
+    canvas.className = "atmospheric-grid";
+    canvas.setAttribute("aria-hidden", "true");
+    document.body.prepend(canvas);
+    const context = canvas.getContext("2d", { alpha: true });
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const coarse = window.matchMedia("(pointer: coarse)");
+    const state = { width: 0, height: 0, dpr: 1, pointerX: -9999, pointerY: -9999, targetX: -9999, targetY: -9999, active: false, frame: 0, last: 0 };
+    function resize() {
+      state.width = window.innerWidth; state.height = window.innerHeight; state.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvas.width = Math.round(state.width * state.dpr); canvas.height = Math.round(state.height * state.dpr); canvas.style.width = `${state.width}px`; canvas.style.height = `${state.height}px`;
+      context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    }
+    function displaced(x, y, time) {
+      const dx = x - state.pointerX; const dy = y - state.pointerY; const distance = Math.hypot(dx, dy); const radius = coarse.matches ? 105 : 190;
+      const influence = state.active && distance < radius ? Math.pow(1 - distance / radius, 2) : 0;
+      const ambient = reduced.matches ? 0 : Math.sin(time * .00032 + x * .012 + y * .008) * 1.35;
+      const push = influence * (coarse.matches ? 8 : 15);
+      return { x: x + (distance ? dx / distance * push : 0) + ambient, y: y + (distance ? dy / distance * push : 0) + ambient * .45, influence };
+    }
+    function draw(timestamp) {
+      if (!context) return;
+      if (!reduced.matches && timestamp - state.last < 32) { state.frame = requestAnimationFrame(draw); return; }
+      state.last = timestamp;
+      if (state.active) { state.pointerX += (state.targetX - state.pointerX) * .12; state.pointerY += (state.targetY - state.pointerY) * .12; }
+      context.clearRect(0, 0, state.width, state.height);
+      const gap = state.width < 700 ? 42 : 36; const step = 18; const scrollPhase = reduced.matches ? 0 : (window.scrollY % gap) * .12;
+      context.lineWidth = 1;
+      const drawPath = (vertical, fixed) => {
+        context.beginPath(); let peak = 0;
+        const max = vertical ? state.height : state.width;
+        for (let value = -step; value <= max + step; value += step) {
+          const point = displaced(vertical ? fixed : value, vertical ? value : fixed + scrollPhase, timestamp); peak = Math.max(peak, point.influence);
+          if (value === -step) context.moveTo(point.x, point.y); else context.lineTo(point.x, point.y);
+        }
+        context.strokeStyle = peak > .04 ? `rgba(125,104,152,${.07 + peak * .16})` : "rgba(18,110,104,.065)"; context.stroke();
+      };
+      for (let x = -gap; x < state.width + gap; x += gap) drawPath(true, x);
+      for (let y = -gap; y < state.height + gap; y += gap) drawPath(false, y);
+      if (state.active) {
+        const glow = context.createRadialGradient(state.pointerX, state.pointerY, 0, state.pointerX, state.pointerY, coarse.matches ? 90 : 170);
+        glow.addColorStop(0, "rgba(200,121,93,.11)"); glow.addColorStop(.52, "rgba(155,81,74,.045)"); glow.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = glow; context.fillRect(0, 0, state.width, state.height);
+      }
+      if (!reduced.matches) state.frame = requestAnimationFrame(draw);
+    }
+    function point(event) { const source = event.touches?.[0] || event; state.targetX = source.clientX; state.targetY = source.clientY; if (!state.active) { state.pointerX = state.targetX; state.pointerY = state.targetY; } state.active = true; if (reduced.matches) draw(performance.now()); }
+    window.addEventListener("resize", () => { resize(); draw(performance.now()); }, { passive: true });
+    window.addEventListener("pointermove", point, { passive: true });
+    window.addEventListener("touchmove", point, { passive: true });
+    document.addEventListener("pointerleave", () => { state.active = false; if (reduced.matches) draw(performance.now()); });
+    reduced.addEventListener?.("change", () => { cancelAnimationFrame(state.frame); draw(performance.now()); });
+    resize(); draw(performance.now());
+  }
+  document.addEventListener("DOMContentLoaded", () => { installUnifiedHeader(); installLanguageToggle(); applyLanguage(); applySiteConfiguration(); applyServerSummary(); installAtmosphericGrid(); window.setInterval(applyServerSummary, 60000); window.addEventListener("scroll", () => document.documentElement.classList.toggle("has-scrolled", window.scrollY > 12), { passive: true }); });
 })();

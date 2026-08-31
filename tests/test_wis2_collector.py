@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 from meteostation.sounding.wis2_collector import (
     Wis2CollectorConfig,
@@ -25,3 +26,21 @@ def test_successful_download_clears_stale_disconnect_state(tmp_path) -> None:
     assert "message" not in state
     assert state["download_count"] == 1
     assert state["downloaded_bytes"] == 128
+
+
+def test_station_allowlist_filters_before_queueing(tmp_path) -> None:
+    collector = Wis2SoundingCollector(
+        config=Wis2CollectorConfig(
+            broker_host="example.test",
+            topics=["cache/a/wis2/#"],
+            allowed_station_ids={"54511"},
+        ),
+        archive_root=tmp_path / "archive",
+        state_path=tmp_path / "state.json",
+    )
+    excluded = json.dumps({"properties": {"station_identifier": "72632"}}).encode()
+    included = json.dumps({"properties": {"station_identifier": "54511"}}).encode()
+    collector._on_message(None, None, SimpleNamespace(topic="temp", payload=excluded))
+    collector._on_message(None, None, SimpleNamespace(topic="temp", payload=included))
+    assert collector.skipped_notifications == 1
+    assert collector.messages.qsize() == 1

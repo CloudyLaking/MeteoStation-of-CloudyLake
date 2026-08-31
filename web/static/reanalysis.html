@@ -6,11 +6,11 @@
     <meta name="description" content="云海观象台 ERA5 历史再分析区域查询与交互制图。" />
     <title>历史再分析 · 云海观象台</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.2.1-0812d" />
-    <script src="/static/site.js?v=2.2.1-0810a" defer></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
+    <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css?v=1.9.4" />
+    <link rel="stylesheet" href="/static/styles.css?v=2.3.1-0831b" />
+    <script src="/static/site.js?v=2.3.1-0831b" defer></script>
+    <script src="/static/vendor/leaflet/leaflet.js?v=1.9.4" defer></script>
+    <script src="/static/vendor/plotly/plotly-2.35.2.min.js?v=2.35.2" defer></script>
     <script src="/static/reanalysis.js?v=2.2.1-0812f" defer></script>
   </head>
   <body>
@@ -39,7 +39,7 @@
       <section class="reanalysis-heading">
         <p class="eyebrow">ERA5 Historical Analysis</p>
         <h1>历史再分析</h1>
-        <p>选择历史时次和要素，用地图视野限定查询范围；结果可悬停读值并继续框选放大。</p>
+        <p>选择历史时次和要素，在地图上依次点取任意两个角点；结果可悬停读值并继续框选放大。</p>
       </section>
 
       <section class="reanalysis-workbench">
@@ -68,7 +68,7 @@
           <button class="reanalysis-submit" type="submit">查询并绘制</button>
         </form>
         <div class="reanalysis-map-panel">
-          <header><h2>范围选取</h2><p>平移、滚轮或双指缩放；当前视野即查询框。</p></header>
+          <header><h2>范围选取</h2><p>依次点击两个角点生成查询框；第三次点击重新开始，仍可平移或缩放地图。</p></header>
           <div id="reanalysis-map" role="application" aria-label="ERA5 查询范围地图"></div>
         </div>
       </section>
@@ -88,6 +88,6 @@
         </div>
       </section>
     </main>
-    <footer class="site-footer"><span>Copyright © 2026- CloudyLake. All Rights Reserved.</span><a href="mailto:cloudylaking@outlook.com">Contact: cloudylaking@outlook.com</a><span>Powered with Codex &amp; Deepseek</span></footer>
+    <footer class="site-footer"><span>© 2026 云海观象台 · 保留所有权利</span><a href="mailto:cloudylaking@outlook.com">联系：cloudylaking@outlook.com</a><span>由 Codex 与 DeepSeek 协助构建</span></footer>
   </body>
 </html>

@@ -4,7 +4,8 @@
   "username": "everyone",
   "password": "everyone",
   "keepalive_seconds": 60,
-  "retention_days": 3,
+  "retention_days": 1,
+  "allowed_station_ids_file": "china_sounding_stations.json",
   "topics": [
     "cache/a/wis2/+/data/core/weather/surface-based-observations/temp",
     "cache/a/wis2/+/data/core/weather/surface-based-observations/temp-ship"

@@ -2,8 +2,8 @@
   "version": "V2.3.0",
   "theme": {
     "primary": "#126E68",
-    "accent": "#F2C94C",
-    "blue": "#2563A9"
+    "accent": "#C8795D",
+    "blue": "#7D6898"
   },
   "homepage": {
     "title": "中国天气自动分析",
@@ -12,8 +12,8 @@
     "station_subtitle": "点击地图站点或输入站号，可选择时次、图形和地面订正方式。"
   },
   "footer": {
-    "copyright": "Copyright © 2026- CloudyLake. All Rights Reserved.",
+    "copyright": "© 2026 云海观象台 · 保留所有权利",
     "contact": "cloudylaking@outlook.com",
-    "powered_with": "Powered with Codex & Deepseek"
+    "powered_with": "由 Codex 与 DeepSeek 协助构建"
   }
 }

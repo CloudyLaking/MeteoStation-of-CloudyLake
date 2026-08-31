@@ -11,6 +11,7 @@ from pathlib import Path
 from time import monotonic
 from typing import Literal
 
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -67,10 +68,13 @@ from meteostation.sounding.wyoming import (
     validate_station_id,
 )
 from meteostation.weather_map import (
+    NrlCycloneUnavailable,
     WeatherMapCatalog,
     WeatherMapConfig,
+    WeatherMapDomain,
     WeatherMapPlan,
     build_weather_map_plan,
+    fetch_nrl_tropical_cyclones,
     read_preview_catalog,
 )
 from meteostation.forecast import (
@@ -86,8 +90,10 @@ from meteostation.forecast.manifest import (
     validate_cycle_files,
 )
 from meteostation.ensemble import ensemble_capability_report, load_snapshot, summarize_members, threshold_support, cluster_scenarios
+from meteostation.ensemble_sources import fetch_point_ensemble
 from meteostation.cyclone_products import cluster_tracks, cyclone_capability_report
 from meteostation.historical_similarity import similarity_score
+from meteostation.ibtracs import analogs as ibtracs_analogs, search_storms as search_ibtracs_storms
 from meteostation.health import (
     HealthMetrics,
     PAGE_PATHS,
@@ -298,8 +304,20 @@ async def ensemble_status() -> dict[str, object]:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "products": ensemble_capability_report(PROJECT_ROOT),
-        "policy": "Only validated local derived snapshots are published; deterministic or interpolated data are not used as ensemble members.",
+        "policy": "Point products use real native ensemble members with a bounded memory cache; global raw fields are not retained.",
     }
+
+
+@app.get("/api/v1/ensemble/point")
+async def ensemble_point(
+    model: Literal["aifs-ens", "wn2"] = Query("aifs-ens"),
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+) -> dict[str, object]:
+    try:
+        return await fetch_point_ensemble(model, lat, lon)
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail=f"集合资料暂不可用：{exc}") from exc
 
 
 @app.get("/api/v1/ensemble/snapshot/{model}")
@@ -335,6 +353,56 @@ async def cyclones_status() -> dict[str, object]:
     }
 
 
+@app.get("/api/v1/cyclones/current")
+async def current_cyclones() -> dict[str, object]:
+    """Return an explicitly labelled global official-warning registry."""
+    valid_at = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    archive_directory = RAW_DATA_DIR / "cyclones" / f"{valid_at:%Y}" / f"{valid_at:%m}" / f"{valid_at:%d}" / f"{valid_at:%H}"
+    domain = WeatherMapDomain(west=-180, east=180, south=-60, north=70, resolution_degrees=1, projection="plate-carree")
+    markers = []
+    nrl_error = None
+    try:
+        markers = await asyncio.to_thread(
+            fetch_nrl_tropical_cyclones,
+            valid_at=valid_at,
+            domain=domain,
+            archive_directory=archive_directory,
+            timeout_seconds=12,
+        )
+    except NrlCycloneUnavailable as exc:
+        nrl_error = str(exc)
+    if not markers:
+        try:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                response = await client.get("https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH", params={"eventlist": "TC"})
+                response.raise_for_status()
+                features = response.json().get("features", [])
+            systems = []
+            for feature in features:
+                props = feature.get("properties", {})
+                geometry = feature.get("geometry", {})
+                coordinates = geometry.get("coordinates", [])
+                if str(props.get("iscurrent", "")).casefold() != "true" or len(coordinates) < 2:
+                    continue
+                severity = props.get("severitydata", {}) or {}
+                systems.append({
+                    "id": f"GDACS-{props.get('eventid')}", "kind": "tropical", "valid_at": props.get("datemodified") or valid_at.isoformat(),
+                    "latitude": coordinates[1], "longitude": coordinates[0], "name": props.get("eventname"),
+                    "central_pressure_hpa": None, "maximum_wind_ms": round(float(severity.get("severity", 0)) / 3.6, 1) if severity.get("severityunit") == "km/h" else None,
+                    "source": props.get("url", {}).get("report", "https://www.gdacs.org/"), "confidence": "medium", "alert_level": props.get("alertlevel"),
+                })
+            return {"status": "available", "valid_at": valid_at.isoformat(), "systems": systems, "source_role": "GDACS-global-situational-reference", "disclaimer": "GDACS 是全球灾害态势参考层，不是 WNC 集合成员。"}
+        except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+            return {"status": "source_unavailable", "systems": [], "detail": nrl_error or str(exc), "valid_at": valid_at.isoformat()}
+    return {
+        "status": "available",
+        "valid_at": valid_at.isoformat(),
+        "systems": [marker.model_dump(mode="json") for marker in markers],
+        "source_role": "official-warning-reference",
+        "disclaimer": "这些系统是官方警报参考层，不是 WNC 集合成员。",
+    }
+
+
 @app.get("/api/v1/history/similarity")
 async def history_similarity(
     path_distance_km: float = Query(9999, ge=0),
@@ -346,6 +414,24 @@ async def history_similarity(
     # The endpoint exposes the scoring contract; it intentionally does not
     # invent historical cases when no authoritative index is installed.
     return {"status": "index_not_configured", "scoring": similarity_score(current, current), "cases": []}
+
+
+@app.get("/api/v1/history/storms")
+async def history_storms(q: str = Query(default="", max_length=80), limit: int = Query(default=30, ge=1, le=100)) -> dict[str, object]:
+    path = PRODUCT_DATA_DIR / "cyclones" / "ibtracs-wp.json.gz"
+    storms = await asyncio.to_thread(search_ibtracs_storms, path, q, limit)
+    return {"status": "available" if path.exists() else "index_not_configured", "storms": storms, "source": "NOAA IBTrACS v04r01"}
+
+
+@app.get("/api/v1/history/analogs/{sid}")
+async def history_analogs(sid: str, limit: int = Query(default=10, ge=1, le=30)) -> dict[str, object]:
+    path = PRODUCT_DATA_DIR / "cyclones" / "ibtracs-wp.json.gz"
+    if not path.exists():
+        raise HTTPException(status_code=503, detail="IBTrACS 压缩索引尚未安装")
+    result = await asyncio.to_thread(ibtracs_analogs, path, sid, limit)
+    if result is None:
+        raise HTTPException(status_code=404, detail="未找到该历史台风")
+    return result
 
 
 class ReanalysisRequest(BaseModel):
@@ -624,9 +710,9 @@ async def project_status() -> dict[str, object]:
         "sources": [
             {
                 "id": "wyoming",
-                "label": "Wyoming 探空",
-                "role": "primary",
-                "url": "https://weather.uwyo.edu/upperair/sounding.html",
+                "label": "Wyoming 探空回退",
+                "role": "fallback",
+                "url": "https://weather.uwyo.edu/wsgi/sounding",
             },
             {
                 "id": "metar",
@@ -643,7 +729,7 @@ async def project_status() -> dict[str, object]:
             {
                 "id": "wis2",
                 "label": "WMO WIS 2.0",
-                "role": "realtime",
+                "role": "primary",
                 "url": "https://community.wmo.int/en/activity-areas/wis/wis2-overview",
             },
             {

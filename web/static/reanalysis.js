@@ -18,6 +18,8 @@ const plot = document.querySelector("#reanalysis-plot");
 const pressureFields = new Set(["temperature", "relative_humidity", "geopotential_height", "wind_speed"]);
 let selectionMap = null;
 let selectionRectangle = null;
+let selectionPoints = [];
+let selectionMarkers = [];
 const GRID_STEP = 0.25;
 const MAX_LONGITUDE_SPAN = 120;
 const MAX_LATITUDE_SPAN = 75;
@@ -91,15 +93,29 @@ function initializeMap() {
     fillColor: "#f2c94c",
     fillOpacity: 0.08,
   }).addTo(selectionMap);
-  selectionMap.on("moveend", updateBoundsFromMap);
-  window.setTimeout(updateBoundsFromMap, 0);
-}
-
-function updateBoundsFromMap() {
-  if (!selectionMap) return;
-  const bounds = selectionMap.getBounds();
-  const fitted = adaptBounds(bounds.getWest(), bounds.getEast(), bounds.getSouth(), bounds.getNorth());
-  if (fitted) writeBounds(fitted);
+  selectionMap.on("click", (event) => {
+    if (selectionPoints.length >= 2) {
+      selectionPoints = [];
+      selectionMarkers.forEach((marker) => marker.remove());
+      selectionMarkers = [];
+    }
+    const point = [event.latlng.lat, event.latlng.lng];
+    selectionPoints.push(point);
+    selectionMarkers.push(window.L.circleMarker(point, {
+      radius: 5, color: "#ffffff", weight: 2, fillColor: selectionPoints.length === 1 ? "#7d6898" : "#c8795d", fillOpacity: 1,
+    }).addTo(selectionMap));
+    if (selectionPoints.length === 1) {
+      areaLabel.textContent = `第一角点 ${point[0].toFixed(2)}°, ${point[1].toFixed(2)}°；请点取对角`;
+      return;
+    }
+    const fitted = adaptBounds(
+      Math.min(selectionPoints[0][1], selectionPoints[1][1]),
+      Math.max(selectionPoints[0][1], selectionPoints[1][1]),
+      Math.min(selectionPoints[0][0], selectionPoints[1][0]),
+      Math.max(selectionPoints[0][0], selectionPoints[1][0]),
+    );
+    if (fitted) writeBounds(fitted);
+  });
 }
 
 function updateMapFromBounds() {

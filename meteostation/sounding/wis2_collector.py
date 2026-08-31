@@ -5,6 +5,7 @@ import json
 import queue
 import re
 import ssl
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Event, Lock
@@ -25,12 +26,21 @@ class Wis2CollectorConfig(BaseModel):
     keepalive_seconds: int = Field(default=60, ge=30, le=300)
     retention_days: int = Field(default=3, ge=1, le=30)
     topics: list[str]
+    allowed_station_ids: set[str] = Field(default_factory=set)
 
 
 def load_wis2_config(path: Path) -> Wis2CollectorConfig:
-    return Wis2CollectorConfig.model_validate_json(
-        Path(path).read_text(encoding="utf-8")
-    )
+    path = Path(path)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    allowlist_file = raw.pop("allowed_station_ids_file", None)
+    if allowlist_file:
+        inventory = json.loads((path.parent / str(allowlist_file)).read_text(encoding="utf-8"))
+        raw["allowed_station_ids"] = [
+            str(item["wmo_id"])
+            for item in inventory.get("stations", [])
+            if isinstance(item, dict) and str(item.get("wmo_id", "")).isdigit()
+        ]
+    return Wis2CollectorConfig.model_validate(raw)
 
 
 class Wis2SoundingCollector:
@@ -48,6 +58,7 @@ class Wis2SoundingCollector:
         self.state_path = Path(state_path)
         self.messages: queue.Queue[tuple[str, bytes]] = queue.Queue(maxsize=5000)
         self.stop_event = Event()
+        self.skipped_notifications = 0
         self.state_lock = Lock()
         self.client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
@@ -63,6 +74,7 @@ class Wis2SoundingCollector:
 
     def run_forever(self) -> None:
         self.archive_root.mkdir(parents=True, exist_ok=True)
+        last_prune_at = 0.0
         self.client.connect(
             self.config.broker_host,
             self.config.broker_port,
@@ -76,8 +88,11 @@ class Wis2SoundingCollector:
                 headers={"User-Agent": "CloudyLake-Observatory/2.1.1"},
             ) as http:
                 while not self.stop_event.is_set():
+                    if time.monotonic() - last_prune_at >= 15 * 60:
+                        self.prune()
+                        last_prune_at = time.monotonic()
                     try:
-                        topic, payload = self.messages.get(timeout=60)
+                        topic, payload = self.messages.get(timeout=30)
                     except queue.Empty:
                         self._write_health()
                         self.prune()
@@ -187,9 +202,19 @@ class Wis2SoundingCollector:
 
     def _on_message(self, client, userdata, message) -> None:
         try:
-            self.messages.put_nowait((message.topic, bytes(message.payload)))
+            payload = bytes(message.payload)
+            if self.config.allowed_station_ids:
+                notification = json.loads(payload.decode("utf-8"))
+                properties = notification.get("properties", {})
+                station_id = str(properties.get("station_identifier", "")) if isinstance(properties, dict) else ""
+                if station_id not in self.config.allowed_station_ids:
+                    self.skipped_notifications += 1
+                    return
+            self.messages.put_nowait((message.topic, payload))
         except queue.Full:
             self._record_error("WIS2 notification queue is full")
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            self._record_error("WIS2 notification is not valid JSON")
 
     def _on_disconnect(
         self,
@@ -217,6 +242,8 @@ class Wis2SoundingCollector:
             if message is not None:
                 state["message"] = message
             state["queued_notifications"] = self.messages.qsize()
+            state["skipped_notifications"] = self.skipped_notifications
+            state["station_filter_count"] = len(self.config.allowed_station_ids)
             write_json_atomic(self.state_path, state)
 
     def _record_download(self, byte_count: int) -> None:

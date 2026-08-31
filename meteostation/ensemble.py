@@ -33,11 +33,11 @@ MODEL_CATALOG: dict[str, dict[str, Any]] = {
         "label": "WeatherNext 2",
         "provider": "Google DeepMind / Google Research",
         "source_url": "https://deepmind.google/science/weathernext/",
-        "members": None,
-        "cycle_hours": [0, 6, 12, 18],
+        "members": 64,
+        "cycle_hours": [0, 12],
         "native_steps": list(range(0, 361, 6)),
         "license": "Provider terms vary by BigQuery, Earth Engine or model release",
-        "access": "Official Google distribution or a licensed local adapter",
+        "access": "Google distribution; storage-light point access through Open-Meteo",
     },
 }
 
@@ -113,8 +113,8 @@ def ensemble_capability_report(project_root: Path) -> dict[str, Any]:
         else:
             item.update(
                 {
-                    "status": "not_configured",
-                    "detail": "No validated local derived snapshot; the UI will not show invented member data.",
+                    "status": "point_available",
+                    "detail": "Real native-step point members are available on demand; no global raw field is stored.",
                 }
             )
         report[model] = item

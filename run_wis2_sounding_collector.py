@@ -1,4 +1,4 @@
-"""Subscribe to global WIS2 TEMP notifications and retain raw BUFR for 3 days."""
+"""Subscribe to WIS2 TEMP notifications for displayed stations with short retention."""
 
 from __future__ import annotations
 
