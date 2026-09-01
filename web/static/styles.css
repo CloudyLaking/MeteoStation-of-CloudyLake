@@ -1104,7 +1104,7 @@ a {
 
 .layer-dock {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin: 0 10px 8px;
   padding: 0;
   border: 1px solid var(--line);
@@ -6353,6 +6353,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .analysis-page.unified-page .map-panel.signature-corner::before { content: none; }
 
 .analysis-page.unified-page .panel-heading {
+  align-items: flex-start;
   min-height: 54px;
   padding: 0 0 10px;
   border-bottom: 1px solid var(--ink);
@@ -6523,8 +6524,44 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
   .analysis-page.unified-page .archive-picker__controls { border-width: 1px 0 0; }
   .analysis-page.unified-page .layer-dock,
   .analysis-page.unified-page .station-display-dock { margin-inline: 0; overflow-x: auto; }
-  .analysis-page.unified-page .layer-dock { grid-template-columns: repeat(4, minmax(74px, 1fr)); }
+  .analysis-page.unified-page .layer-dock {
+    grid-template-columns: repeat(5, minmax(58px, 1fr));
+    overflow-x: visible;
+  }
+  .analysis-page.unified-page .layer-dock button {
+    min-width: 0;
+    padding-inline: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .analysis-page.unified-page .map-attribution {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .analysis-page.unified-page .map-stage {
+    aspect-ratio: auto;
+    overflow: hidden;
+  }
+  .analysis-page.unified-page .map-canvas {
+    position: relative;
+    inset: auto;
+    aspect-ratio: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .analysis-page.unified-page .weather-map-image {
+    position: relative;
+    inset: auto;
+    display: block;
+    width: 600px;
+    max-width: none;
+    height: auto;
+  }
+  .analysis-page.unified-page .map-sounding-stations {
+    display: none;
+  }
   .analysis-page.unified-page .station-display-dock { width: max-content; min-width: 100%; }
-  .analysis-page.unified-page .map-stage { aspect-ratio: 1.41; }
   .analysis-page.unified-page .map-legend { overflow-x: auto; flex-wrap: nowrap; }
 }

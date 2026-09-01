@@ -28,9 +28,12 @@ from .climatology import (
     retrieve_era5_temperature_climatology,
 )
 from .cyclones import (
+    NmcCycloneUnavailable,
     NrlCycloneUnavailable,
+    fetch_nmc_tropical_cyclones,
     fetch_nrl_tropical_cyclones,
     load_archived_nrl_tropical_cyclones,
+    parse_nmc_typhoon,
     parse_nrl_warning,
 )
 from .decode import WeatherMapDecodeUnavailable, decode_ecmwf_background
@@ -94,7 +97,10 @@ __all__ = [
     "detect_pressure_level_centres",
     "detect_surface_fronts",
     "fetch_nrl_tropical_cyclones",
+    "fetch_nmc_tropical_cyclones",
+    "NmcCycloneUnavailable",
     "load_archived_nrl_tropical_cyclones",
+    "parse_nmc_typhoon",
     "merge_cyclone_markers",
     "parse_nrl_warning",
     "read_preview_catalog",

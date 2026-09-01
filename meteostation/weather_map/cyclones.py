@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from .models import CycloneMarker, WeatherMapDomain
 NRL_ATCF_ACTIVITY_URL = (
     "https://science.nrlmry.navy.mil/atcf/index1.html"
 )
+NMC_TYPHOON_API_ROOT = "https://typhoon.nmc.cn/weatherservice/typhoon/jsons"
 STORM_PATTERN = re.compile(
     r"SUBJ:\s+.+?\b(?P<id>\d{2}[A-Z])\s+\((?P<name>[^)]+)\)",
     re.IGNORECASE,
@@ -38,6 +40,122 @@ PRESSURE_PATTERN = re.compile(
 
 class NrlCycloneUnavailable(RuntimeError):
     """Raised when the NRL ATCF activity page cannot be read."""
+
+
+class NmcCycloneUnavailable(RuntimeError):
+    """Raised when the official CMA/NMC typhoon feed cannot be read."""
+
+
+def fetch_nmc_tropical_cyclones(
+    *,
+    valid_at: datetime,
+    domain: WeatherMapDomain,
+    archive_directory: Path | None = None,
+    timeout_seconds: float = 20,
+) -> list[CycloneMarker]:
+    """Read every active numbered system from the official CMA/NMC feed."""
+    headers = {
+        "User-Agent": (
+            "CloudyLake-Observatory/2.0 "
+            "(meteostation.top weather-map collector)"
+        )
+    }
+    try:
+        response = requests.get(
+            f"{NMC_TYPHOON_API_ROOT}/list_default",
+            timeout=timeout_seconds,
+            headers=headers,
+        )
+        response.raise_for_status()
+        payload = _decode_jsonp(response.content.decode("utf-8"))
+    except (requests.RequestException, UnicodeError, ValueError) as exc:
+        raise NmcCycloneUnavailable(
+            f"CMA/NMC active-system feed unavailable: {exc}"
+        ) from exc
+    active = [item for item in payload.get("typhoonList", []) if item[7] == "start"]
+    markers: list[CycloneMarker] = []
+    for item in active:
+        internal_id = str(item[0])
+        try:
+            detail_response = requests.get(
+                f"{NMC_TYPHOON_API_ROOT}/view_{internal_id}",
+                timeout=timeout_seconds,
+                headers=headers,
+            )
+            detail_response.raise_for_status()
+            detail_text = detail_response.content.decode("utf-8")
+        except (requests.RequestException, UnicodeError):
+            continue
+        if archive_directory is not None:
+            _archive_text(
+                Path(archive_directory) / f"nmc-{internal_id}.jsonp",
+                detail_text,
+            )
+        marker = parse_nmc_typhoon(detail_text, valid_at=valid_at)
+        if marker is not None and _marker_in_domain(marker, domain):
+            markers.append(marker)
+    return markers
+
+
+def parse_nmc_typhoon(
+    response_text: str,
+    *,
+    valid_at: datetime,
+) -> CycloneMarker | None:
+    """Choose the official analysis position nearest the requested map time."""
+    payload = _decode_jsonp(response_text)
+    storm = payload.get("typhoon")
+    if not isinstance(storm, list) or len(storm) < 9:
+        return None
+    points = storm[8]
+    if not isinstance(points, list) or not points:
+        return None
+    candidates = []
+    for point in points:
+        if not isinstance(point, list) or len(point) < 8:
+            continue
+        try:
+            point_time = datetime.strptime(str(point[1]), "%Y%m%d%H%M").replace(
+                tzinfo=timezone.utc
+            )
+            longitude = float(point[4])
+            latitude = float(point[5])
+            pressure = float(point[6]) if point[6] is not None else None
+            wind = float(point[7]) if point[7] is not None else None
+        except (TypeError, ValueError):
+            continue
+        candidates.append(
+            (abs((point_time - valid_at).total_seconds()), point_time, longitude,
+             latitude, pressure, wind)
+        )
+    if not candidates:
+        return None
+    distance, point_time, longitude, latitude, pressure, wind = min(candidates)
+    if distance > 6 * 3600:
+        return None
+    return CycloneMarker(
+        id=str(storm[4]),
+        kind="tropical",
+        valid_at=point_time,
+        latitude=latitude,
+        longitude=longitude,
+        name=str(storm[1]).upper(),
+        central_pressure_hpa=pressure,
+        maximum_wind_ms=wind,
+        source="CMA National Meteorological Centre typhoon analysis",
+        confidence="high",
+    )
+
+
+def _decode_jsonp(text: str) -> dict:
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("invalid NMC typhoon JSONP response")
+    payload = json.loads(text[start:end + 1])
+    if not isinstance(payload, dict):
+        raise ValueError("invalid NMC typhoon payload")
+    return payload
 
 
 def fetch_nrl_tropical_cyclones(

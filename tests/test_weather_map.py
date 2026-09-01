@@ -33,6 +33,7 @@ from meteostation.weather_map import (
     load_tianditu_basemap,
     load_geojson_boundary,
     load_era5_height_climatology,
+    parse_nmc_typhoon,
     parse_nrl_warning,
     read_preview_catalog,
     render_weather_map_preview,
@@ -285,6 +286,28 @@ MINIMUM CENTRAL PRESSURE AT 250000Z IS 980 MB.
         self.assertEqual(marker.latitude, 23.4)
         self.assertEqual(marker.longitude, 115.0)
         self.assertAlmostEqual(marker.maximum_wind_ms or 0, 36.0, delta=0.1)
+
+    def test_nmc_active_typhoon_position_is_selected_for_analysis_time(self) -> None:
+        payload = {
+            "typhoon": [
+                3326569, "KROVANH", "", 2624, 2624, None, "", "start",
+                [
+                    [1, "202609010000", 0, "TS", 132.0, 22.5, 995, 18],
+                    [2, "202609010600", 0, "TS", 132.1, 22.5, 995, 18],
+                ],
+            ]
+        }
+        marker = parse_nmc_typhoon(
+            f"callback({json.dumps(payload)})",
+            valid_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        )
+        self.assertIsNotNone(marker)
+        assert marker is not None
+        self.assertEqual(marker.id, "2624")
+        self.assertEqual(marker.name, "KROVANH")
+        self.assertEqual(marker.latitude, 22.5)
+        self.assertEqual(marker.longitude, 132.0)
+        self.assertEqual(marker.central_pressure_hpa, 995)
 
     def test_nrl_fetch_uses_archived_warning_when_network_fails(self) -> None:
         warning = """

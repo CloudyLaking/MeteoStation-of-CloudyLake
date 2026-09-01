@@ -1,5 +1,5 @@
 {
-  "version": "V2.4.3",
+  "version": "V2.4.4",
   "region": "china-and-neighbours",
   "cycles": [
     "00",
@@ -81,7 +81,7 @@
   "layers": [
     {
       "id": "composite",
-      "label": "综合天气场",
+      "label": "综合分析",
       "description": "850 hPa 温度距平填色、850 hPa 风场与 500 hPa 位势高度等值线",
       "status": "pipeline-ready",
       "recipe": {
@@ -123,7 +123,7 @@
     {
       "id": "500",
       "label": "500 hPa",
-      "description": "ERA5 1991—2020 同月平均距平、位势高度与风场",
+      "description": "ERA5 1991—2020 同期平均距平、位势高度与风场",
       "status": "pipeline-ready",
       "recipe": {
         "pressure_hpa": 500,
@@ -153,9 +153,9 @@
     {
       "id": "tropical-cyclones",
       "label": "热带气旋位置",
-      "description": "在所有环境场中叠加热带气旋编号、名称、位置和强度",
+      "description": "显示活动热带气旋的编号、名称、位置和强度",
       "status": "source-adapter-pending",
-      "source": "NRL ATCF active warnings / ECMWF Open Data HRES TC tracks fallback",
+      "source": "中央气象台台风分析 / NRL ATCF 回退",
       "method": "warning or trajectory positions nearest the analysis time"
     }
   ],

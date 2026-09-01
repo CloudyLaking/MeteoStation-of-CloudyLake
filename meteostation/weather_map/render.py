@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
 import numpy as np
+from PIL import Image
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.collections import LineCollection
@@ -203,15 +204,15 @@ def render_weather_map_preview(
     axis.set_xlabel("")
     axis.set_ylabel("")
     axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}?E")
+        FuncFormatter(lambda value, _: f"{value:.0f}°E")
     )
     axis.yaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}?N")
+        FuncFormatter(lambda value, _: f"{value:.0f}°N")
     )
     axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
     axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
     axis.tick_params(
-        labelsize=13.0,
+        labelsize=19.0,
         colors="#31464d",
         length=3.2,
         width=0.7,
@@ -229,7 +230,7 @@ def render_weather_map_preview(
     axis.set_title(
         f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
         loc="left",
-        fontsize=19.0,
+        fontsize=30.0,
         fontweight=650,
         fontproperties=font,
         color="#263943",
@@ -246,7 +247,7 @@ def render_weather_map_preview(
         MAP_FIGURE_BOUNDS["left"],
         0.026,
         f"Source: {source_note} | CloudyLake Observatory | meteostation.top",
-        fontsize=12.0,
+        fontsize=14.0,
         color="#607176",
         fontproperties=font,
     )
@@ -256,7 +257,7 @@ def render_weather_map_preview(
         "CLOUDYLAKE OBSERVATORY",
         ha="right",
         va="top",
-        fontsize=13,
+        fontsize=18,
         fontweight=700,
         color="#126e68",
         fontproperties=font,
@@ -283,17 +284,27 @@ def render_weather_map_preview(
     )
     directory.mkdir(parents=True, exist_ok=True)
     stem = f"{subset.valid_at:%H}_{layer_id}"
-    image_path = directory / f"{stem}.png"
+    image_path = directory / f"{stem}.webp"
     metadata_path = directory / f"{stem}.json"
-    temporary_image = image_path.with_suffix(".png.tmp")
+    temporary_png = directory / f".{stem}.png.tmp"
+    temporary_image = directory / f".{stem}.webp.tmp"
     figure.savefig(
-        temporary_image,
+        temporary_png,
         format="png",
         dpi=180,
         facecolor="white",
     )
     plt.close(figure)
+    with Image.open(temporary_png) as source_image:
+        source_image.convert("RGB").save(
+            temporary_image,
+            format="WEBP",
+            quality=92,
+            method=6,
+        )
+    temporary_png.unlink(missing_ok=True)
     os.replace(temporary_image, image_path)
+    (directory / f"{stem}.png").unlink(missing_ok=True)
     metadata = {
         "layer_id": layer_id,
         "valid_at": subset.valid_at.isoformat(),
@@ -378,11 +389,11 @@ def draw_synoptic_features(
 ) -> None:
     """Draw objective fronts and upper-air axes with restrained symbology."""
     styles = {
-        "cold-front": ("#1769aa", "-", "冷锋"),
-        "warm-front": ("#d6a313", "-", "暖锋"),
-        "stationary-front": ("#147f78", "-", "静止锋"),
-        "trough-axis": ("#1769aa", "--", "槽线"),
-        "ridge-axis": ("#d6a313", "--", "脊线"),
+        "cold-front": ("#1769aa", "-", "COLD FRONT"),
+        "warm-front": ("#d6a313", "-", "WARM FRONT"),
+        "stationary-front": ("#147f78", "-", "STATIONARY FRONT"),
+        "trough-axis": ("#1769aa", "--", "TROUGH"),
+        "ridge-axis": ("#d6a313", "--", "RIDGE"),
     }
     x_min, x_max = sorted(axis.get_xlim())
     y_min, y_max = sorted(axis.get_ylim())
@@ -618,7 +629,7 @@ def draw_south_china_sea_inset(
         spine.set_linewidth(0.8)
     inset.set_title(
         "SOUTH CHINA SEA",
-        fontsize=9.0,
+        fontsize=14.0,
         fontweight=650,
         fontproperties=font,
         color="#41645f",
@@ -676,7 +687,7 @@ def draw_surface(
         contours,
         inline=True,
         inline_spacing=4,
-        fontsize=11.5,
+        fontsize=17.0,
         fmt="%.0f",
     )
     style_contour_labels(contour_labels)
@@ -684,7 +695,7 @@ def draw_surface(
     add_weather_colorbar(
         figure,
         shaded,
-        "2-m Temperature (?C)",
+        "2-m Temperature (°C)",
     )
 
 
@@ -729,7 +740,7 @@ def draw_surface_objective_features(
             alpha=0.68,
             zorder=4.8,
         )
-        axis.clabel(wet_outline, fmt={wet_threshold: "湿区"}, fontsize=9.2)
+        axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=12.0)
 
     _draw_temperature_extrema(axis, longitude, latitude, temperature)
 
@@ -763,8 +774,8 @@ def _draw_temperature_extrema(
     )
     selected: list[tuple[float, float]] = []
     for candidates, label, color, reverse in (
-        (high_candidates, "暖中心", "#a95c38", True),
-        (low_candidates, "冷中心", "#516591", False),
+        (high_candidates, "WARM", "#a95c38", True),
+        (low_candidates, "COLD", "#516591", False),
     ):
         ranked = sorted(
             candidates,
@@ -792,7 +803,7 @@ def _draw_temperature_extrema(
                 f"{label}\n{value:.0f}°C",
                 ha="center",
                 va="center",
-                fontsize=10,
+                fontsize=12.5,
                 fontweight="bold",
                 color=color,
                 path_effects=[
@@ -859,7 +870,7 @@ def draw_composite(
         contours,
         inline=True,
         inline_spacing=5,
-        fontsize=12.5,
+        fontsize=18.0,
         fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
@@ -870,7 +881,7 @@ def draw_composite(
         require_field(grid, "wind_u_850_ms"),
         require_field(grid, "wind_v_850_ms"),
     )
-    add_weather_colorbar(figure, shaded, "850-hPa Temperature Anomaly (?C)")
+    add_weather_colorbar(figure, shaded, "850-hPa Temperature Anomaly (°C)")
 
 
 def draw_pressure_level(
@@ -927,7 +938,7 @@ def draw_pressure_level(
             levels=np.linspace(0, maximum, 13), cmap=WIND_COLORS,
             extend="max", alpha=0.76,
         )
-        colorbar_label = f"{pressure_hpa}-hPa Wind Speed (m s??)"
+        colorbar_label = f"{pressure_hpa}-hPa Wind Speed (m s⁻¹)"
     height = smooth_field(
         height,
         sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[f"{pressure_hpa}_height"],
@@ -944,7 +955,7 @@ def draw_pressure_level(
     )
     contour_labels = axis.clabel(
         contours, inline=True, inline_spacing=5,
-        fontsize=12.5, fmt=format_geopotential_height_dagpm,
+        fontsize=18.0, fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
@@ -1016,18 +1027,29 @@ def draw_cyclone_markers(
             label = f"{name}\n{marker.valid_at:%m/%d %H%MZ}"
             if details:
                 label += " | " + " · ".join(details)
-            axis.annotate(
+            label_above = marker.longitude >= 125
+            annotation = axis.annotate(
                 label,
                 (marker.longitude, marker.latitude),
-                xytext=(-7, 10),
+                xytext=(-8 if label_above else 8, 16 if label_above else -2),
                 textcoords="offset points",
-                ha="right",
-                va="bottom",
-                fontsize=11.5,
+                ha="right" if label_above else "left",
+                va="bottom" if label_above else "top",
+                fontsize=17.0,
                 fontweight="bold",
                 fontproperties=font,
                 color="#8e3f45",
                 zorder=9,
+            )
+            annotation.set_path_effects(
+                [
+                    path_effects.Stroke(
+                        linewidth=2.2,
+                        foreground="white",
+                        alpha=0.92,
+                    ),
+                    path_effects.Normal(),
+                ]
             )
             continue
         is_high = marker.kind == "high-pressure"
@@ -1038,7 +1060,7 @@ def draw_cyclone_markers(
             "H" if is_high else "L",
             ha="center",
             va="center",
-            fontsize=19,
+            fontsize=27,
             fontweight=850,
             fontproperties=font,
             color=centre_color,
@@ -1063,7 +1085,7 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=9.5,
+                fontsize=14.0,
                 fontweight="bold",
                 fontproperties=font,
                 color=centre_color,
@@ -1136,9 +1158,9 @@ def add_weather_colorbar(
     colorbar.ax.yaxis.set_major_formatter(
         FuncFormatter(lambda value, _: f"{value:g}")
     )
-    colorbar.set_label(label, fontsize=13.0, color="#31464d", labelpad=10)
+    colorbar.set_label(label, fontsize=19.0, color="#31464d", labelpad=14)
     colorbar.ax.tick_params(
-        labelsize=12.0,
+        labelsize=17.0,
         colors="#31464d",
         length=3,
         width=0.65,
