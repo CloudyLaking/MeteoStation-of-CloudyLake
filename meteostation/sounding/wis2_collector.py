@@ -118,11 +118,19 @@ class Wis2SoundingCollector:
         if href is None:
             raise ValueError("WIS2 TEMP notification has no downloadable link")
         observed_at = notification_datetime(notification)
-        notification_id = str(
-            notification.get("id")
-            or hashlib.sha256(payload).hexdigest()
+        notification_id = str(notification.get("id") or hashlib.sha256(payload).hexdigest())
+        properties = notification.get("properties", {})
+        # The same WIS2 object is republished by several Global Caches with a
+        # different notification id and URL. data_id identifies the actual
+        # observation, so using it here prevents downloading 5–10 identical
+        # TEMP messages and keeps the realtime archive small.
+        data_id = (
+            str(properties.get("data_id", "")).strip()
+            if isinstance(properties, dict)
+            else ""
         )
-        safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", notification_id)[:120]
+        object_id = data_id or notification_id
+        safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", object_id)[-120:]
         directory = (
             self.archive_root
             / f"{observed_at:%Y}"
@@ -146,6 +154,7 @@ class Wis2SoundingCollector:
             metadata_path,
             {
                 "notification_id": notification_id,
+                "data_id": data_id or None,
                 "topic": topic,
                 "observed_at": observed_at.isoformat(),
                 "downloaded_at": datetime.now(timezone.utc).isoformat(),
@@ -155,7 +164,6 @@ class Wis2SoundingCollector:
                 "notification": notification,
             },
         )
-        properties = notification.get("properties", {})
         station_id = str(properties.get("station_identifier", "")) if isinstance(properties, dict) else ""
         if station_id.isdigit() and len(station_id) == 5:
             index_path = directory / "index.json"

@@ -9,9 +9,9 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.4.2-0901a" />
-    <script src="/static/site.js?v=2.4.2-0901a" defer></script>
-    <script src="/static/app.js?v=2.4.2-0901a" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.3-0901a" />
+    <script src="/static/site.js?v=2.4.3-0901a" defer></script>
+    <script src="/static/app.js?v=2.4.3-0901a" defer></script>
   </head>
   <body class="analysis-page">
     <header class="site-header">
@@ -76,18 +76,11 @@
         </div>
 
         <div class="layer-dock" aria-label="地图图层">
-          <button type="button" class="is-active" data-map-layer="composite">地面</button>
+          <button type="button" class="is-active" data-map-layer="composite">综合</button>
+          <button type="button" data-map-layer="surface">地面</button>
           <button type="button" data-map-layer="850">850 hPa</button>
           <button type="button" data-map-layer="500">500 hPa</button>
           <button type="button" data-map-layer="200">200 hPa</button>
-        </div>
-        <div class="station-display-dock" aria-label="探空站数据显示方式">
-          <span title="切换天气图上探空站的数值标注；点击站点打开对应探空图">探空站标注</span>
-          <button type="button" class="is-active" data-station-display="composite" title="显示标准探空站模；点击图中站点打开探空图">站模</button>
-          <button type="button" data-station-display="temperature">温度</button>
-          <button type="button" data-station-display="dewpoint">露点</button>
-          <button type="button" data-station-display="height">气压 / 高度</button>
-          <button type="button" data-station-display="wind">风速</button>
         </div>
 
         <div class="map-stage">
@@ -95,7 +88,7 @@
           <img
             class="weather-map-image"
             id="weather-map-image"
-            alt="中国天气分析图"
+            alt="中国天气场分析图"
             hidden
           />
           <div class="weather-map-badge" id="weather-map-badge" hidden></div>
@@ -124,15 +117,16 @@
 
           </div>
 
+        </div>
+
           <div class="map-attribution" id="map-attribution">
             正在读取地图来源与审图状态
           </div>
-        </div>
 
         <div class="map-legend">
-            <span><i class="legend-symbol legend-symbol--tc">×</i>热带气旋</span>
-            <span><i class="legend-symbol legend-symbol--station-ready">●</i>探空已更新</span>
-            <span><i class="legend-symbol legend-symbol--station-pending">●</i>探空待更新</span>
+          <span><i class="legend-symbol legend-symbol--tc" aria-hidden="true"></i>热带气旋</span>
+          <span><i class="legend-symbol legend-symbol--station-ready" aria-hidden="true"></i>探空已更新</span>
+          <span><i class="legend-symbol legend-symbol--station-pending" aria-hidden="true"></i>探空待更新</span>
         </div>
       </section>
 
@@ -252,10 +246,7 @@
             <div><dt>相对湿度</dt><dd>—</dd></div>
             <div><dt>风</dt><dd>—</dd></div>
           </dl>
-          <section class="sounding-structures" aria-labelledby="sounding-structures-title">
-            <header><strong id="sounding-structures-title">自动识别的垂直结构</strong><small>仅依据当前实测层</small></header>
-            <div id="sounding-structures-list"><p>读取探空后自动识别逆温、湿层、干层、低空急流和对流层顶候选。</p></div>
-          </section>
+
           <form class="sounding-correction" id="sounding-correction">
             <header>
               <span>地面层订正</span>

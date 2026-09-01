@@ -21,8 +21,11 @@ from .catalog import WeatherMapCatalog
 from .climatology import (
     HeightClimatology,
     HeightClimatologyUnavailable,
+    TemperatureClimatology,
     load_era5_height_climatology,
+    load_era5_temperature_climatology,
     retrieve_era5_height_climatology,
+    retrieve_era5_temperature_climatology,
 )
 from .cyclones import (
     NrlCycloneUnavailable,
@@ -60,6 +63,7 @@ __all__ = [
     "SynopticFeature",
     "HeightClimatology",
     "HeightClimatologyUnavailable",
+    "TemperatureClimatology",
     "LocalBoundaryLayer",
     "TiandituBasemap",
     "TiandituBasemapUnavailable",
@@ -81,6 +85,7 @@ __all__ = [
     "build_tianditu_wmts_url",
     "load_geojson_boundary",
     "load_era5_height_climatology",
+    "load_era5_temperature_climatology",
     "load_tianditu_basemap",
     "decode_ecmwf_background",
     "detect_height_axes",
@@ -96,6 +101,7 @@ __all__ = [
     "render_weather_map_preview",
     "retrieve_ecmwf_input",
     "retrieve_era5_height_climatology",
+    "retrieve_era5_temperature_climatology",
     "smooth_field",
     "update_preview_catalog",
 ]

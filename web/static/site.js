@@ -20,7 +20,7 @@
   };
   function language() { return localStorage.getItem("cloudylake-language") || "zh"; }
   Object.assign(dictionary, {
-    "nav.analysis": ["天气场", "Weather fields"],
+    "nav.analysis": ["天气场&探空", "Weather fields & soundings"],
     "nav.ensemble": ["集合预报", "Ensembles"],
     "nav.point": ["单点预报", "Point forecast"],
     "nav.sounding_forecast": ["探空预报", "Sounding forecast"],

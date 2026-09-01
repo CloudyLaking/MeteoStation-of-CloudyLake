@@ -25,6 +25,15 @@ class HeightClimatology:
     path: str
 
 
+@dataclass(frozen=True)
+class TemperatureClimatology:
+    values_c: np.ndarray
+    source: str
+    normal_period: str
+    month: int
+    path: str
+
+
 def retrieve_era5_height_climatology(
     target_path: Path,
     *,
@@ -73,6 +82,72 @@ def retrieve_era5_height_climatology(
     os.replace(temporary, path)
     metadata_path = path.with_suffix(path.suffix + ".json")
     metadata_path.write_text(
+        json.dumps(
+            {
+                "source": "Copernicus Climate Data Store ERA5",
+                "dataset": "reanalysis-era5-pressure-levels-monthly-means",
+                "normal_period": f"{start_year}-{end_year}",
+                "pressure_hpa": pressure_hpa,
+                "month": month,
+                "time": "00:00 UTC",
+                "area": [north, west, south, east],
+                "request": request,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def retrieve_era5_temperature_climatology(
+    target_path: Path,
+    *,
+    pressure_hpa: int = 850,
+    start_year: int = 1991,
+    end_year: int = 2020,
+    month: int,
+    west: float,
+    east: float,
+    south: float,
+    north: float,
+) -> Path:
+    """Retrieve one calendar-month ERA5 pressure-level temperature normal."""
+    try:
+        import cdsapi
+    except ImportError as exc:
+        raise HeightClimatologyUnavailable(
+            "cdsapi is required to retrieve the ERA5 climatology"
+        ) from exc
+    path = Path(target_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".download")
+    request = {
+        "product_type": ["monthly_averaged_reanalysis"],
+        "variable": ["temperature"],
+        "pressure_level": [str(pressure_hpa)],
+        "year": [str(year) for year in range(start_year, end_year + 1)],
+        "month": [f"{month:02d}"],
+        "time": ["00:00"],
+        "area": [north, west, south, east],
+        "data_format": "netcdf",
+        "download_format": "unarchived",
+    }
+    try:
+        cdsapi.Client().retrieve(
+            "reanalysis-era5-pressure-levels-monthly-means",
+            request,
+            str(temporary),
+        )
+    except Exception as exc:
+        if temporary.exists():
+            temporary.unlink()
+        raise HeightClimatologyUnavailable(
+            f"ERA5 temperature climatology retrieval failed: {exc}"
+        ) from exc
+    os.replace(temporary, path)
+    path.with_suffix(path.suffix + ".json").write_text(
         json.dumps(
             {
                 "source": "Copernicus Climate Data Store ERA5",
@@ -194,6 +269,82 @@ def load_era5_height_climatology(
     )
 
 
+def load_era5_temperature_climatology(
+    path: Path,
+    *,
+    longitude: np.ndarray,
+    latitude: np.ndarray,
+    month: int,
+    pressure_hpa: int = 850,
+    normal_period: str = "1991-2020",
+) -> TemperatureClimatology:
+    """Load, average and interpolate an ERA5 monthly temperature normal."""
+    source_path = Path(path)
+    if not source_path.is_file():
+        raise HeightClimatologyUnavailable(
+            f"ERA5 temperature climatology file is missing: {source_path}"
+        )
+    try:
+        with xr.open_dataset(source_path) as dataset:
+            field = _select_temperature(dataset, pressure_hpa)
+            time_name = next(
+                (name for name in ("valid_time", "time", "date") if name in field.coords),
+                None,
+            )
+            if time_name is not None:
+                month_values = field[time_name].dt.month
+                field = field.sel({time_name: field[time_name][month_values == month]})
+                if field.sizes.get(time_name, 0) == 0:
+                    raise HeightClimatologyUnavailable(
+                        f"No month {month:02d} values in {source_path}"
+                    )
+                field = field.mean(time_name, skipna=True)
+            field = _collapse_non_spatial_dimensions(field)
+            longitude_name = _coordinate_name(field, ("longitude", "lon"))
+            latitude_name = _coordinate_name(field, ("latitude", "lat"))
+            field = field.assign_coords(
+                {longitude_name: (((field[longitude_name] + 180) % 360) - 180)}
+            ).sortby(longitude_name).sortby(latitude_name)
+            interpolated = field.interp(
+                {
+                    longitude_name: xr.DataArray(
+                        np.asarray(longitude, dtype=float), dims=("target_longitude",)
+                    ),
+                    latitude_name: xr.DataArray(
+                        np.asarray(latitude, dtype=float), dims=("target_latitude",)
+                    ),
+                },
+                method="linear",
+            )
+            values = np.asarray(interpolated.values, dtype=float).squeeze()
+    except HeightClimatologyUnavailable:
+        raise
+    except Exception as exc:
+        raise HeightClimatologyUnavailable(
+            f"Cannot read ERA5 temperature climatology {source_path}: {exc}"
+        ) from exc
+    expected_shape = (len(latitude), len(longitude))
+    if values.shape == expected_shape[::-1]:
+        values = values.T
+    if values.shape != expected_shape:
+        raise HeightClimatologyUnavailable(
+            f"ERA5 temperature climatology has shape {values.shape}; expected {expected_shape}"
+        )
+    if float(np.nanmedian(values)) > 100:
+        values = values - 273.15
+    if not np.isfinite(values).any():
+        raise HeightClimatologyUnavailable(
+            "ERA5 temperature climatology contains no finite values in the map domain"
+        )
+    return TemperatureClimatology(
+        values_c=values,
+        source="Copernicus Climate Data Store ERA5 monthly mean",
+        normal_period=normal_period,
+        month=month,
+        path=str(source_path),
+    )
+
+
 def _select_geopotential(
     dataset: xr.Dataset,
     pressure_hpa: int,
@@ -215,6 +366,22 @@ def _select_geopotential(
             continue
         field = field.sel({level_name: pressure_hpa}, method="nearest")
         break
+    return field
+
+
+def _select_temperature(dataset: xr.Dataset, pressure_hpa: int) -> xr.DataArray:
+    for name in ("t", "temperature"):
+        if name in dataset.data_vars:
+            field = dataset[name]
+            break
+    else:
+        raise HeightClimatologyUnavailable(
+            "ERA5 climatology has no temperature variable"
+        )
+    for level_name in ("pressure_level", "isobaricInhPa", "level"):
+        if level_name in field.coords:
+            field = field.sel({level_name: pressure_hpa}, method="nearest")
+            break
     return field
 
 

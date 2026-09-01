@@ -1087,11 +1087,10 @@ async def latest_weather_map_product(
     if layer not in known_layers:
         raise HTTPException(status_code=422, detail="unknown weather-map layer")
 
-    preview_layer = "surface" if layer == "composite" else layer
     previews = [
         item
         for item in read_preview_catalog(WEATHER_MAP_PREVIEW_CATALOG_PATH)
-        if item.layer_id == preview_layer
+        if item.layer_id == layer
     ]
     preview = max(previews, key=lambda item: item.valid_at, default=None)
     product = weather_map_catalog.latest_product(layer_id=layer)

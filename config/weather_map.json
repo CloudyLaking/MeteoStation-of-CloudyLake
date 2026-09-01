@@ -1,5 +1,5 @@
 {
-  "version": "V2.4.2",
+  "version": "V2.4.3",
   "region": "china-and-neighbours",
   "cycles": [
     "00",
@@ -59,6 +59,13 @@
       "pressure_hpa": 500,
       "time": "00:00 UTC",
       "path_template": "data/raw/era5_climatology/era5_500hpa_height_1991_2020_month_{month}.nc"
+    },
+    "850_temperature": {
+      "source": "Copernicus Climate Data Store ERA5 monthly averaged reanalysis",
+      "normal_period": "1991-2020",
+      "pressure_hpa": 850,
+      "time": "00:00 UTC",
+      "path_template": "data/raw/era5_climatology/era5_850hpa_temperature_1991_2020_month_{month}.nc"
     }
   },
   "analysis_method": {
@@ -74,14 +81,14 @@
   "layers": [
     {
       "id": "composite",
-      "label": "地面气压与温度",
-      "description": "二米温度填色、海平面气压等值线与十米风场",
+      "label": "综合天气场",
+      "description": "850 hPa 温度距平填色、850 hPa 风场与 500 hPa 位势高度等值线",
       "status": "pipeline-ready",
       "recipe": {
         "fields": [
-          "2m_temperature",
-          "mean_sea_level_pressure",
-          "10m_wind"
+          "850_temperature_anomaly_1991_2020",
+          "850_wind",
+          "500_geopotential_height"
         ]
       }
     },

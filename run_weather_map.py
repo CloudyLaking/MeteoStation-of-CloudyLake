@@ -3,7 +3,6 @@
 import argparse
 import json
 import os
-import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -24,9 +23,11 @@ from meteostation.weather_map import (
     load_tianditu_basemap,
     load_geojson_boundary,
     load_era5_height_climatology,
+    load_era5_temperature_climatology,
     render_weather_map_preview,
     retrieve_ecmwf_input,
     retrieve_era5_height_climatology,
+    retrieve_era5_temperature_climatology,
     update_preview_catalog,
 )
 
@@ -55,8 +56,8 @@ def parse_args() -> argparse.Namespace:
         "--download-climatology",
         action="store_true",
         help=(
-            "Retrieve the ERA5 1991-2020 calendar-month 500 hPa "
-            "height normal used by the anomaly layer."
+            "Retrieve the ERA5 1991-2020 monthly 500 hPa height and "
+            "850 hPa temperature normals used by anomaly layers."
         ),
     )
     parser.add_argument(
@@ -113,7 +114,20 @@ def main() -> None:
     height_climatology_path = PROJECT_ROOT / path_template.format(
         month=f"{args.date.month:02d}",
     )
-    climatology_month_used = args.date.month
+    temperature_climatology_configuration = configuration.climatology.get(
+        "850_temperature", {},
+    )
+    if not isinstance(temperature_climatology_configuration, dict):
+        temperature_climatology_configuration = {}
+    temperature_path_template = str(
+        temperature_climatology_configuration.get(
+            "path_template",
+            "data/raw/era5_climatology/era5_850hpa_temperature_1991_2020_month_{month}.nc",
+        )
+    )
+    temperature_climatology_path = PROJECT_ROOT / temperature_path_template.format(
+        month=f"{args.date.month:02d}",
+    )
 
     if args.download_climatology and not height_climatology_path.is_file():
         retrieved_path = retrieve_era5_height_climatology(
@@ -127,28 +141,20 @@ def main() -> None:
             south=configuration.domain.south,
             north=configuration.domain.north,
         )
-        print(f"已归档 500 hPa 高度气候态：{retrieved_path}")
-
-    if not height_climatology_path.is_file():
-        candidates: list[tuple[int, Path]] = []
-        for candidate in height_climatology_path.parent.glob(
-            "era5_500hpa_height_1991_2020_month_*.nc"
-        ):
-            match = re.search(r"month_(\d{2})\.nc$", candidate.name)
-            if match:
-                candidates.append((int(match.group(1)), candidate))
-        if candidates:
-            climatology_month_used, height_climatology_path = min(
-                candidates,
-                key=lambda item: min(
-                    abs(item[0] - args.date.month),
-                    12 - abs(item[0] - args.date.month),
-                ),
-            )
-            print(
-                "当月 ERA5 高度正常值尚未归档；暂用最邻近月份："
-                f"{climatology_month_used:02d} 月。"
-            )
+        print(f"Archived 500 hPa height climatology: {retrieved_path}")
+    if args.download_climatology and not temperature_climatology_path.is_file():
+        retrieved_path = retrieve_era5_temperature_climatology(
+            temperature_climatology_path,
+            pressure_hpa=850,
+            start_year=1991,
+            end_year=2020,
+            month=args.date.month,
+            west=configuration.domain.west,
+            east=configuration.domain.east,
+            south=configuration.domain.south,
+            north=configuration.domain.north,
+        )
+        print(f"Archived 850 hPa temperature climatology: {retrieved_path}")
 
     if args.download:
         for request in plan.requests:
@@ -213,13 +219,23 @@ def main() -> None:
             height_climatology_path,
             longitude=grid.longitude,
             latitude=grid.latitude,
-            month=climatology_month_used,
+            month=args.date.month,
             pressure_hpa=500,
             normal_period=str(
                 height_climatology_configuration.get(
                     "normal_period",
                     "1991-2020",
                 )
+            ),
+        )
+        temperature_climatology = load_era5_temperature_climatology(
+            temperature_climatology_path,
+            longitude=grid.longitude,
+            latitude=grid.latitude,
+            month=args.date.month,
+            pressure_hpa=850,
+            normal_period=str(
+                temperature_climatology_configuration.get("normal_period", "1991-2020")
             ),
         )
         grid = WeatherGrid(
@@ -232,6 +248,7 @@ def main() -> None:
                 "geopotential_height_500_climatology_gpm": (
                     height_climatology.values_gpm
                 ),
+                "temperature_850_climatology_c": temperature_climatology.values_c,
             },
             metadata={
                 **grid.metadata,
@@ -239,11 +256,13 @@ def main() -> None:
                     "source": height_climatology.source,
                     "normal_period": height_climatology.normal_period,
                     "month": height_climatology.month,
-                    "requested_month": plan.valid_at.month,
-                    "nearest_month_fallback": (
-                        height_climatology.month != plan.valid_at.month
-                    ),
                     "path": height_climatology.path,
+                },
+                "temperature_climatology_850": {
+                    "source": temperature_climatology.source,
+                    "normal_period": temperature_climatology.normal_period,
+                    "month": temperature_climatology.month,
+                    "path": temperature_climatology.path,
                 },
             },
         )
@@ -314,7 +333,7 @@ def main() -> None:
                 base_map=base_map,
                 boundary_layer=boundary_layer,
             )
-            for layer in ("surface", "850", "500", "200")
+            for layer in ("composite", "surface", "850", "500", "200")
         ]
         update_preview_catalog(
             preview_root / "weather_maps" / "catalog.json",

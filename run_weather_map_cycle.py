@@ -80,6 +80,8 @@ def main() -> int:
         "--cycle",
         cycle,
         "--download",
+        "--download-climatology",
+        "--include-cyclone-tracks",
         "--render-preview",
     ]
     completed = subprocess.run(

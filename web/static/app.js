@@ -18,7 +18,6 @@ const profileClose = document.querySelector("#profile-close");
 const levelPressure = document.querySelector("#level-pressure");
 const levelHeight = document.querySelector("#level-height");
 const levelValues = document.querySelector("#level-values");
-const soundingStructuresList = document.querySelector("#sounding-structures-list");
 const exportButtons = document.querySelectorAll("[data-export]");
 const weatherMapButtons = document.querySelectorAll("[data-map-layer]");
 const stationDisplayButtons = document.querySelectorAll("[data-station-display]");
@@ -219,8 +218,7 @@ async function loadWeatherMapProduct() {
       return;
     }
     if (["composite", "surface", "850", "500", "200"].includes(selectedWeatherLayer)) {
-      const previewLayer =
-        selectedWeatherLayer === "composite" ? "surface" : selectedWeatherLayer;
+      const previewLayer = selectedWeatherLayer;
       const previewQuery = new URLSearchParams(query);
       previewQuery.set("layer", previewLayer);
       const previewResponse = await fetch(
@@ -814,7 +812,6 @@ function renderSelectedView() {
     ?? (stationId === "58362" ? "上海宝山" : `站号 ${stationId}`);
   profileWorkspaceMeta.textContent = currentSounding.meta
     ?? `${stationName} · 站号 ${stationId} · ${archiveDate.value} ${cycle} 世界时 · ${data.level_count} 个实测层`;
-  renderSoundingStructures(diagnostics?.structures ?? []);
   if (rawDownload) {
     rawDownload.hidden = !currentSounding.rawUrl && !query;
     rawDownload.href = currentSounding.rawUrl
@@ -834,20 +831,6 @@ function renderSelectedView() {
   profileView.hidden = false;
   sourceTableWrap.hidden = true;
   renderProfileChart(data, selectedView, stationName, diagnostics);
-}
-
-function renderSoundingStructures(structures) {
-  if (!soundingStructuresList) return;
-  if (!structures.length) {
-    soundingStructuresList.innerHTML = "<p>当前层次未达到保守识别阈值；这不表示结构一定不存在。</p>";
-    return;
-  }
-  soundingStructuresList.replaceChildren(...structures.map((structure) => {
-    const article = document.createElement("article");
-    article.dataset.kind = structure.kind;
-    article.innerHTML = `<div><strong>${escapeHtml(structure.label)}</strong><b>${escapeHtml(structure.confidence)}可信度</b></div><p>${escapeHtml(structure.summary)}</p><small>${formatNumber(structure.bottom_pressure_hpa, 0)}—${formatNumber(structure.top_pressure_hpa, 0)} hPa</small>`;
-    return article;
-  }));
 }
 
 function activeProfile() {

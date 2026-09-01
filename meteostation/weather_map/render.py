@@ -11,6 +11,8 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.collections import LineCollection
+from matplotlib.offsetbox import AnnotationBbox, DrawingArea
+from matplotlib.patches import Arc, Circle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy.ndimage import maximum_filter, minimum_filter
 
@@ -51,18 +53,19 @@ HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
         "#964b46",
     ],
 )
-FIGURE_SIZE_INCHES = (12.0, 8.5)
+FIGURE_SIZE_INCHES = (15.0, 10.0)
 MAP_FIGURE_BOUNDS = {
-    "left": 0.075,
-    "right": 0.860,
-    "bottom": 0.100,
-    "top": 0.860,
+    "left": 0.052,
+    "right": 0.895,
+    "bottom": 0.082,
+    "top": 0.875,
 }
-COLORBAR_FIGURE_BOUNDS = [0.885, 0.115, 0.017, 0.730]
+COLORBAR_FIGURE_BOUNDS = [0.920, 0.105, 0.016, 0.748]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
     "850_humidity": 3.00,
+    "850_temperature_anomaly": 2.20,
     "850_height": 2.50,
     "500_height_anomaly": 3.00,
     "500_height": 2.50,
@@ -116,42 +119,30 @@ def render_weather_map_preview(
             zorder=-20,
             interpolation="bilinear",
         )
-    if layer_id in {"surface", "composite"}:
+    if layer_id == "composite":
+        draw_composite(axis, figure, longitude_grid, latitude_grid, subset)
+        title = "COMPOSITE | 850-hPa Temperature Anomaly & Wind / 500-hPa Geopotential Height"
+    elif layer_id == "surface":
         draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "地面天气场 · 二米温度 / 海平面气压 / 十米风"
+        title = "SURFACE | 2-m Temperature / MSLP / 10-m Wind"
     elif layer_id == "850":
         draw_pressure_level(
-            axis,
-            figure,
-            longitude_grid,
-            latitude_grid,
-            subset,
-            pressure_hpa=850,
-            shade="humidity",
+            axis, figure, longitude_grid, latitude_grid, subset,
+            pressure_hpa=850, shade="humidity",
         )
-        title = "850 hPa · 相对湿度 / 位势高度 / 风场"
+        title = "850 hPa | Relative Humidity / Geopotential Height / Wind"
     elif layer_id == "500":
         draw_pressure_level(
-            axis,
-            figure,
-            longitude_grid,
-            latitude_grid,
-            subset,
-            pressure_hpa=500,
-            shade="height_anomaly",
+            axis, figure, longitude_grid, latitude_grid, subset,
+            pressure_hpa=500, shade="height_anomaly",
         )
-        title = "500 hPa · 位势高度距平 / 位势高度 / 风场"
+        title = "500 hPa | Geopotential Height Anomaly / Height / Wind"
     elif layer_id == "200":
         draw_pressure_level(
-            axis,
-            figure,
-            longitude_grid,
-            latitude_grid,
-            subset,
-            pressure_hpa=200,
-            shade="wind",
+            axis, figure, longitude_grid, latitude_grid, subset,
+            pressure_hpa=200, shade="wind",
         )
-        title = "200 hPa · 高空风场 / 位势高度"
+        title = "200 hPa | Wind Speed / Geopotential Height"
     else:
         plt.close(figure)
         raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
@@ -191,7 +182,7 @@ def render_weather_map_preview(
     if boundary_layer is not None:
         draw_local_boundaries(axis, boundary_layer)
         draw_south_china_sea_inset(
-            figure,
+            axis,
             boundary_layer,
             font=font,
         )
@@ -212,15 +203,15 @@ def render_weather_map_preview(
     axis.set_xlabel("")
     axis.set_ylabel("")
     axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}°E")
+        FuncFormatter(lambda value, _: f"{value:.0f}?E")
     )
     axis.yaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}°N")
+        FuncFormatter(lambda value, _: f"{value:.0f}?N")
     )
     axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
     axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
     axis.tick_params(
-        labelsize=10.2,
+        labelsize=13.0,
         colors="#31464d",
         length=3.2,
         width=0.7,
@@ -236,47 +227,36 @@ def render_weather_map_preview(
         spine.set_color("#264b4a")
         spine.set_linewidth(0.55)
     axis.set_title(
-        f"{title}\n{subset.valid_at:%Y-%m-%d %H:00} 世界时",
+        f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
         loc="left",
-        fontsize=14.5,
+        fontsize=19.0,
         fontweight=650,
         fontproperties=font,
         color="#263943",
-        linespacing=1.35,
-        pad=14,
+        linespacing=1.25,
+        pad=12,
     )
     source_note = subset.source
-    source_note = (
-        source_note.replace("Open Data", "开放资料")
-        .replace("UTC", "世界时")
-        .replace(" h", " 小时")
-    )
-    if layer_id == "500":
-        normal_metadata = subset.metadata.get(
-            "height_climatology_500",
-            {},
-        )
+    if layer_id in {"composite", "500"}:
+        normal_metadata = subset.metadata.get("height_climatology_500", {})
         if isinstance(normal_metadata, dict):
-            normal_period = normal_metadata.get(
-                "normal_period",
-                "1991-2020",
-            )
-            source_note += f" · ERA5 {normal_period} monthly height normal"
+            normal_period = normal_metadata.get("normal_period", "1991-2020")
+            source_note += f" | ERA5 {normal_period} monthly normals"
     figure.text(
         MAP_FIGURE_BOUNDS["left"],
-        0.035,
-        f"资料来源：{source_note} · 云海观象台 · meteostation.top",
-        fontsize=9.5,
+        0.026,
+        f"Source: {source_note} | CloudyLake Observatory | meteostation.top",
+        fontsize=12.0,
         color="#607176",
         fontproperties=font,
     )
     figure.text(
         MAP_FIGURE_BOUNDS["right"],
-        0.955,
-        "云海观象台",
+        0.958,
+        "CLOUDYLAKE OBSERVATORY",
         ha="right",
         va="top",
-        fontsize=11,
+        fontsize=13,
         fontweight=700,
         color="#126e68",
         fontproperties=font,
@@ -611,49 +591,38 @@ def draw_local_boundaries(
 
 
 def draw_south_china_sea_inset(
-    figure: object,
+    axis: object,
     boundary_layer: LocalBoundaryLayer,
     *,
     font: FontProperties | None,
 ) -> None:
-    """Draw the standard South China Sea islands inset from the same source."""
-    inset = figure.add_axes([0.727, 0.132, 0.105, 0.195])
-    inset.set_facecolor("#ffffff")
-    province_collection = LineCollection(
+    """Draw the South China Sea inset wholly inside the geographic frame."""
+    inset = axis.inset_axes([0.805, 0.055, 0.165, 0.305], zorder=7.5)
+    inset.set_facecolor((1, 1, 1, 0.90))
+    inset.add_collection(LineCollection(
         boundary_layer.province_lines,
-        colors="#5d7b76",
-        linewidths=0.42,
-        alpha=0.82,
-        zorder=2,
-    )
-    boundary_collection = LineCollection(
+        colors="#5d7b76", linewidths=0.55, alpha=0.88, zorder=2,
+    ))
+    inset.add_collection(LineCollection(
         boundary_layer.boundary_lines,
-        colors="#163f3c",
-        linewidths=0.82,
-        alpha=1.0,
-        zorder=3,
-    )
-    inset.add_collection(province_collection)
-    inset.add_collection(boundary_collection)
+        colors="#163f3c", linewidths=0.95, alpha=1.0, zorder=3,
+    ))
     inset.set_xlim(105, 125)
     inset.set_ylim(3, 25)
-    inset.set_aspect(
-        1 / np.cos(np.radians(14)),
-        adjustable="box",
-    )
+    inset.set_aspect(1 / np.cos(np.radians(14)), adjustable="box")
     inset.set_xticks([])
     inset.set_yticks([])
     inset.tick_params(length=0)
     for spine in inset.spines.values():
         spine.set_color("#41645f")
-        spine.set_linewidth(0.72)
+        spine.set_linewidth(0.8)
     inset.set_title(
-        "南海诸岛",
-        fontsize=7.5,
+        "SOUTH CHINA SEA",
+        fontsize=9.0,
         fontweight=650,
         fontproperties=font,
         color="#41645f",
-        pad=2,
+        pad=3,
     )
 
 
@@ -707,7 +676,7 @@ def draw_surface(
         contours,
         inline=True,
         inline_spacing=4,
-        fontsize=9.8,
+        fontsize=11.5,
         fmt="%.0f",
     )
     style_contour_labels(contour_labels)
@@ -715,7 +684,7 @@ def draw_surface(
     add_weather_colorbar(
         figure,
         shaded,
-        "二米温度（摄氏度）",
+        "2-m Temperature (?C)",
     )
 
 
@@ -838,6 +807,72 @@ def _draw_temperature_extrema(
                 break
 
 
+def draw_composite(
+    axis: object,
+    figure: object,
+    longitude: np.ndarray,
+    latitude: np.ndarray,
+    grid: WeatherGrid,
+) -> None:
+    """850-hPa temperature anomaly and wind with 500-hPa height contours."""
+    temperature = require_field(grid, "temperature_850_c")
+    normal = require_field(grid, "temperature_850_climatology_c")
+    anomaly = smooth_field(
+        temperature - normal,
+        sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS["850_temperature_anomaly"],
+    )
+    maximum = max(
+        4,
+        round_up(float(np.nanpercentile(np.abs(anomaly), 99)), 2),
+    )
+    shaded = axis.contourf(
+        longitude,
+        latitude,
+        anomaly,
+        levels=np.arange(-maximum, maximum + 0.1, 2),
+        cmap=HEIGHT_ANOMALY_COLORS,
+        extend="both",
+        alpha=0.80,
+        zorder=1,
+    )
+    height = smooth_field(
+        require_field(grid, "geopotential_height_500_gpm"),
+        sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS["500_height"],
+    )
+    height_interval = 40
+    height_levels = np.arange(
+        np.floor(np.nanmin(height) / height_interval) * height_interval,
+        np.ceil(np.nanmax(height) / height_interval) * height_interval + 0.1,
+        height_interval,
+    )
+    contours = axis.contour(
+        longitude,
+        latitude,
+        height,
+        levels=height_levels,
+        colors="#1f343a",
+        linewidths=1.05,
+        alpha=0.94,
+        zorder=3.4,
+    )
+    contour_labels = axis.clabel(
+        contours,
+        inline=True,
+        inline_spacing=5,
+        fontsize=12.5,
+        fmt=format_geopotential_height_dagpm,
+    )
+    style_contour_labels(contour_labels)
+    draw_wind_barbs(
+        axis,
+        longitude,
+        latitude,
+        require_field(grid, "wind_u_850_ms"),
+        require_field(grid, "wind_v_850_ms"),
+    )
+    add_weather_colorbar(figure, shaded, "850-hPa Temperature Anomaly (?C)")
+
+
 def draw_pressure_level(
     axis: object,
     figure: object,
@@ -849,136 +884,67 @@ def draw_pressure_level(
     shade: str,
 ) -> None:
     suffix = str(pressure_hpa)
-    height = require_field(
-        grid,
-        f"geopotential_height_{suffix}_gpm",
-    )
+    height = require_field(grid, f"geopotential_height_{suffix}_gpm")
     u_wind = require_field(grid, f"wind_u_{suffix}_ms")
     v_wind = require_field(grid, f"wind_v_{suffix}_ms")
     if shade == "humidity":
         shaded_values = smooth_field(
-            require_field(
-                grid,
-                f"relative_humidity_{suffix}_pct",
-            ),
-            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
-                "850_humidity"
-            ],
+            require_field(grid, f"relative_humidity_{suffix}_pct"),
+            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS["850_humidity"],
         )
         shaded = axis.contourf(
-            longitude,
-            latitude,
-            shaded_values,
-            levels=np.arange(10, 101, 10),
-            cmap=HUMIDITY_COLORS,
-            extend="both",
-            alpha=0.70,
+            longitude, latitude, shaded_values,
+            levels=np.arange(10, 101, 10), cmap=HUMIDITY_COLORS,
+            extend="both", alpha=0.74,
         )
-        colorbar_label = "相对湿度（%）"
+        colorbar_label = "Relative Humidity (%)"
     elif shade == "height_anomaly":
         climatology_height = require_field(
-            grid,
-            "geopotential_height_500_climatology_gpm",
+            grid, "geopotential_height_500_climatology_gpm"
         )
         shaded_values = smooth_field(
             height - climatology_height,
-            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
-                "500_height_anomaly"
-            ],
+            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS["500_height_anomaly"],
         )
         maximum = max(
             40,
-            round_up(
-                float(
-                    np.nanpercentile(
-                        np.abs(shaded_values),
-                        98,
-                    )
-                ),
-                20,
-            ),
+            round_up(float(np.nanpercentile(np.abs(shaded_values), 98)), 20),
         )
         shaded = axis.contourf(
-            longitude,
-            latitude,
-            shaded_values,
+            longitude, latitude, shaded_values,
             levels=np.linspace(-maximum, maximum, 13),
-            cmap=HEIGHT_ANOMALY_COLORS,
-            extend="both",
-            alpha=0.72,
+            cmap=HEIGHT_ANOMALY_COLORS, extend="both", alpha=0.76,
         )
-        colorbar_label = "500 hPa 高度距平（位势米）"
+        colorbar_label = "500-hPa Geopotential Height Anomaly (gpm)"
     else:
         shaded_values = smooth_field(
             np.hypot(u_wind, v_wind),
-            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
-                "200_wind_speed"
-            ],
+            sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS["200_wind_speed"],
         )
-        maximum = max(
-            30,
-            round_up(
-                float(np.nanpercentile(shaded_values, 99)),
-                5,
-            ),
-        )
+        maximum = max(30, round_up(float(np.nanpercentile(shaded_values, 99)), 5))
         shaded = axis.contourf(
-            longitude,
-            latitude,
-            shaded_values,
-            levels=np.linspace(0, maximum, 13),
-            cmap=WIND_COLORS,
-            extend="max",
-            alpha=0.72,
+            longitude, latitude, shaded_values,
+            levels=np.linspace(0, maximum, 13), cmap=WIND_COLORS,
+            extend="max", alpha=0.76,
         )
-        colorbar_label = f"{pressure_hpa} hPa 风速（米/秒）"
+        colorbar_label = f"{pressure_hpa}-hPa Wind Speed (m s??)"
     height = smooth_field(
         height,
-        sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[
-            f"{pressure_hpa}_height"
-        ],
+        sigma_gridpoints=SMOOTHING_SIGMA_GRIDPOINTS[f"{pressure_hpa}_height"],
     )
-    # Use 4-dagpm spacing for 500 hPa (standard subtropical-high analysis).
-    if pressure_hpa == 500:
-        height_interval = 40
-        # Align to the classic 580 / 584 / 588 / 592 dagpm sequence.
-        anchor = 5800
-        height_levels = np.arange(
-            anchor,
-            np.ceil(np.nanmax(height) / height_interval) * height_interval + 0.1,
-            height_interval,
-        )
-        # Also include levels below 580 if needed.
-        low = np.arange(
-            np.floor(np.nanmin(height) / height_interval) * height_interval,
-            anchor,
-            height_interval,
-        )
-        height_levels = np.concatenate([low, height_levels])
-    else:
-        height_interval = {850: 30, 500: 60, 200: 120}[pressure_hpa]
-        height_levels = np.arange(
-            np.floor(np.nanmin(height) / height_interval) * height_interval,
-            np.ceil(np.nanmax(height) / height_interval) * height_interval + 0.1,
-            height_interval,
-        )
+    height_interval = {850: 30, 500: 40, 200: 120}[pressure_hpa]
+    height_levels = np.arange(
+        np.floor(np.nanmin(height) / height_interval) * height_interval,
+        np.ceil(np.nanmax(height) / height_interval) * height_interval + 0.1,
+        height_interval,
+    )
     contours = axis.contour(
-        longitude,
-        latitude,
-        height,
-        levels=height_levels,
-        colors="#243e44",
-        linewidths=0.82,
-        alpha=0.84,
+        longitude, latitude, height, levels=height_levels,
+        colors="#243e44", linewidths=1.0, alpha=0.92,
     )
-    # Match the pressure-level station model convention: 588 dagpm instead
-    # of 5880 gpm. The decoded field remains in geopotential metres.
     contour_labels = axis.clabel(
-        contours,
-        inline=True,
-        inline_spacing=4,
-        fontsize=9.8,
-        fmt=format_geopotential_height_dagpm,
+        contours, inline=True, inline_spacing=5,
+        fontsize=12.5, fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
@@ -1026,24 +992,30 @@ def draw_cyclone_markers(
 
     for marker in [*tropical_markers, *visible_markers]:
         if marker.kind == "tropical":
-            axis.scatter(
-                [marker.longitude],
-                [marker.latitude],
-                marker="x",
-                s=74,
-                linewidths=1.8,
-                color="#126e68",
+            symbol = DrawingArea(28, 28, 0, 0)
+            symbol.add_artist(Circle((14, 14), 2.8, fill=False, color="#8e3f45", lw=1.8))
+            symbol.add_artist(Arc((10, 14), 17, 12, angle=0, theta1=145, theta2=348, color="#8e3f45", lw=2.0))
+            symbol.add_artist(Arc((18, 14), 17, 12, angle=0, theta1=-35, theta2=168, color="#8e3f45", lw=2.0))
+            axis.add_artist(AnnotationBbox(
+                symbol,
+                (marker.longitude, marker.latitude),
+                frameon=False,
+                box_alignment=(0.5, 0.5),
                 zorder=8,
-            )
+            ))
             name = " ".join(
                 item
                 for item in (marker.id, marker.name)
                 if item
             )
-            label = (
-                f"{name}\n"
-                f"{marker.valid_at:%m/%d %H%MZ}"
-            )
+            details = []
+            if marker.central_pressure_hpa is not None:
+                details.append(f"{marker.central_pressure_hpa:.0f} hPa")
+            if marker.maximum_wind_ms is not None:
+                details.append(f"{marker.maximum_wind_ms:.0f} m/s")
+            label = f"{name}\n{marker.valid_at:%m/%d %H%MZ}"
+            if details:
+                label += " | " + " · ".join(details)
             axis.annotate(
                 label,
                 (marker.longitude, marker.latitude),
@@ -1051,10 +1023,10 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="right",
                 va="bottom",
-                fontsize=10,
+                fontsize=11.5,
                 fontweight="bold",
                 fontproperties=font,
-                color="#126e68",
+                color="#8e3f45",
                 zorder=9,
             )
             continue
@@ -1106,8 +1078,8 @@ def draw_wind_barbs(
     u_wind: np.ndarray,
     v_wind: np.ndarray,
 ) -> None:
-    longitude_step = max(1, longitude.shape[1] // 25)
-    latitude_step = max(1, latitude.shape[0] // 16)
+    longitude_step = max(1, longitude.shape[1] // 27)
+    latitude_step = max(1, latitude.shape[0] // 17)
     selection = (
         slice(None, None, latitude_step),
         slice(None, None, longitude_step),
@@ -1133,9 +1105,9 @@ def draw_wind_barbs(
         sampled_u[moving],
         sampled_v[moving],
         color="#435d5b",
-        linewidth=0.38,
-        length=3.8,
-        alpha=0.55,
+        linewidth=0.52,
+        length=4.5,
+        alpha=0.72,
     )
     axis.scatter(
         sampled_longitude[calm],
@@ -1164,9 +1136,9 @@ def add_weather_colorbar(
     colorbar.ax.yaxis.set_major_formatter(
         FuncFormatter(lambda value, _: f"{value:g}")
     )
-    colorbar.set_label(label, fontsize=10.5, color="#31464d", labelpad=9)
+    colorbar.set_label(label, fontsize=13.0, color="#31464d", labelpad=10)
     colorbar.ax.tick_params(
-        labelsize=9.8,
+        labelsize=12.0,
         colors="#31464d",
         length=3,
         width=0.65,
@@ -1206,6 +1178,14 @@ def validate_weather_fields(grid: WeatherGrid, layer_id: str) -> None:
         "wind_u_10m_ms": (-100, 100),
         "wind_v_10m_ms": (-100, 100),
     }
+    if layer_id == "composite":
+        required = {
+            "temperature_850_c": (-90, 55),
+            "temperature_850_climatology_c": (-90, 55),
+            "wind_u_850_ms": (-200, 200),
+            "wind_v_850_ms": (-200, 200),
+            "geopotential_height_500_gpm": (3500, 7000),
+        }
     if layer_id in {"850", "500", "200"}:
         pressure = int(layer_id)
         required = {

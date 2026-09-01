@@ -1234,10 +1234,18 @@ a {
 }
 
 .legend-symbol--station-ready {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  background: currentColor;
   color: #35a85b;
 }
 
 .legend-symbol--station-pending {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  background: currentColor;
   color: #e1b42f;
 }
 
@@ -6231,8 +6239,8 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .unified-site-footer__meta { display: flex; justify-content: space-between; gap: 24px; margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--rule); font-size: 9px; }
 
 /* Compact status readout: status and traffic are subordinate to navigation. */
-.floating-site-actions .header-data-status { display: grid; grid-template-columns: 7px auto 1px auto; gap: 8px; align-items: stretch; padding: 4px 0; color: var(--ink); }
-.floating-site-actions .header-data-status > i { display: block; width: 7px; height: 100%; min-height: 21px; background: var(--teal); }
+.floating-site-actions .header-data-status { display: grid; grid-template-columns: 21px auto 1px auto; gap: 8px; align-items: center; padding: 4px 0; color: var(--ink); }
+.floating-site-actions .header-data-status > i { display: block; width: 21px; height: 21px; background: var(--teal); }
 .floating-site-actions .header-data-status[data-health="degraded"] > i,
 .floating-site-actions .header-data-status[data-health="stale"] > i { background: var(--orange); }
 .floating-site-actions .header-data-status[data-health="unknown"] > i { background: var(--taupe); }
@@ -6410,6 +6418,16 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .analysis-page.unified-page .map-canvas { border: 0; background: #fff; }
 .analysis-page.unified-page .weather-map-image { background: #fff; }
 
+.analysis-page.unified-page .map-attribution {
+  position: static;
+  max-width: none;
+  padding: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: 9px;
+  text-align: right;
+  text-shadow: none;
+}
+
 .analysis-page.unified-page .map-notice {
   padding: 18px 22px;
   border-width: 1px 0;
@@ -6429,6 +6447,29 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
   background: transparent;
   font-size: 10px;
 }
+
+.legend-symbol--tc {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  color: var(--brick);
+  vertical-align: -3px;
+}
+
+.legend-symbol--tc::before,
+.legend-symbol--tc::after {
+  position: absolute;
+  width: 9px;
+  height: 5px;
+  border: 1.5px solid currentColor;
+  border-left-color: transparent;
+  border-radius: 50%;
+  content: "";
+}
+
+.legend-symbol--tc::before { top: 1px; left: 0; transform: rotate(-16deg); }
+.legend-symbol--tc::after { right: 0; bottom: 1px; transform: rotate(164deg); }
 
 .analysis-page.unified-page .side-panel {
   min-height: 620px;
