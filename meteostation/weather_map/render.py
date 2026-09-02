@@ -18,6 +18,11 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator
 from scipy.ndimage import maximum_filter, minimum_filter
 
 from .analysis import (
+    detect_height_axes,
+    detect_high_pressure_centres,
+    detect_low_pressure_centres,
+    detect_pressure_level_centres,
+    detect_surface_fronts,
     smooth_field,
 )
 from .basemap import LocalBoundaryLayer, TiandituBasemap
@@ -72,6 +77,19 @@ SMOOTHING_SIGMA_GRIDPOINTS = {
     "500_height": 2.50,
     "200_wind_speed": 2.60,
     "200_height": 2.50,
+}
+TYPE_SIZE = {
+    "title": 22.0,
+    "tick": 17.0,
+    "contour": 17.0,
+    "annotation": 15.0,
+    "cyclone": 16.0,
+    "centre": 25.0,
+    "centre_value": 14.0,
+    "colorbar": 17.0,
+    "colorbar_tick": 15.0,
+    "footer": 12.5,
+    "inset": 11.5,
 }
 
 
@@ -155,10 +173,35 @@ def render_weather_map_preview(
     axis.set_xlim(domain.west, domain.east)
     axis.set_ylim(domain.south, domain.north)
 
-    # Fronts, troughs and ridges are analysis conclusions rather than raw
-    # fields. Do not publish heuristic diagnoses unless a caller explicitly
-    # supplies a separately validated feature set.
-    diagnosed_features = synoptic_features or []
+    # Build an objective analysis layer from the same valid-time background.
+    # Explicit caller-supplied features still take precedence for reviewed
+    # products and tests.
+    if synoptic_features is not None:
+        diagnosed_features = synoptic_features
+    elif layer_id == "surface":
+        diagnosed_features = detect_surface_fronts(subset, domain=domain)
+    elif layer_id in {"composite", "500"}:
+        diagnosed_features = detect_height_axes(
+            subset,
+            domain=domain,
+            pressure_hpa=500,
+        )
+    else:
+        diagnosed_features = []
+    tropical_markers = [
+        marker
+        for marker in (cyclone_markers or [])
+        if marker.kind == "tropical"
+    ]
+    diagnosed_features = [
+        feature
+        for feature in diagnosed_features
+        if not _feature_near_tropical_cyclone(
+            feature,
+            tropical_markers,
+            radius_degrees=(8.0 if "front" in feature.kind else 6.0),
+        )
+    ]
     draw_synoptic_features(
         axis,
         diagnosed_features,
@@ -187,11 +230,32 @@ def render_weather_map_preview(
             boundary_layer,
             font=font,
         )
-    draw_cyclone_markers(
-        axis,
-        [marker for marker in (cyclone_markers or []) if marker.kind == "tropical"],
-        font=font,
-    )
+    objective_centres: list[CycloneMarker]
+    if layer_id == "surface":
+        objective_centres = [
+            *detect_low_pressure_centres(subset, domain=domain),
+            *detect_high_pressure_centres(subset, domain=domain),
+        ]
+    else:
+        centre_level = 500 if layer_id == "composite" else int(layer_id)
+        objective_centres = detect_pressure_level_centres(
+            subset,
+            domain=domain,
+            pressure_hpa=centre_level,
+        )
+    objective_centres = [
+        marker
+        for marker in objective_centres
+        if not any(
+            np.hypot(
+                marker.latitude - tropical.latitude,
+                marker.longitude - tropical.longitude,
+            ) < 6.0
+            for tropical in tropical_markers
+        )
+    ]
+    analysed_markers = [*tropical_markers, *objective_centres]
+    draw_cyclone_markers(axis, analysed_markers, font=font)
     # At the domain midpoint, one degree of longitude is about cos(latitude)
     # times one degree of latitude. This keeps China from looking either
     # vertically squeezed or unnaturally narrow.
@@ -212,7 +276,7 @@ def render_weather_map_preview(
     axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
     axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
     axis.tick_params(
-        labelsize=19.0,
+        labelsize=TYPE_SIZE["tick"],
         colors="#31464d",
         length=3.2,
         width=0.7,
@@ -228,13 +292,12 @@ def render_weather_map_preview(
         spine.set_color("#264b4a")
         spine.set_linewidth(0.55)
     axis.set_title(
-        f"{title}\n{subset.valid_at:%Y-%m-%d %H:00 UTC}",
+        f"{title}  |  {subset.valid_at:%Y-%m-%d %H:00 UTC}",
         loc="left",
-        fontsize=30.0,
-        fontweight=650,
+        fontsize=TYPE_SIZE["title"],
+        fontweight=700,
         fontproperties=font,
         color="#263943",
-        linespacing=1.25,
         pad=12,
     )
     source_note = subset.source
@@ -246,20 +309,9 @@ def render_weather_map_preview(
     figure.text(
         MAP_FIGURE_BOUNDS["left"],
         0.026,
-        f"Source: {source_note} | CloudyLake Observatory | meteostation.top",
-        fontsize=14.0,
+        f"Source: {source_note} | meteostation.top",
+        fontsize=TYPE_SIZE["footer"],
         color="#607176",
-        fontproperties=font,
-    )
-    figure.text(
-        MAP_FIGURE_BOUNDS["right"],
-        0.958,
-        "CLOUDYLAKE OBSERVATORY",
-        ha="right",
-        va="top",
-        fontsize=18,
-        fontweight=700,
-        color="#126e68",
         fontproperties=font,
     )
 
@@ -354,7 +406,7 @@ def render_weather_map_preview(
             ),
             "cyclone_markers": [
                 marker.model_dump(mode="json")
-                for marker in (cyclone_markers or []) if marker.kind == "tropical"
+                for marker in analysed_markers
             ],
             "synoptic_features": [
                 feature.model_dump(mode="json")
@@ -492,7 +544,7 @@ def draw_synoptic_features(
             label,
             ha="center",
             va="bottom",
-            fontsize=9.5,
+            fontsize=TYPE_SIZE["annotation"],
             fontweight="bold",
             color=color,
             fontproperties=font,
@@ -512,6 +564,26 @@ def _synoptic_feature_length(feature: SynopticFeature) -> float:
         return 0.0
     differences = np.diff(coordinates[:, :2], axis=0)
     return float(np.nansum(np.hypot(differences[:, 0], differences[:, 1])))
+
+
+def _feature_near_tropical_cyclone(
+    feature: SynopticFeature,
+    tropical_markers: list[CycloneMarker],
+    *,
+    radius_degrees: float,
+) -> bool:
+    """Suppress objective axes that duplicate an authoritative TC analysis."""
+    coordinates = np.asarray(feature.coordinates, dtype=float)
+    if coordinates.ndim != 2 or not len(coordinates):
+        return False
+    for marker in tropical_markers:
+        distance = np.hypot(
+            coordinates[:, 1] - marker.latitude,
+            coordinates[:, 0] - marker.longitude,
+        )
+        if float(np.nanmin(distance)) < radius_degrees:
+            return True
+    return False
 
 
 def _synoptic_feature_midpoint_inside(
@@ -607,9 +679,9 @@ def draw_south_china_sea_inset(
     *,
     font: FontProperties | None,
 ) -> None:
-    """Draw the South China Sea inset wholly inside the geographic frame."""
-    inset = axis.inset_axes([0.805, 0.055, 0.165, 0.305], zorder=7.5)
-    inset.set_facecolor((1, 1, 1, 0.90))
+    """Draw the South China Sea inset over the low-information India corner."""
+    inset = axis.inset_axes([0.025, 0.045, 0.155, 0.285], zorder=7.5)
+    inset.set_facecolor((1, 1, 1, 0.94))
     inset.add_collection(LineCollection(
         boundary_layer.province_lines,
         colors="#5d7b76", linewidths=0.55, alpha=0.88, zorder=2,
@@ -626,11 +698,11 @@ def draw_south_china_sea_inset(
     inset.tick_params(length=0)
     for spine in inset.spines.values():
         spine.set_color("#41645f")
-        spine.set_linewidth(0.8)
+        spine.set_linewidth(0.65)
     inset.set_title(
         "SOUTH CHINA SEA",
-        fontsize=14.0,
-        fontweight=650,
+        fontsize=TYPE_SIZE["inset"],
+        fontweight=700,
         fontproperties=font,
         color="#41645f",
         pad=3,
@@ -687,7 +759,7 @@ def draw_surface(
         contours,
         inline=True,
         inline_spacing=4,
-        fontsize=17.0,
+        fontsize=TYPE_SIZE["contour"],
         fmt="%.0f",
     )
     style_contour_labels(contour_labels)
@@ -740,7 +812,11 @@ def draw_surface_objective_features(
             alpha=0.68,
             zorder=4.8,
         )
-        axis.clabel(wet_outline, fmt={wet_threshold: "MOIST"}, fontsize=12.0)
+        axis.clabel(
+            wet_outline,
+            fmt={wet_threshold: "MOIST"},
+            fontsize=TYPE_SIZE["annotation"],
+        )
 
     _draw_temperature_extrema(axis, longitude, latitude, temperature)
 
@@ -803,7 +879,7 @@ def _draw_temperature_extrema(
                 f"{label}\n{value:.0f}°C",
                 ha="center",
                 va="center",
-                fontsize=12.5,
+                fontsize=TYPE_SIZE["annotation"],
                 fontweight="bold",
                 color=color,
                 path_effects=[
@@ -870,7 +946,7 @@ def draw_composite(
         contours,
         inline=True,
         inline_spacing=5,
-        fontsize=18.0,
+        fontsize=TYPE_SIZE["contour"],
         fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
@@ -955,7 +1031,7 @@ def draw_pressure_level(
     )
     contour_labels = axis.clabel(
         contours, inline=True, inline_spacing=5,
-        fontsize=18.0, fmt=format_geopotential_height_dagpm,
+        fontsize=TYPE_SIZE["contour"], fmt=format_geopotential_height_dagpm,
     )
     style_contour_labels(contour_labels)
     draw_wind_barbs(axis, longitude, latitude, u_wind, v_wind)
@@ -1035,7 +1111,7 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="right" if label_above else "left",
                 va="bottom" if label_above else "top",
-                fontsize=17.0,
+                fontsize=TYPE_SIZE["cyclone"],
                 fontweight="bold",
                 fontproperties=font,
                 color="#8e3f45",
@@ -1060,7 +1136,7 @@ def draw_cyclone_markers(
             "H" if is_high else "L",
             ha="center",
             va="center",
-            fontsize=27,
+            fontsize=TYPE_SIZE["centre"],
             fontweight=850,
             fontproperties=font,
             color=centre_color,
@@ -1085,7 +1161,7 @@ def draw_cyclone_markers(
                 textcoords="offset points",
                 ha="center",
                 va="top",
-                fontsize=14.0,
+                fontsize=TYPE_SIZE["centre_value"],
                 fontweight="bold",
                 fontproperties=font,
                 color=centre_color,
@@ -1158,9 +1234,14 @@ def add_weather_colorbar(
     colorbar.ax.yaxis.set_major_formatter(
         FuncFormatter(lambda value, _: f"{value:g}")
     )
-    colorbar.set_label(label, fontsize=19.0, color="#31464d", labelpad=14)
+    colorbar.set_label(
+        label,
+        fontsize=TYPE_SIZE["colorbar"],
+        color="#31464d",
+        labelpad=12,
+    )
     colorbar.ax.tick_params(
-        labelsize=17.0,
+        labelsize=TYPE_SIZE["colorbar_tick"],
         colors="#31464d",
         length=3,
         width=0.65,
