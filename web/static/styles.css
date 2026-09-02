@@ -6334,12 +6334,12 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 }
 
 .analysis-page.unified-page .dashboard {
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 24px;
+  width: min(100%, 1800px);
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 18px;
   align-items: start;
   min-height: 0;
-  padding-top: 8px;
-  padding-bottom: 12px;
+  padding: 8px clamp(14px, 2vw, 28px) 12px;
 }
 
 .analysis-page.unified-page .map-panel,
@@ -6411,13 +6411,14 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 }
 
 .analysis-page.unified-page .map-stage {
-  aspect-ratio: 1.52;
+  aspect-ratio: 1.3;
   margin: 10px 0 0;
   border: 0;
   background: #fff;
 }
 .analysis-page.unified-page .map-canvas { border: 0; background: #fff; }
 .analysis-page.unified-page .weather-map-image { background: #fff; }
+.analysis-page.unified-page .weather-map-image[hidden] { display: none; }
 
 .analysis-page.unified-page .map-attribution {
   position: static;
@@ -6474,8 +6475,85 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 
 .analysis-page.unified-page .side-panel {
   min-height: 620px;
-  padding: 3px 0 0 24px;
+  padding: 3px 0 0 18px;
   border-left: 1px solid var(--rule) !important;
+}
+
+/* Keep the sounding workbench pinned to the viewport above normal sections. */
+.analysis-page.unified-page > .profile-workspace,
+.sounding-forecast-page.unified-page > .profile-workspace {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 40;
+  width: min(calc(100% - 24px), 1600px);
+  max-height: calc(100dvh - max(16px, env(safe-area-inset-top)));
+  padding: 16px 18px 18px;
+  overflow: auto;
+  transform: translateX(-50%);
+}
+
+.analysis-page.unified-page .profile-workspace__header,
+.sounding-forecast-page.unified-page .profile-workspace__header {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.analysis-page.unified-page .profile-workspace__header h2,
+.sounding-forecast-page.unified-page .profile-workspace__header h2 {
+  font-size: clamp(20px, 2vw, 27px);
+}
+
+.analysis-page.unified-page .profile-workspace__header > div > p:last-child,
+.sounding-forecast-page.unified-page .profile-workspace__header > div > p:last-child {
+  margin-top: 3px;
+}
+
+.analysis-page.unified-page .profile-view,
+.sounding-forecast-page.unified-page .profile-view {
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.analysis-page.unified-page .profile-chart-shell,
+.sounding-forecast-page.unified-page .profile-chart-shell {
+  padding: 0;
+  border-radius: 0;
+}
+
+.analysis-page.unified-page .chart-gesture,
+.sounding-forecast-page.unified-page .chart-gesture {
+  margin: 2px 8px 5px;
+  font-size: 10px;
+}
+
+.analysis-page.unified-page .level-inspector,
+.sounding-forecast-page.unified-page .level-inspector {
+  padding: 11px;
+  border-radius: 0;
+}
+
+.analysis-page.unified-page .level-inspector > strong,
+.sounding-forecast-page.unified-page .level-inspector > strong {
+  margin-top: 4px;
+  font-size: 22px;
+}
+
+.analysis-page.unified-page .level-inspector dl,
+.sounding-forecast-page.unified-page .level-inspector dl {
+  margin: 9px 0;
+}
+
+.analysis-page.unified-page .level-inspector dl div,
+.sounding-forecast-page.unified-page .level-inspector dl div {
+  padding: 5px 0;
+}
+
+.analysis-page.unified-page .sounding-correction,
+.sounding-forecast-page.unified-page .sounding-correction {
+  margin-bottom: 0;
+  padding: 8px;
 }
 
 .analysis-page.unified-page .side-panel h2 {
@@ -6500,6 +6578,10 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 
 @media (max-width: 900px) {
   .analysis-page.unified-page .dashboard { grid-template-columns: 1fr; gap: 18px; }
+  .analysis-page.unified-page .profile-view,
+  .sounding-forecast-page.unified-page .profile-view {
+    grid-template-columns: 1fr;
+  }
   .analysis-page.unified-page .side-panel {
     min-height: 0;
     padding: 18px 0 0;
@@ -6540,12 +6622,14 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
   }
   .analysis-page.unified-page .map-stage {
     aspect-ratio: auto;
+    min-height: 340px;
     overflow: hidden;
   }
   .analysis-page.unified-page .map-canvas {
     position: relative;
     inset: auto;
     aspect-ratio: auto;
+    min-height: 340px;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-inline: contain;

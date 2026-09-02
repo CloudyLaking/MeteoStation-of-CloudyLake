@@ -59,14 +59,14 @@ HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
         "#964b46",
     ],
 )
-FIGURE_SIZE_INCHES = (15.0, 10.0)
+FIGURE_SIZE_INCHES = (13.0, 10.0)
 MAP_FIGURE_BOUNDS = {
     "left": 0.052,
-    "right": 0.895,
+    "right": 0.859,
     "bottom": 0.082,
     "top": 0.875,
 }
-COLORBAR_FIGURE_BOUNDS = [0.850, 0.082, 0.018, 0.793]
+COLORBAR_FIGURE_BOUNDS = [0.884, 0.082, 0.020, 0.793]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
@@ -152,7 +152,7 @@ def render_weather_map_preview(
         )
     if layer_id == "composite":
         draw_composite(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "COMPOSITE | 850-hPa Temperature Anomaly & Wind / 500-hPa Geopotential Height"
+        title = "COMPOSITE | 850-hPa T Anomaly + Wind / 500-hPa Height"
     elif layer_id == "surface":
         draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
         title = "SURFACE | 2-m Temperature / MSLP / 10-m Wind"
@@ -309,7 +309,7 @@ def render_weather_map_preview(
         spine.set_color("#264b4a")
         spine.set_linewidth(0.55)
     axis.set_title(
-        f"{title}  |  {subset.valid_at:%Y-%m-%d %H:00 UTC}",
+        title,
         loc="left",
         fontsize=TYPE_SIZE["title"],
         fontweight=700,
@@ -337,6 +337,17 @@ def render_weather_map_preview(
         "bottom": float(plot_position.y0),
         "top": float(plot_position.y1),
     }
+    figure.text(
+        plot_position.x1,
+        plot_position.y1 + 0.014,
+        f"{subset.valid_at:%Y-%m-%d %H:00 UTC}",
+        ha="right",
+        va="bottom",
+        fontsize=TYPE_SIZE["title"],
+        fontweight=700,
+        color="#263943",
+        fontproperties=font,
+    )
     figure.text(
         plot_position.x0,
         max(0.014, plot_position.y0 - 0.056),
@@ -496,7 +507,7 @@ def draw_synoptic_features(
             continue
         color, linestyle, _ = SYNOPTIC_STYLES[feature.kind]
         alpha = 0.95 if feature.confidence == "high" else 0.78
-        linewidth = 1.55 if feature.confidence == "high" else 1.15
+        linewidth = 1.80 if feature.confidence == "high" else 1.40
         longitude = coordinates[:, 0]
         latitude = coordinates[:, 1]
         if feature.kind == "stationary-front":
@@ -767,7 +778,7 @@ def draw_surface(
         levels=np.arange(lower, upper + 2.1, 2),
         cmap=TEMPERATURE_COLORS,
         extend="both",
-        alpha=0.78,
+        alpha=0.56,
     )
     contour_levels = np.arange(
         np.floor(np.nanmin(mslp) / 4) * 4,
@@ -780,8 +791,8 @@ def draw_surface(
         mslp,
         levels=contour_levels,
         colors="#243e44",
-        linewidths=0.82,
-        alpha=0.86,
+        linewidths=1.0,
+        alpha=0.94,
     )
     contour_labels = axis.clabel(
         contours,
@@ -947,7 +958,7 @@ def draw_composite(
         levels=np.arange(-maximum, maximum + 0.1, 2),
         cmap=HEIGHT_ANOMALY_COLORS,
         extend="both",
-        alpha=0.80,
+        alpha=0.58,
         zorder=1,
     )
     height = smooth_field(
@@ -966,8 +977,8 @@ def draw_composite(
         height,
         levels=height_levels,
         colors="#1f343a",
-        linewidths=1.05,
-        alpha=0.94,
+        linewidths=1.20,
+        alpha=0.98,
         zorder=3.4,
     )
     contour_labels = axis.clabel(
@@ -1010,7 +1021,7 @@ def draw_pressure_level(
         shaded = axis.contourf(
             longitude, latitude, shaded_values,
             levels=np.arange(10, 101, 10), cmap=HUMIDITY_COLORS,
-            extend="both", alpha=0.74,
+            extend="both", alpha=0.56,
         )
         colorbar_label = "Relative Humidity (%)"
     elif shade == "height_anomaly":
@@ -1028,7 +1039,7 @@ def draw_pressure_level(
         shaded = axis.contourf(
             longitude, latitude, shaded_values,
             levels=np.linspace(-maximum, maximum, 13),
-            cmap=HEIGHT_ANOMALY_COLORS, extend="both", alpha=0.76,
+            cmap=HEIGHT_ANOMALY_COLORS, extend="both", alpha=0.58,
         )
         colorbar_label = "500-hPa Geopotential Height Anomaly (gpm)"
     else:
@@ -1040,7 +1051,7 @@ def draw_pressure_level(
         shaded = axis.contourf(
             longitude, latitude, shaded_values,
             levels=np.linspace(0, maximum, 13), cmap=WIND_COLORS,
-            extend="max", alpha=0.76,
+            extend="max", alpha=0.60,
         )
         colorbar_label = f"{pressure_hpa}-hPa Wind Speed (m s⁻¹)"
     height = smooth_field(
@@ -1055,7 +1066,7 @@ def draw_pressure_level(
     )
     contours = axis.contour(
         longitude, latitude, height, levels=height_levels,
-        colors="#243e44", linewidths=1.0, alpha=0.92,
+        colors="#243e44", linewidths=1.15, alpha=0.96,
     )
     contour_labels = axis.clabel(
         contours, inline=True, inline_spacing=5,
@@ -1308,9 +1319,9 @@ def draw_wind_barbs(
         sampled_u[moving],
         sampled_v[moving],
         color="#435d5b",
-        linewidth=0.52,
-        length=4.5,
-        alpha=0.72,
+        linewidth=0.62,
+        length=4.7,
+        alpha=0.86,
     )
     axis.scatter(
         sampled_longitude[calm],
