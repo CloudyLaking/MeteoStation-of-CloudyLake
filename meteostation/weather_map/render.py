@@ -12,7 +12,6 @@ from PIL import Image
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.collections import LineCollection
-from matplotlib.lines import Line2D
 from matplotlib.offsetbox import AnnotationBbox, DrawingArea
 from matplotlib.patches import Arc, Circle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
@@ -64,10 +63,10 @@ FIGURE_SIZE_INCHES = (15.0, 10.0)
 MAP_FIGURE_BOUNDS = {
     "left": 0.052,
     "right": 0.895,
-    "bottom": 0.132,
-    "top": 0.925,
+    "bottom": 0.082,
+    "top": 0.875,
 }
-COLORBAR_FIGURE_BOUNDS = [0.920, 0.155, 0.016, 0.748]
+COLORBAR_FIGURE_BOUNDS = [0.920, 0.105, 0.016, 0.748]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
@@ -274,11 +273,6 @@ def render_weather_map_preview(
         features=diagnosed_features,
     )
     draw_cyclone_markers(axis, analysed_markers, font=font)
-    draw_synoptic_legend(
-        figure,
-        diagnosed_features,
-        font=font,
-    )
     # At the domain midpoint, one degree of longitude is about cos(latitude)
     # times one degree of latitude. This keeps China from looking either
     # vertically squeezed or unnaturally narrow.
@@ -555,44 +549,6 @@ def draw_synoptic_features(
 
 
 
-def draw_synoptic_legend(
-    figure: object,
-    features: list[SynopticFeature],
-    *,
-    font: FontProperties | None,
-) -> None:
-    """Put analysis terminology below the map instead of over the data."""
-    kinds = [
-        kind
-        for kind in SYNOPTIC_STYLES
-        if any(feature.kind == kind for feature in features)
-    ]
-    if not kinds:
-        return
-    handles = [
-        Line2D(
-            [0],
-            [0],
-            color=SYNOPTIC_STYLES[kind][0],
-            linestyle=SYNOPTIC_STYLES[kind][1],
-            linewidth=2.0,
-            label=SYNOPTIC_STYLES[kind][2],
-        )
-        for kind in kinds
-    ]
-    figure.legend(
-        handles=handles,
-        loc="lower center",
-        bbox_to_anchor=(0.49, 0.064),
-        ncol=len(handles),
-        frameon=False,
-        prop=(font or FontProperties(size=MAP_FONT_SIZE)),
-        handlelength=2.8,
-        handletextpad=0.55,
-        columnspacing=1.5,
-    )
-
-
 def suppress_conflicting_contour_labels(
     axis: object,
     *,
@@ -612,9 +568,16 @@ def suppress_conflicting_contour_labels(
         except ValueError:
             continue
         x, y = text.get_position()
+        text_x, text_y = text.get_transform().transform((x, y))
         conflicts_with_marker = any(
-            np.hypot(x - marker.longitude, y - marker.latitude)
-            < (6.0 if marker.kind == "tropical" else 3.5)
+            np.hypot(
+                text_x - axis.transData.transform(
+                    (marker.longitude, marker.latitude)
+                )[0],
+                text_y - axis.transData.transform(
+                    (marker.longitude, marker.latitude)
+                )[1],
+            ) < (180 if marker.kind == "tropical" else 95)
             for marker in markers
         )
         conflicts_with_axis = any(
@@ -622,7 +585,7 @@ def suppress_conflicting_contour_labels(
             and len(points)
             and float(
                 np.nanmin(np.hypot(points[:, 0] - x, points[:, 1] - y))
-            ) < 1.25
+            ) < 2.0
             for points in feature_points
         )
         if conflicts_with_marker or conflicts_with_axis:
@@ -1140,6 +1103,7 @@ def draw_cyclone_markers(
         )
         visible_markers.extend(pool[:2])
 
+    occupied_cyclone_labels: list[object] = []
     for marker in [*tropical_markers, *visible_markers]:
         if marker.kind == "tropical":
             symbol = DrawingArea(28, 28, 0, 0)
@@ -1165,15 +1129,32 @@ def draw_cyclone_markers(
                 details.append(f"{marker.maximum_wind_ms:.0f} m/s")
             label = f"{name}\n{marker.valid_at:%m/%d %H%MZ}"
             if details:
-                label += " | " + " · ".join(details)
-            label_above = marker.longitude >= 125
+                label += "\n" + " · ".join(details)
+            # Try all four quadrants in a boundary-aware order, then retain
+            # the first callout whose actual rendered box neither leaves the
+            # map nor collides with an already placed cyclone callout.
+            if marker.longitude >= 125:
+                candidates = [
+                    (-10, 18, "right", "bottom"),
+                    (-10, -18, "right", "top"),
+                    (10, 18, "left", "bottom"),
+                    (10, -18, "left", "top"),
+                ]
+            else:
+                candidates = [
+                    (10, 18, "left", "bottom"),
+                    (10, -18, "left", "top"),
+                    (-10, 18, "right", "bottom"),
+                    (-10, -18, "right", "top"),
+                ]
+            dx, dy, horizontal_alignment, vertical_alignment = candidates[0]
             annotation = axis.annotate(
                 label,
                 (marker.longitude, marker.latitude),
-                xytext=(-8 if label_above else 8, 16 if label_above else -2),
+                xytext=(dx, dy),
                 textcoords="offset points",
-                ha="right" if label_above else "left",
-                va="bottom" if label_above else "top",
+                ha=horizontal_alignment,
+                va=vertical_alignment,
                 fontsize=TYPE_SIZE["cyclone"],
                 fontweight="bold",
                 fontproperties=font,
@@ -1190,6 +1171,47 @@ def draw_cyclone_markers(
                     path_effects.Normal(),
                 ]
             )
+            renderer = axis.figure.canvas.get_renderer()
+            axes_box = axis.get_window_extent(renderer=renderer)
+            best_candidate = candidates[0]
+            best_score = float("inf")
+            best_box = None
+            for candidate in candidates:
+                dx, dy, horizontal_alignment, vertical_alignment = candidate
+                annotation.set_position((dx, dy))
+                annotation.set_horizontalalignment(horizontal_alignment)
+                annotation.set_verticalalignment(vertical_alignment)
+                box = annotation.get_window_extent(renderer=renderer)
+                overlap_area = 0.0
+                for occupied in occupied_cyclone_labels:
+                    x_overlap = max(
+                        0.0,
+                        min(box.x1, occupied.x1 + 7) - max(box.x0, occupied.x0 - 7),
+                    )
+                    y_overlap = max(
+                        0.0,
+                        min(box.y1, occupied.y1 + 7) - max(box.y0, occupied.y0 - 7),
+                    )
+                    overlap_area += x_overlap * y_overlap
+                outside = (
+                    max(0.0, axes_box.x0 + 4 - box.x0)
+                    + max(0.0, box.x1 - axes_box.x1 + 4)
+                    + max(0.0, axes_box.y0 + 4 - box.y0)
+                    + max(0.0, box.y1 - axes_box.y1 + 4)
+                )
+                score = overlap_area + outside * 500
+                if score < best_score:
+                    best_score = score
+                    best_candidate = candidate
+                    best_box = box
+                if score == 0:
+                    break
+            dx, dy, horizontal_alignment, vertical_alignment = best_candidate
+            annotation.set_position((dx, dy))
+            annotation.set_horizontalalignment(horizontal_alignment)
+            annotation.set_verticalalignment(vertical_alignment)
+            if best_box is not None:
+                occupied_cyclone_labels.append(best_box)
             continue
         is_high = marker.kind == "high-pressure"
         centre_color = "#ad7d00" if is_high else "#245a8d"

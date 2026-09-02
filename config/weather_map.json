@@ -153,10 +153,10 @@
     {
       "id": "tropical-cyclones",
       "label": "热带气旋位置",
-      "description": "显示活动热带气旋的编号、名称、位置和强度",
-      "status": "source-adapter-pending",
-      "source": "中央气象台台风分析 / NRL ATCF 回退",
-      "method": "warning or trajectory positions nearest the analysis time"
+      "description": "显示 JTWC 活动热带气旋的编号、名称、位置和强度",
+      "status": "operational",
+      "source": "JTWC ATCF（UCAR TCGP 镜像 / NRL 回退）",
+      "method": "JTWC best-track position nearest the analysis time, maximum 6-hour offset"
     }
   ],
   "sounding_stations_file": "china_sounding_stations.json",

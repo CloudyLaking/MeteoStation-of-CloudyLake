@@ -34,6 +34,7 @@ from meteostation.weather_map import (
     load_geojson_boundary,
     load_era5_height_climatology,
     parse_nmc_typhoon,
+    parse_jtwc_bdeck,
     parse_nrl_warning,
     read_preview_catalog,
     render_weather_map_preview,
@@ -344,6 +345,26 @@ MINIMUM CENTRAL PRESSURE AT 260000Z IS 980 MB.
         self.assertEqual(len(markers), 1)
         self.assertEqual(markers[0].id, "11W")
         self.assertEqual(markers[0].name, "NOUL")
+
+    def test_jtwc_bdeck_uses_nearest_operational_best_track(self) -> None:
+        bdeck = """
+WP, 17, 2026090118,   , BEST,   0, 218N, 1159E,  30, 995, XX,  34, NEQ, 0, 0, 0, 0, 1004, 200, 160, 0, 0, W, 0, X, , 3, SAUDEL, S,
+WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0, 0, 1004, 200, 160, 0, 0, W, 0, X, , 3, SAUDEL, S,
+"""
+        marker = parse_jtwc_bdeck(
+            bdeck,
+            valid_at=datetime(2026, 9, 2, tzinfo=timezone.utc),
+            source_url="https://example.test/bwp172026.dat",
+        )
+        self.assertIsNotNone(marker)
+        assert marker is not None
+        self.assertEqual(marker.id, "17W")
+        self.assertEqual(marker.name, "SAUDEL")
+        self.assertEqual(marker.latitude, 22.1)
+        self.assertEqual(marker.longitude, 116.7)
+        self.assertEqual(marker.central_pressure_hpa, 994)
+        self.assertAlmostEqual(marker.maximum_wind_ms or 0, 15.4, places=1)
+        self.assertIn("JTWC operational best track", marker.source)
 
     def test_tianditu_wmts_request_uses_configured_official_layers(
         self,

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import calendar
+import csv
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -17,6 +19,10 @@ NRL_ATCF_ACTIVITY_URL = (
     "https://science.nrlmry.navy.mil/atcf/index1.html"
 )
 NMC_TYPHOON_API_ROOT = "https://typhoon.nmc.cn/weatherservice/typhoon/jsons"
+JTWC_UCAR_BDECK_DIRECTORY = (
+    "https://hurricanes.ral.ucar.edu/repository/data/"
+    "bdecks_open/{year}/"
+)
 STORM_PATTERN = re.compile(
     r"SUBJ:\s+.+?\b(?P<id>\d{2}[A-Z])\s+\((?P<name>[^)]+)\)",
     re.IGNORECASE,
@@ -44,6 +50,144 @@ class NrlCycloneUnavailable(RuntimeError):
 
 class NmcCycloneUnavailable(RuntimeError):
     """Raised when the official CMA/NMC typhoon feed cannot be read."""
+
+
+class JtwcCycloneUnavailable(RuntimeError):
+    """Raised when the JTWC operational best-track mirror cannot be read."""
+
+
+def fetch_jtwc_tropical_cyclones(
+    *,
+    valid_at: datetime,
+    domain: WeatherMapDomain,
+    archive_directory: Path | None = None,
+    timeout_seconds: float = 20,
+) -> list[CycloneMarker]:
+    """Read JTWC operational best tracks from UCAR's resilient TCGP mirror.
+
+    TCGP constructs these open b-decks from the JTWC tcvitals delivered to
+    NOAA/NCEP. Only storms with an analysis within six hours of the requested
+    map time are returned, so old invests cannot linger on a current chart.
+    """
+    directory_url = JTWC_UCAR_BDECK_DIRECTORY.format(year=valid_at.year)
+    headers = {
+        "User-Agent": (
+            "CloudyLake-Observatory/2.0 "
+            "(meteostation.top JTWC ATCF collector)"
+        )
+    }
+    try:
+        response = requests.get(
+            directory_url,
+            timeout=timeout_seconds,
+            headers=headers,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise JtwcCycloneUnavailable(
+            f"JTWC/UCAR b-deck directory unavailable: {exc}"
+        ) from exc
+    soup = BeautifulSoup(response.text, "html.parser")
+    filenames: list[str] = []
+    pattern = re.compile(rf"^bwp\d{{2}}{valid_at.year}\.dat$", re.IGNORECASE)
+    for link in soup.find_all("a", href=True):
+        filename = Path(str(link["href"])).name
+        if pattern.fullmatch(filename) and filename not in filenames:
+            filenames.append(filename)
+    if not filenames:
+        raise JtwcCycloneUnavailable("JTWC/UCAR directory listed no WP b-decks")
+
+    def retrieve(filename: str) -> tuple[str, str, str]:
+        source_url = urljoin(directory_url, filename)
+        file_response = requests.get(
+            source_url,
+            timeout=timeout_seconds,
+            headers=headers,
+        )
+        file_response.raise_for_status()
+        return filename, source_url, file_response.text
+
+    markers: list[CycloneMarker] = []
+    failures = 0
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(retrieve, filename) for filename in filenames]
+        for future in as_completed(futures):
+            try:
+                filename, source_url, bdeck_text = future.result()
+            except requests.RequestException:
+                failures += 1
+                continue
+            marker = parse_jtwc_bdeck(
+                bdeck_text,
+                valid_at=valid_at,
+                source_url=source_url,
+            )
+            if marker is None or not _marker_in_domain(marker, domain):
+                continue
+            markers.append(marker)
+            if archive_directory is not None:
+                _archive_text(
+                    Path(archive_directory) / f"jtwc-{filename}",
+                    bdeck_text,
+                )
+    if not markers and failures == len(filenames):
+        raise JtwcCycloneUnavailable("all JTWC/UCAR b-deck downloads failed")
+    markers.sort(key=lambda marker: marker.id)
+    return markers
+
+
+def parse_jtwc_bdeck(
+    bdeck_text: str,
+    *,
+    valid_at: datetime,
+    source_url: str,
+) -> CycloneMarker | None:
+    """Parse one JTWC ATCF b-deck at the analysis nearest ``valid_at``."""
+    candidates: list[tuple[float, datetime, list[str]]] = []
+    for row in csv.reader(bdeck_text.splitlines(), skipinitialspace=True):
+        fields = [item.strip() for item in row]
+        if len(fields) < 28 or fields[0].upper() != "WP":
+            continue
+        if fields[4].upper() != "BEST":
+            continue
+        try:
+            point_time = datetime.strptime(fields[2], "%Y%m%d%H").replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            continue
+        candidates.append(
+            (abs((point_time - valid_at).total_seconds()), point_time, fields)
+        )
+    if not candidates:
+        return None
+    distance, point_time, fields = min(candidates, key=lambda item: item[0])
+    if distance > 6 * 3600:
+        return None
+    try:
+        latitude = _signed_atcf_coordinate(fields[6])
+        longitude = _signed_atcf_coordinate(fields[7])
+        wind_knots = float(fields[8])
+        pressure = float(fields[9])
+    except (ValueError, IndexError):
+        return None
+    storm_number = fields[1].zfill(2)
+    name = fields[27].upper() or None
+    return CycloneMarker(
+        id=f"{storm_number}W",
+        kind="tropical",
+        valid_at=point_time,
+        latitude=latitude,
+        longitude=longitude,
+        name=name,
+        central_pressure_hpa=pressure if pressure > 0 else None,
+        maximum_wind_ms=round(wind_knots * 0.514444, 1),
+        source=(
+            "JTWC operational best track via UCAR TCGP mirror · "
+            f"{source_url}"
+        ),
+        confidence="high",
+    )
 
 
 def fetch_nmc_tropical_cyclones(
@@ -402,6 +546,16 @@ def _resolve_day_time(
 def _signed_coordinate(value: str, hemisphere: str) -> float:
     coordinate = float(value)
     if hemisphere.upper() in {"S", "W"}:
+        coordinate *= -1
+    return coordinate
+
+
+def _signed_atcf_coordinate(token: str) -> float:
+    value = token.strip().upper()
+    if len(value) < 2 or value[-1] not in {"N", "S", "E", "W"}:
+        raise ValueError(f"invalid ATCF coordinate: {token}")
+    coordinate = float(value[:-1]) / 10.0
+    if value[-1] in {"S", "W"}:
         coordinate *= -1
     return coordinate
 

@@ -12,7 +12,7 @@ from meteostation.weather_map import (
     EcmwfOpenDataUnavailable,
     EcmwfProductNotAvailable,
     HeightClimatologyUnavailable,
-    NmcCycloneUnavailable,
+    JtwcCycloneUnavailable,
     NrlCycloneUnavailable,
     TiandituBasemapUnavailable,
     WeatherMapCatalog,
@@ -20,7 +20,7 @@ from meteostation.weather_map import (
     WeatherGrid,
     build_weather_map_plan,
     decode_ecmwf_background,
-    fetch_nmc_tropical_cyclones,
+    fetch_jtwc_tropical_cyclones,
     fetch_nrl_tropical_cyclones,
     load_tianditu_basemap,
     load_geojson_boundary,
@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-cyclone-overlays",
         action="store_true",
-        help="Do not refresh NRL ATCF cyclone positions while rendering.",
+        help="Do not refresh JTWC ATCF cyclone positions while rendering.",
     )
     return parser.parse_args()
 
@@ -317,25 +317,22 @@ def main() -> None:
                 / f"{plan.valid_at:%H}"
             )
             try:
-                tropical_cyclones.extend(fetch_nmc_tropical_cyclones(
+                tropical_cyclones.extend(fetch_jtwc_tropical_cyclones(
                     valid_at=plan.valid_at,
                     domain=configuration.domain,
                     archive_directory=cyclone_archive_directory,
                 ))
-            except NmcCycloneUnavailable as exc:
-                print(f"中央气象台热带气旋位置暂不可用：{exc}")
-            try:
-                nrl_markers = fetch_nrl_tropical_cyclones(
-                    valid_at=plan.valid_at,
-                    domain=configuration.domain,
-                    archive_directory=cyclone_archive_directory,
-                )
-                existing_ids = {marker.id for marker in tropical_cyclones}
-                tropical_cyclones.extend(
-                    marker for marker in nrl_markers if marker.id not in existing_ids
-                )
-            except NrlCycloneUnavailable as exc:
-                print(f"NRL 热带气旋备用源暂不可用：{exc}")
+            except JtwcCycloneUnavailable as exc:
+                print(f"JTWC 热带气旋资料暂不可用：{exc}")
+            if not tropical_cyclones:
+                try:
+                    tropical_cyclones.extend(fetch_nrl_tropical_cyclones(
+                        valid_at=plan.valid_at,
+                        domain=configuration.domain,
+                        archive_directory=cyclone_archive_directory,
+                    ))
+                except NrlCycloneUnavailable as exc:
+                    print(f"JTWC/NRL 备用资料暂不可用：{exc}")
         preview_root = PROJECT_ROOT / "data" / "previews"
         previews = [
             render_weather_map_preview(
