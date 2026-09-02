@@ -78,18 +78,22 @@ SMOOTHING_SIGMA_GRIDPOINTS = {
     "200_wind_speed": 2.60,
     "200_height": 2.50,
 }
+MAP_FONT_SIZE = 17.0
 TYPE_SIZE = {
-    "title": 17.0,
-    "tick": 17.0,
-    "contour": 17.0,
-    "annotation": 17.0,
-    "cyclone": 17.0,
-    "centre": 17.0,
-    "centre_value": 17.0,
-    "colorbar": 17.0,
-    "colorbar_tick": 17.0,
-    "footer": 17.0,
-    "inset": 17.0,
+    name: MAP_FONT_SIZE
+    for name in (
+        "title",
+        "tick",
+        "contour",
+        "annotation",
+        "cyclone",
+        "centre",
+        "centre_value",
+        "colorbar",
+        "colorbar_tick",
+        "footer",
+        "inset",
+    )
 }
 
 
@@ -119,13 +123,14 @@ def render_weather_map_preview(
         bottom=MAP_FIGURE_BOUNDS["bottom"],
     )
     font = (
-        FontProperties(fname=str(font_path))
+        FontProperties(fname=str(font_path), size=MAP_FONT_SIZE)
         if font_path and Path(font_path).exists()
         else None
     )
     if font is not None:
         fontManager.addfont(str(font_path))
         plt.rcParams["font.family"] = font.get_name()
+    plt.rcParams["font.size"] = MAP_FONT_SIZE
     longitude_grid, latitude_grid = np.meshgrid(
         subset.longitude,
         subset.latitude,
