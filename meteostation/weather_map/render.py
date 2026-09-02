@@ -79,17 +79,17 @@ SMOOTHING_SIGMA_GRIDPOINTS = {
     "200_height": 2.50,
 }
 TYPE_SIZE = {
-    "title": 22.0,
+    "title": 17.0,
     "tick": 17.0,
     "contour": 17.0,
-    "annotation": 15.0,
-    "cyclone": 16.0,
-    "centre": 25.0,
-    "centre_value": 14.0,
+    "annotation": 17.0,
+    "cyclone": 17.0,
+    "centre": 17.0,
+    "centre_value": 17.0,
     "colorbar": 17.0,
-    "colorbar_tick": 15.0,
-    "footer": 12.5,
-    "inset": 11.5,
+    "colorbar_tick": 17.0,
+    "footer": 17.0,
+    "inset": 17.0,
 }
 
 
