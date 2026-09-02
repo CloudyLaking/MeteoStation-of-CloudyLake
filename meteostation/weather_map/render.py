@@ -12,6 +12,7 @@ from PIL import Image
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.collections import LineCollection
+from matplotlib.lines import Line2D
 from matplotlib.offsetbox import AnnotationBbox, DrawingArea
 from matplotlib.patches import Arc, Circle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
@@ -63,10 +64,10 @@ FIGURE_SIZE_INCHES = (15.0, 10.0)
 MAP_FIGURE_BOUNDS = {
     "left": 0.052,
     "right": 0.895,
-    "bottom": 0.082,
-    "top": 0.875,
+    "bottom": 0.132,
+    "top": 0.925,
 }
-COLORBAR_FIGURE_BOUNDS = [0.920, 0.105, 0.016, 0.748]
+COLORBAR_FIGURE_BOUNDS = [0.920, 0.155, 0.016, 0.748]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
@@ -94,6 +95,13 @@ TYPE_SIZE = {
         "footer",
         "inset",
     )
+}
+SYNOPTIC_STYLES = {
+    "cold-front": ("#1769aa", "-", "Cold front"),
+    "warm-front": ("#d6a313", "-", "Warm front"),
+    "stationary-front": ("#147f78", "-", "Stationary front"),
+    "trough-axis": ("#1769aa", "--", "Trough"),
+    "ridge-axis": ("#d6a313", "--", "Ridge"),
 }
 
 
@@ -260,7 +268,17 @@ def render_weather_map_preview(
         )
     ]
     analysed_markers = [*tropical_markers, *objective_centres]
+    suppress_conflicting_contour_labels(
+        axis,
+        markers=analysed_markers,
+        features=diagnosed_features,
+    )
     draw_cyclone_markers(axis, analysed_markers, font=font)
+    draw_synoptic_legend(
+        figure,
+        diagnosed_features,
+        font=font,
+    )
     # At the domain midpoint, one degree of longitude is about cos(latitude)
     # times one degree of latitude. This keeps China from looking either
     # vertically squeezed or unnaturally narrow.
@@ -313,7 +331,7 @@ def render_weather_map_preview(
             source_note += f" | ERA5 {normal_period} monthly normals"
     figure.text(
         MAP_FIGURE_BOUNDS["left"],
-        0.026,
+        0.025,
         f"Source: {source_note} | meteostation.top",
         fontsize=TYPE_SIZE["footer"],
         color="#607176",
@@ -445,17 +463,10 @@ def draw_synoptic_features(
     font: FontProperties | None,
 ) -> None:
     """Draw objective fronts and upper-air axes with restrained symbology."""
-    styles = {
-        "cold-front": ("#1769aa", "-", "COLD FRONT"),
-        "warm-front": ("#d6a313", "-", "WARM FRONT"),
-        "stationary-front": ("#147f78", "-", "STATIONARY FRONT"),
-        "trough-axis": ("#1769aa", "--", "TROUGH"),
-        "ridge-axis": ("#d6a313", "--", "RIDGE"),
-    }
     x_min, x_max = sorted(axis.get_xlim())
     y_min, y_max = sorted(axis.get_ylim())
     visible_features: list[SynopticFeature] = []
-    for kind in styles:
+    for kind in SYNOPTIC_STYLES:
         candidates = [
             item
             for item in features
@@ -487,7 +498,7 @@ def draw_synoptic_features(
         coordinates = np.asarray(feature.coordinates, dtype=float)
         if coordinates.ndim != 2 or len(coordinates) < 2:
             continue
-        color, linestyle, label = styles[feature.kind]
+        color, linestyle, _ = SYNOPTIC_STYLES[feature.kind]
         alpha = 0.95 if feature.confidence == "high" else 0.78
         linewidth = 1.55 if feature.confidence == "high" else 1.15
         longitude = coordinates[:, 0]
@@ -542,25 +553,80 @@ def draw_synoptic_features(
                 alpha=alpha,
             )
 
-        midpoint_index = len(coordinates) // 2
-        text = axis.text(
-            longitude[midpoint_index],
-            latitude[midpoint_index],
-            label,
-            ha="center",
-            va="bottom",
-            fontsize=TYPE_SIZE["annotation"],
-            fontweight="bold",
-            color=color,
-            fontproperties=font,
-            zorder=7.5,
+
+
+def draw_synoptic_legend(
+    figure: object,
+    features: list[SynopticFeature],
+    *,
+    font: FontProperties | None,
+) -> None:
+    """Put analysis terminology below the map instead of over the data."""
+    kinds = [
+        kind
+        for kind in SYNOPTIC_STYLES
+        if any(feature.kind == kind for feature in features)
+    ]
+    if not kinds:
+        return
+    handles = [
+        Line2D(
+            [0],
+            [0],
+            color=SYNOPTIC_STYLES[kind][0],
+            linestyle=SYNOPTIC_STYLES[kind][1],
+            linewidth=2.0,
+            label=SYNOPTIC_STYLES[kind][2],
         )
-        text.set_path_effects(
-            [
-                path_effects.Stroke(linewidth=2.2, foreground="white"),
-                path_effects.Normal(),
-            ]
+        for kind in kinds
+    ]
+    figure.legend(
+        handles=handles,
+        loc="lower center",
+        bbox_to_anchor=(0.49, 0.064),
+        ncol=len(handles),
+        frameon=False,
+        prop=(font or FontProperties(size=MAP_FONT_SIZE)),
+        handlelength=2.8,
+        handletextpad=0.55,
+        columnspacing=1.5,
+    )
+
+
+def suppress_conflicting_contour_labels(
+    axis: object,
+    *,
+    markers: list[CycloneMarker],
+    features: list[SynopticFeature],
+) -> None:
+    """Hide numeric contour labels underneath analysis annotations."""
+    feature_points = [
+        np.asarray(feature.coordinates, dtype=float)
+        for feature in features
+        if len(feature.coordinates) >= 2
+    ]
+    for text in axis.texts:
+        value = text.get_text().strip().replace("−", "-")
+        try:
+            float(value)
+        except ValueError:
+            continue
+        x, y = text.get_position()
+        conflicts_with_marker = any(
+            np.hypot(x - marker.longitude, y - marker.latitude)
+            < (6.0 if marker.kind == "tropical" else 3.5)
+            for marker in markers
         )
+        conflicts_with_axis = any(
+            points.ndim == 2
+            and len(points)
+            and float(
+                np.nanmin(np.hypot(points[:, 0] - x, points[:, 1] - y))
+            ) < 1.25
+            for points in feature_points
+        )
+        if conflicts_with_marker or conflicts_with_axis:
+            text.set_visible(False)
 
 
 def _synoptic_feature_length(feature: SynopticFeature) -> float:
@@ -704,14 +770,6 @@ def draw_south_china_sea_inset(
     for spine in inset.spines.values():
         spine.set_color("#41645f")
         spine.set_linewidth(0.65)
-    inset.set_title(
-        "SOUTH CHINA SEA",
-        fontsize=TYPE_SIZE["inset"],
-        fontweight=700,
-        fontproperties=font,
-        color="#41645f",
-        pad=3,
-    )
 
 
 def draw_surface(
@@ -1125,9 +1183,9 @@ def draw_cyclone_markers(
             annotation.set_path_effects(
                 [
                     path_effects.Stroke(
-                        linewidth=2.2,
+                        linewidth=3.4,
                         foreground="white",
-                        alpha=0.92,
+                        alpha=0.96,
                     ),
                     path_effects.Normal(),
                 ]
@@ -1162,7 +1220,7 @@ def draw_cyclone_markers(
             axis.annotate(
                 f"{centre_value:.0f}",
                 (marker.longitude, marker.latitude),
-                xytext=(0, -12),
+                xytext=(0, -16),
                 textcoords="offset points",
                 ha="center",
                 va="top",
