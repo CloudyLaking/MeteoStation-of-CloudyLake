@@ -286,7 +286,7 @@ MINIMUM CENTRAL PRESSURE AT 250000Z IS 980 MB.
         self.assertEqual(marker.name, "NOUL")
         self.assertEqual(marker.latitude, 23.4)
         self.assertEqual(marker.longitude, 115.0)
-        self.assertAlmostEqual(marker.maximum_wind_ms or 0, 36.0, delta=0.1)
+        self.assertEqual(marker.maximum_wind_kt, 70)
 
     def test_nmc_active_typhoon_position_is_selected_for_analysis_time(self) -> None:
         payload = {
@@ -363,7 +363,8 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         self.assertEqual(marker.latitude, 22.1)
         self.assertEqual(marker.longitude, 116.7)
         self.assertEqual(marker.central_pressure_hpa, 994)
-        self.assertAlmostEqual(marker.maximum_wind_ms or 0, 15.4, places=1)
+        self.assertEqual(marker.maximum_wind_kt, 30)
+        self.assertIsNone(marker.maximum_wind_ms)
         self.assertIn("JTWC operational best track", marker.source)
 
     def test_tianditu_wmts_request_uses_configured_official_layers(

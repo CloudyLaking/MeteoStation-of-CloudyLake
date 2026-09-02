@@ -90,6 +90,7 @@ class CycloneMarker(BaseModel):
     name: str | None = None
     central_pressure_hpa: float | None = None
     central_height_dam: float | None = None
+    maximum_wind_kt: float | None = None
     maximum_wind_ms: float | None = None
     source: str
     confidence: Literal["low", "medium", "high"] = "medium"

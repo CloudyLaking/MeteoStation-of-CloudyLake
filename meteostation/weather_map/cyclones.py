@@ -181,7 +181,7 @@ def parse_jtwc_bdeck(
         longitude=longitude,
         name=name,
         central_pressure_hpa=pressure if pressure > 0 else None,
-        maximum_wind_ms=round(wind_knots * 0.514444, 1),
+        maximum_wind_kt=wind_knots,
         source=(
             "JTWC operational best track via UCAR TCGP mirror · "
             f"{source_url}"
@@ -460,8 +460,8 @@ def parse_nrl_warning(
         )
         section = warning_text[match.end():section_end]
         wind_match = WIND_PATTERN.search(section)
-        maximum_wind_ms = (
-            round(float(wind_match.group("wind")) * 0.514444, 1)
+        maximum_wind_kt = (
+            float(wind_match.group("wind"))
             if wind_match
             else None
         )
@@ -474,7 +474,7 @@ def parse_nrl_warning(
                 point_time,
                 latitude,
                 longitude,
-                maximum_wind_ms,
+                maximum_wind_kt,
             )
         )
     if not candidates:
@@ -484,7 +484,7 @@ def parse_nrl_warning(
         point_time,
         latitude,
         longitude,
-        maximum_wind_ms,
+        maximum_wind_kt,
     ) = min(candidates)
     if time_distance > 6 * 3600:
         return None
@@ -504,7 +504,7 @@ def parse_nrl_warning(
         longitude=longitude,
         name=storm_match.group("name").upper(),
         central_pressure_hpa=pressure,
-        maximum_wind_ms=maximum_wind_ms,
+        maximum_wind_kt=maximum_wind_kt,
         source=f"NRL ATCF warning mirror · {source_url}",
         confidence="high",
     )

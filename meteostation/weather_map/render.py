@@ -66,7 +66,7 @@ MAP_FIGURE_BOUNDS = {
     "bottom": 0.082,
     "top": 0.875,
 }
-COLORBAR_FIGURE_BOUNDS = [0.920, 0.105, 0.016, 0.748]
+COLORBAR_FIGURE_BOUNDS = [0.850, 0.082, 0.018, 0.793]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
@@ -317,21 +317,15 @@ def render_weather_map_preview(
         color="#263943",
         pad=12,
     )
-    source_note = subset.source
+    source_parts = ["ECMWF IFS 0.25°"]
     if layer_id in {"composite", "500"}:
         normal_metadata = subset.metadata.get("height_climatology_500", {})
         if isinstance(normal_metadata, dict):
             normal_period = normal_metadata.get("normal_period", "1991-2020")
-            source_note += f" | ERA5 {normal_period} monthly normals"
-    figure.text(
-        MAP_FIGURE_BOUNDS["left"],
-        0.025,
-        f"Source: {source_note} | meteostation.top",
-        fontsize=TYPE_SIZE["footer"],
-        color="#607176",
-        fontproperties=font,
-    )
-
+            source_parts.append(f"ERA5 {normal_period} normals")
+    if tropical_markers:
+        source_parts.append("JTWC best track")
+    source_parts.append("meteostation.top")
     # Preserving the geographic aspect ratio can shrink the axes inside the
     # requested subplot rectangle. Persist the actual plot box so browser
     # overlays use the identical geographic frame instead of guessed margins.
@@ -343,6 +337,14 @@ def render_weather_map_preview(
         "bottom": float(plot_position.y0),
         "top": float(plot_position.y1),
     }
+    figure.text(
+        plot_position.x0,
+        max(0.014, plot_position.y0 - 0.056),
+        "Source: " + " · ".join(source_parts),
+        fontsize=TYPE_SIZE["footer"],
+        color="#607176",
+        fontproperties=font,
+    )
 
     directory = (
         Path(preview_root)
@@ -1125,27 +1127,45 @@ def draw_cyclone_markers(
             details = []
             if marker.central_pressure_hpa is not None:
                 details.append(f"{marker.central_pressure_hpa:.0f} hPa")
-            if marker.maximum_wind_ms is not None:
+            if marker.maximum_wind_kt is not None:
+                details.append(f"{marker.maximum_wind_kt:.0f} kt")
+            elif marker.maximum_wind_ms is not None:
                 details.append(f"{marker.maximum_wind_ms:.0f} m/s")
-            label = f"{name}\n{marker.valid_at:%m/%d %H%MZ}"
+            label = name
             if details:
                 label += "\n" + " · ".join(details)
             # Try all four quadrants in a boundary-aware order, then retain
             # the first callout whose actual rendered box neither leaves the
             # map nor collides with an already placed cyclone callout.
-            if marker.longitude >= 125:
+            other_tropical_markers = [
+                other for other in tropical_markers if other is not marker
+            ]
+            if other_tropical_markers:
+                nearest = min(
+                    other_tropical_markers,
+                    key=lambda other: np.hypot(
+                        other.longitude - marker.longitude,
+                        other.latitude - marker.latitude,
+                    ),
+                )
+                # Labels open away from the nearest system so a cluster does
+                # not collapse into one ambiguous block of text.
+                prefer_left = nearest.longitude > marker.longitude
+            else:
+                prefer_left = marker.longitude >= (x_min + x_max) / 2
+            if prefer_left:
                 candidates = [
-                    (-10, 18, "right", "bottom"),
-                    (-10, -18, "right", "top"),
-                    (10, 18, "left", "bottom"),
-                    (10, -18, "left", "top"),
+                    (-8, 11, "right", "bottom"),
+                    (-8, -11, "right", "top"),
+                    (8, 11, "left", "bottom"),
+                    (8, -11, "left", "top"),
                 ]
             else:
                 candidates = [
-                    (10, 18, "left", "bottom"),
-                    (10, -18, "left", "top"),
-                    (-10, 18, "right", "bottom"),
-                    (-10, -18, "right", "top"),
+                    (8, 11, "left", "bottom"),
+                    (8, -11, "left", "top"),
+                    (-8, 11, "right", "bottom"),
+                    (-8, -11, "right", "top"),
                 ]
             dx, dy, horizontal_alignment, vertical_alignment = candidates[0]
             annotation = axis.annotate(
