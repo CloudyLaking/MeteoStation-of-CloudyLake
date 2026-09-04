@@ -6483,14 +6483,14 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 .analysis-page.unified-page > .profile-workspace,
 .sounding-forecast-page.unified-page > .profile-workspace {
   position: fixed;
-  top: max(8px, env(safe-area-inset-top));
+  top: 50%;
   left: 50%;
   z-index: 2000;
   width: min(calc(100% - 24px), 1600px);
-  max-height: calc(100dvh - max(16px, env(safe-area-inset-top)));
+  max-height: calc(100dvh - 24px);
   padding: 16px 18px 18px;
   overflow: auto;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
 }
 
 .analysis-page.unified-page .profile-workspace__header,

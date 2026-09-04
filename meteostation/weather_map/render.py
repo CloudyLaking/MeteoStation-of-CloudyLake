@@ -590,7 +590,7 @@ def suppress_conflicting_contour_labels(
                 text_y - axis.transData.transform(
                     (marker.longitude, marker.latitude)
                 )[1],
-            ) < (180 if marker.kind == "tropical" else 95)
+            ) < (300 if marker.kind == "tropical" else 115)
             for marker in markers
         )
         conflicts_with_axis = any(
@@ -1273,7 +1273,7 @@ def draw_cyclone_markers(
             axis.annotate(
                 f"{centre_value:.0f}",
                 (marker.longitude, marker.latitude),
-                xytext=(0, -16),
+                xytext=(0, -24),
                 textcoords="offset points",
                 ha="center",
                 va="top",

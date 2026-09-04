@@ -57,12 +57,12 @@ const CHART = {
   hodoLeft: 910,
   hodoRight: 1190,
   hodoTop: 78,
-  hodoBottom: 390,
+  hodoBottom: 300,
   thetaeLeft: 1200,
   thetaeRight: 1382,
   thetaeTop: 78,
-  thetaeBottom: 390,
-  diagnosticsTop: 404,
+  thetaeBottom: 300,
+  diagnosticsTop: 312,
   // The diagnostic groups and their favourability key share one framed column.
   diagnosticsBottom: 760,
 };
@@ -798,7 +798,7 @@ function renderSoundingSummary() {
       <div><dt>地面气压</dt><dd>${formatNumber(data.surface_pressure_hpa, 1)} hPa</dd></div>
       <div><dt>最高层</dt><dd>${formatNumber(data.top_pressure_hpa, 1)} hPa</dd></div>
     </dl>
-    <p>已在页面下方打开${viewNames[selectedView]}；来源：${escapeHtml(data.source)}。</p>
+    <p>已在居中工作窗口打开${viewNames[selectedView]}；来源：${escapeHtml(data.source)}。</p>
   `;
 }
 
@@ -1128,7 +1128,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-weight": "650",
       "text-anchor": "middle",
     },
-    "Wind speed (m/s)",
+    "Speed (m/s)",
   );
   appendSvg(
     "text",
@@ -1140,7 +1140,7 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
       "font-weight": "700",
       "text-anchor": "middle",
     },
-    "Wind barbs",
+    "Barbs",
   );
   drawChartLegend();
 
@@ -1900,7 +1900,7 @@ function drawThetaE(diagnosticLevels, yForPressure) {
   const bottom = CHART.thetaeBottom;
   // The small frame shares the exact top/bottom edges with the hodograph so
   // the two panels line up; the header reserves a fixed strip at the top.
-  const headerHeight = 34;
+  const headerHeight = 38;
   const thetaEMinK = 320;
   const thetaEMaxK = 400;
   const xForThetaE = (thetaE) =>
@@ -1921,12 +1921,12 @@ function drawThetaE(diagnosticLevels, yForPressure) {
   appendSvg(
     "text",
     {
-      x: left + 10,
-      y: top + 19,
+      x: (left + right) / 2,
+      y: top + 15,
       fill: "#263943",
-      "font-size": "12",
+      "font-size": "11.5",
       "font-weight": "700",
-      "letter-spacing": "0.5",
+      "text-anchor": "middle",
     },
     "θe (K)",
   );
@@ -1935,7 +1935,7 @@ function drawThetaE(diagnosticLevels, yForPressure) {
       "text",
       {
         x: xForThetaE(thetaE),
-        y: top + 30,
+        y: top + 33,
         fill: "#8a5a2b",
         "font-size": "9",
         "text-anchor": "middle",
@@ -2200,7 +2200,7 @@ function drawDiagnosticLevel(
     "text",
     {
       x: CHART.plotRight - 7,
-      y: y - 5 - (labelIndex % 2) * 9,
+      y: y - 5 - labelIndex * 15,
       fill: color,
       "font-size": "10.5",
       "font-weight": "650",
