@@ -2010,6 +2010,12 @@ function drawHodographMotion(label, u, v, color, xForU, yForV, group) {
     stroke: color,
     "stroke-width": "2",
   });
+  // Mean wind is already named with its value in the diagnostics table.
+  // Keeping another "MW" beside the compact hodograph collides with height
+  // labels when the wind profile clusters near the origin.
+  if (label === "MW") {
+    return;
+  }
   appendSvgTo(
     target,
     "text",
