@@ -6485,7 +6485,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
   position: fixed;
   top: max(8px, env(safe-area-inset-top));
   left: 50%;
-  z-index: 40;
+  z-index: 2000;
   width: min(calc(100% - 24px), 1600px);
   max-height: calc(100dvh - max(16px, env(safe-area-inset-top)));
   padding: 16px 18px 18px;
