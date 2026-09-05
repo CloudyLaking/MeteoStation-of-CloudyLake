@@ -300,6 +300,15 @@ def render_weather_map_preview(
     for spine in axis.spines.values():
         spine.set_color("#264b4a")
         spine.set_linewidth(0.55)
+    axis.set_title(
+        title,
+        loc="left",
+        fontsize=TYPE_SIZE["title"],
+        fontweight=700,
+        fontproperties=font,
+        color="#263943",
+        pad=12,
+    )
     source_parts = ["ECMWF IFS 0.25°"]
     if layer_id in {"composite", "500"}:
         normal_metadata = subset.metadata.get("height_climatology_500", {})
@@ -320,19 +329,6 @@ def render_weather_map_preview(
         "bottom": float(plot_position.y0),
         "top": float(plot_position.y1),
     }
-    # Use one figure-coordinate baseline; Axes titles can move upwards when
-    # contour labels approach the north edge, independently of the timestamp.
-    figure.text(
-        plot_position.x0,
-        plot_position.y1 + 0.014,
-        title,
-        ha="left",
-        va="bottom",
-        fontsize=TYPE_SIZE["title"],
-        fontweight=700,
-        color="#263943",
-        fontproperties=font,
-    )
     figure.text(
         plot_position.x1,
         plot_position.y1 + 0.014,
@@ -573,7 +569,6 @@ def suppress_conflicting_contour_labels(
     axis.figure.canvas.draw()
     renderer = axis.figure.canvas.get_renderer()
     padding = renderer.points_to_pixels(2.5)
-    map_box = axis.get_window_extent(renderer)
     occupied = [
         text.get_window_extent(renderer).padded(padding)
         for text in axis.texts
@@ -588,11 +583,7 @@ def suppress_conflicting_contour_labels(
         if text.get_gid() != "weather-contour-label" or not text.get_visible():
             continue
         box = text.get_window_extent(renderer).padded(padding)
-        outside = (
-            box.x0 < map_box.x0 or box.x1 > map_box.x1
-            or box.y0 < map_box.y0 or box.y1 > map_box.y1
-        )
-        if outside or any(box.overlaps(other) for other in occupied):
+        if any(box.overlaps(other) for other in occupied):
             text.set_visible(False)
         else:
             occupied.append(box)
