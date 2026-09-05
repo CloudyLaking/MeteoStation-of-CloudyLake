@@ -9,9 +9,9 @@
     />
     <title>云海观象台 · CloudyLake's Observatory</title>
     <link rel="icon" href="/brand/logo-cn-blue.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=2.4.4-0904c" />
-    <script src="/static/site.js?v=2.4.4-0904c" defer></script>
-    <script src="/static/app.js?v=2.4.4-0904c" defer></script>
+    <link rel="stylesheet" href="/static/styles.css?v=2.4.5-0905a" />
+    <script src="/static/site.js?v=2.4.5-0905a" defer></script>
+    <script src="/static/app.js?v=2.4.5-0905a" defer></script>
   </head>
   <body class="analysis-page">
     <header class="site-header">
@@ -83,6 +83,11 @@
           <button type="button" data-map-layer="200">200 hPa</button>
         </div>
 
+        <div class="map-reading-tools" aria-label="天气图阅读方式">
+          <button type="button" data-map-view="fit" aria-pressed="true" data-i18n="map.fit">适应屏幕</button>
+          <button type="button" data-map-view="detail" aria-pressed="false" data-i18n="map.detail">查看细节</button>
+          <a id="weather-map-original" target="_blank" rel="noopener" hidden data-i18n="map.original">打开原图 ↗</a>
+        </div>
         <div class="map-stage">
           <div class="map-canvas">
           <img
@@ -99,13 +104,6 @@
             hidden
           ></div>
           <div class="map-placeholder">
-            <div class="contour contour--one"></div>
-            <div class="contour contour--two"></div>
-            <div class="contour contour--three"></div>
-            <span class="station station--one"><i></i>北京</span>
-            <span class="station station--two"><i></i>上海</span>
-            <span class="station station--three"><i></i>广州</span>
-            <span class="station station--four"><i></i>成都</span>
             <div class="map-notice">
               <span id="weather-map-status">天气场资料</span>
               <strong id="weather-map-layer-name">地面气压与温度</strong>
@@ -305,9 +303,9 @@
     <section class="product-notes" aria-labelledby="home-method-heading">
       <header><h2 id="home-method-heading">中国天气场说明</h2></header>
       <div>
-        <article><h3>处理方法</h3><p>地面图显示二米温度、海平面气压和十米风；850、500 与 200 hPa 图显示对应层次的位势高度、湿度或风速及风场。所有输入先检查覆盖率与物理范围，检查失败时不出图。</p></article>
+        <article><h3>处理方法</h3><p>综合图以 850 hPa 温度距平填色，叠加同层风场与 500 hPa 位势高度线；地面图显示二米温度、海平面气压和十米风。其余层面显示对应高度、湿度或风速。输入先检查覆盖率与物理范围，检查失败时不出图。</p></article>
         <article><h3>资料来源</h3><p><a href="https://www.ecmwf.int/en/forecasts/datasets/open-data" target="_blank" rel="noopener">欧洲中期天气预报中心开放资料</a>、<a href="https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive" target="_blank" rel="noopener">美国国家环境信息中心全球探空档案</a>、<a href="https://community.wmo.int/en/activity-areas/wis/wis2-overview" target="_blank" rel="noopener">世界气象信息系统 2.0</a> 与天地图标准地图服务。</p></article>
-        <article><h3>阅读提示</h3><p>图上只呈现可复核的基础气象场和有明确资料源的热带气旋位置。锋面、高低压中心与槽脊等分析结论在完成独立验证前不公开展示。</p></article>
+        <article><h3>阅读提示</h3><p>H、L 与槽脊、锋面为模式场自动诊断候选，不等同于人工分析。热带气旋采用 JTWC 最佳路径资料，风速单位为节（kt），气压为 hPa；高空高度线以十位势米标注。桌面图上青色站点可点击查看探空；放大阅读可查看站点数值。</p></article>
       </div>
     </section>
 

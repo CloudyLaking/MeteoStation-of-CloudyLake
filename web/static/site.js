@@ -20,6 +20,9 @@
   };
   function language() { return localStorage.getItem("cloudylake-language") || "zh"; }
   Object.assign(dictionary, {
+    "map.fit": ["适应屏幕", "Fit to screen"],
+    "map.detail": ["查看细节", "View detail"],
+    "map.original": ["打开原图 ↗", "Open original ↗"],
     "nav.analysis": ["天气场&探空", "Weather fields & soundings"],
     "nav.ensemble": ["集合预报", "Ensembles"],
     "nav.point": ["单点预报", "Point forecast"],

@@ -119,6 +119,15 @@ def render_weather_map_preview(
     """Render one China weather-analysis preview."""
     subset = grid.subset(domain)
     validate_weather_fields(subset, layer_id)
+    font = (
+        FontProperties(fname=str(font_path), size=MAP_FONT_SIZE)
+        if font_path and Path(font_path).exists()
+        else None
+    )
+    if font is not None:
+        fontManager.addfont(str(font_path))
+        plt.rcParams["font.family"] = font.get_name()
+    plt.rcParams["font.size"] = MAP_FONT_SIZE
     figure, axis = plt.subplots(
         figsize=FIGURE_SIZE_INCHES,
         facecolor="white",
@@ -129,15 +138,6 @@ def render_weather_map_preview(
         top=MAP_FIGURE_BOUNDS["top"],
         bottom=MAP_FIGURE_BOUNDS["bottom"],
     )
-    font = (
-        FontProperties(fname=str(font_path), size=MAP_FONT_SIZE)
-        if font_path and Path(font_path).exists()
-        else None
-    )
-    if font is not None:
-        fontManager.addfont(str(font_path))
-        plt.rcParams["font.family"] = font.get_name()
-    plt.rcParams["font.size"] = MAP_FONT_SIZE
     longitude_grid, latitude_grid = np.meshgrid(
         subset.longitude,
         subset.latitude,
@@ -184,6 +184,10 @@ def render_weather_map_preview(
     # China-domain edge.
     axis.set_xlim(domain.west, domain.east)
     axis.set_ylim(domain.south, domain.north)
+    # Annotation extents must use the final geographic geometry.
+    central_latitude = (domain.south + domain.north) / 2
+    axis.set_aspect(1 / np.cos(np.radians(central_latitude)), adjustable="box")
+    figure.canvas.draw()
 
     # Build an objective analysis layer from the same valid-time background.
     # Explicit caller-supplied features still take precedence for reviewed
@@ -267,20 +271,8 @@ def render_weather_map_preview(
         )
     ]
     analysed_markers = [*tropical_markers, *objective_centres]
-    suppress_conflicting_contour_labels(
-        axis,
-        markers=analysed_markers,
-        features=diagnosed_features,
-    )
     draw_cyclone_markers(axis, analysed_markers, font=font)
-    # At the domain midpoint, one degree of longitude is about cos(latitude)
-    # times one degree of latitude. This keeps China from looking either
-    # vertically squeezed or unnaturally narrow.
-    central_latitude = (domain.south + domain.north) / 2
-    axis.set_aspect(
-        1 / np.cos(np.radians(central_latitude)),
-        adjustable="box",
-    )
+    suppress_conflicting_contour_labels(axis, markers=analysed_markers)
     axis.set_facecolor("#ffffff")
     axis.set_xlabel("")
     axis.set_ylabel("")
@@ -566,43 +558,35 @@ def suppress_conflicting_contour_labels(
     axis: object,
     *,
     markers: list[CycloneMarker],
-    features: list[SynopticFeature],
 ) -> None:
-    """Hide numeric contour labels underneath analysis annotations."""
-    feature_points = [
-        np.asarray(feature.coordinates, dtype=float)
-        for feature in features
-        if len(feature.coordinates) >= 2
+    """Reserve actual callout bounds, not a large radius around systems.
+
+    Contour labels are explicitly tagged so centre values remain visible.
+    The point-based padding scales with output DPI along with the text.
+    """
+    from matplotlib.transforms import Bbox
+
+    axis.figure.canvas.draw()
+    renderer = axis.figure.canvas.get_renderer()
+    padding = renderer.points_to_pixels(2.5)
+    occupied = [
+        text.get_window_extent(renderer).padded(padding)
+        for text in axis.texts
+        if text.get_visible() and text.get_gid() != "weather-contour-label"
     ]
+    occupied.extend(child.get_window_extent(renderer) for child in axis.child_axes)
+    for marker in markers:
+        x, y = axis.transData.transform((marker.longitude, marker.latitude))
+        radius = renderer.points_to_pixels(15 if marker.kind == "tropical" else 9)
+        occupied.append(Bbox.from_extents(x - radius, y - radius, x + radius, y + radius))
     for text in axis.texts:
-        value = text.get_text().strip().replace("−", "-")
-        try:
-            float(value)
-        except ValueError:
+        if text.get_gid() != "weather-contour-label" or not text.get_visible():
             continue
-        x, y = text.get_position()
-        text_x, text_y = text.get_transform().transform((x, y))
-        conflicts_with_marker = any(
-            np.hypot(
-                text_x - axis.transData.transform(
-                    (marker.longitude, marker.latitude)
-                )[0],
-                text_y - axis.transData.transform(
-                    (marker.longitude, marker.latitude)
-                )[1],
-            ) < (300 if marker.kind == "tropical" else 115)
-            for marker in markers
-        )
-        conflicts_with_axis = any(
-            points.ndim == 2
-            and len(points)
-            and float(
-                np.nanmin(np.hypot(points[:, 0] - x, points[:, 1] - y))
-            ) < 2.0
-            for points in feature_points
-        )
-        if conflicts_with_marker or conflicts_with_axis:
+        box = text.get_window_extent(renderer).padded(padding)
+        if any(box.overlaps(other) for other in occupied):
             text.set_visible(False)
+        else:
+            occupied.append(box)
 
 
 def _synoptic_feature_length(feature: SynopticFeature) -> float:
@@ -1116,7 +1100,18 @@ def draw_cyclone_markers(
         )
         visible_markers.extend(pool[:2])
 
-    occupied_cyclone_labels: list[object] = []
+    from matplotlib.transforms import Bbox
+
+    renderer = axis.figure.canvas.get_renderer()
+    occupied_cyclone_labels: list[object] = [
+        child.get_window_extent(renderer) for child in axis.child_axes
+    ]
+    for marker in [*tropical_markers, *visible_markers]:
+        x, y = axis.transData.transform((marker.longitude, marker.latitude))
+        radius = renderer.points_to_pixels(14)
+        # Reserve the symbol and, for objective centres, the value below it.
+        bottom = radius if marker.kind == "tropical" else renderer.points_to_pixels(44)
+        occupied_cyclone_labels.append(Bbox.from_extents(x-radius, y-bottom, x+radius, y+radius))
     for marker in [*tropical_markers, *visible_markers]:
         if marker.kind == "tropical":
             symbol = DrawingArea(28, 28, 0, 0)
@@ -1166,18 +1161,23 @@ def draw_cyclone_markers(
                 prefer_left = marker.longitude >= (x_min + x_max) / 2
             if prefer_left:
                 candidates = [
-                    (-8, 11, "right", "bottom"),
-                    (-8, -11, "right", "top"),
-                    (8, 11, "left", "bottom"),
-                    (8, -11, "left", "top"),
+                    (-12, 17, "right", "bottom"),
+                    (-12, -17, "right", "top"),
+                    (12, 17, "left", "bottom"),
+                    (12, -17, "left", "top"),
                 ]
             else:
                 candidates = [
-                    (8, 11, "left", "bottom"),
-                    (8, -11, "left", "top"),
-                    (-8, 11, "right", "bottom"),
-                    (-8, -11, "right", "top"),
+                    (12, 17, "left", "bottom"),
+                    (12, -17, "left", "top"),
+                    (-12, 17, "right", "bottom"),
+                    (-12, -17, "right", "top"),
                 ]
+            candidates += [
+                (dx, np.sign(dy) * distance, ha, va)
+                for distance in (40, 65)
+                for dx, dy, ha, va in candidates[:4]
+            ]
             dx, dy, horizontal_alignment, vertical_alignment = candidates[0]
             annotation = axis.annotate(
                 label,
@@ -1253,7 +1253,7 @@ def draw_cyclone_markers(
             ha="center",
             va="center",
             fontsize=TYPE_SIZE["centre"],
-            fontweight=850,
+            fontweight=700,
             fontproperties=font,
             color=centre_color,
             zorder=8,
@@ -1369,6 +1369,7 @@ def add_weather_colorbar(
 def style_contour_labels(labels: list[object]) -> None:
     """Keep contour values legible without opaque boxes or heavy halos."""
     for label in labels:
+        label.set_gid("weather-contour-label")
         label.set_color("#243e44")
         label.set_path_effects(
             [
