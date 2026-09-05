@@ -369,12 +369,17 @@ function updateMapStationPositions() {
     return;
   }
   const stage = weatherMapImage.parentElement;
-  const renderedWidth = weatherMapImage.clientWidth;
-  const renderedHeight = weatherMapImage.clientHeight;
-  const offsetX = weatherMapImage.offsetLeft;
-  const offsetY = weatherMapImage.offsetTop;
-  mapSoundingStations.style.width = `${renderedWidth}px`;
-  mapSoundingStations.style.height = `${renderedHeight}px`;
+  const stageWidth = stage.clientWidth;
+  const stageHeight = stage.clientHeight;
+  const imageRatio =
+    weatherMapImage.naturalWidth / weatherMapImage.naturalHeight;
+  const stageRatio = stageWidth / stageHeight;
+  const renderedWidth =
+    stageRatio > imageRatio ? stageHeight * imageRatio : stageWidth;
+  const renderedHeight =
+    stageRatio > imageRatio ? stageHeight : stageWidth / imageRatio;
+  const offsetX = (stageWidth - renderedWidth) / 2;
+  const offsetY = (stageHeight - renderedHeight) / 2;
   const domain = weatherMapConfig.domain;
   const bounds = weatherMapPlotBounds ?? DEFAULT_WEATHER_MAP_PLOT_BOUNDS;
   const stationModelSize = Math.max(
@@ -597,23 +602,8 @@ async function refreshMapStationData() {
 }
 
 weatherMapImage?.addEventListener("load", () => {
-  const original = document.querySelector("#weather-map-original");
-  if (original) {
-    original.href = weatherMapImage.currentSrc;
-    original.hidden = false;
-  }
   updateMapStationPositions();
 });
-for (const button of document.querySelectorAll("[data-map-view]")) {
-  button.addEventListener("click", () => {
-    weatherMapImage.closest(".map-stage").classList.toggle("is-detail", button.dataset.mapView === "detail");
-    for (const control of document.querySelectorAll("[data-map-view]")) {
-      control.setAttribute("aria-pressed", String(control === button));
-    }
-    weatherMapImage.parentElement.scrollLeft = 0;
-    updateMapStationPositions();
-  });
-}
 window.addEventListener("resize", updateMapStationPositions);
 
 function toLocalIsoDate(date) {
