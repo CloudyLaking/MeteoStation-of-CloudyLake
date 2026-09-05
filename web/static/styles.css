@@ -6344,6 +6344,9 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 
 .analysis-page.unified-page .map-panel,
 .analysis-page.unified-page .side-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 0 !important;
   background: transparent;
   box-shadow: none !important;
@@ -6577,7 +6580,7 @@ html, body.unified-page { max-width: 100%; overflow-x: clip; }
 }
 
 @media (max-width: 900px) {
-  .analysis-page.unified-page .dashboard { grid-template-columns: 1fr; gap: 18px; }
+  .analysis-page.unified-page .dashboard { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .analysis-page.unified-page .profile-view,
   .sounding-forecast-page.unified-page .profile-view {
     grid-template-columns: 1fr;
