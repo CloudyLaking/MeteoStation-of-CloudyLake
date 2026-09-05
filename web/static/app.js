@@ -252,7 +252,6 @@ async function loadWeatherMapProduct() {
       }
     }
     weatherMapImage.hidden = true;
-    document.querySelector("#weather-map-original")?.setAttribute("hidden", "");
     mapSoundingStations.hidden = true;
     weatherMapBadge.hidden = true;
     weatherMapPlaceholder.hidden = false;
@@ -278,7 +277,6 @@ async function loadWeatherMapProduct() {
       `${layer?.description ?? ""} 当前尚缺：${missingInputs || blockers || "本时次分析产品"}。`;
   } catch (error) {
     weatherMapImage.hidden = true;
-    document.querySelector("#weather-map-original")?.setAttribute("hidden", "");
     mapSoundingStations.hidden = true;
     weatherMapBadge.hidden = true;
     weatherMapPlaceholder.hidden = false;

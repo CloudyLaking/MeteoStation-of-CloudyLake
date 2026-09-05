@@ -59,14 +59,14 @@ HEIGHT_ANOMALY_COLORS = LinearSegmentedColormap.from_list(
         "#964b46",
     ],
 )
-FIGURE_SIZE_INCHES = (13.0, 9.3)
+FIGURE_SIZE_INCHES = (13.0, 10.0)
 MAP_FIGURE_BOUNDS = {
     "left": 0.052,
     "right": 0.859,
     "bottom": 0.082,
-    "top": 0.934,
+    "top": 0.875,
 }
-COLORBAR_FIGURE_BOUNDS = [0.884, 0.082, 0.020, 0.852]
+COLORBAR_FIGURE_BOUNDS = [0.884, 0.082, 0.020, 0.793]
 SMOOTHING_SIGMA_GRIDPOINTS = {
     "surface_mslp": 3.60,
     "surface_wind_speed": 2.30,
@@ -161,19 +161,19 @@ def render_weather_map_preview(
             axis, figure, longitude_grid, latitude_grid, subset,
             pressure_hpa=850, shade="humidity",
         )
-        title = "850 hPa | Relative Humidity / Height / Wind"
+        title = "850 hPa | Relative Humidity / Geopotential Height / Wind"
     elif layer_id == "500":
         draw_pressure_level(
             axis, figure, longitude_grid, latitude_grid, subset,
             pressure_hpa=500, shade="height_anomaly",
         )
-        title = "500 hPa | Height Anomaly / Height / Wind"
+        title = "500 hPa | Geopotential Height Anomaly / Height / Wind"
     elif layer_id == "200":
         draw_pressure_level(
             axis, figure, longitude_grid, latitude_grid, subset,
             pressure_hpa=200, shade="wind",
         )
-        title = "200 hPa | Wind Speed / Height"
+        title = "200 hPa | Wind Speed / Geopotential Height"
     else:
         plt.close(figure)
         raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
@@ -1161,17 +1161,17 @@ def draw_cyclone_markers(
                 prefer_left = marker.longitude >= (x_min + x_max) / 2
             if prefer_left:
                 candidates = [
-                    (-12, 22, "right", "bottom"),
-                    (-12, -22, "right", "top"),
-                    (12, 22, "left", "bottom"),
-                    (12, -22, "left", "top"),
+                    (-12, 17, "right", "bottom"),
+                    (-12, -17, "right", "top"),
+                    (12, 17, "left", "bottom"),
+                    (12, -17, "left", "top"),
                 ]
             else:
                 candidates = [
-                    (12, 22, "left", "bottom"),
-                    (12, -22, "left", "top"),
-                    (-12, 22, "right", "bottom"),
-                    (-12, -22, "right", "top"),
+                    (12, 17, "left", "bottom"),
+                    (12, -17, "left", "top"),
+                    (-12, 17, "right", "bottom"),
+                    (-12, -17, "right", "top"),
                 ]
             candidates += [
                 (dx, np.sign(dy) * distance, ha, va)
@@ -1195,7 +1195,7 @@ def draw_cyclone_markers(
             annotation.set_path_effects(
                 [
                     path_effects.Stroke(
-                        linewidth=2.4,
+                        linewidth=3.4,
                         foreground="white",
                         alpha=0.96,
                     ),
