@@ -1,4 +1,4 @@
-"""Synoptic chart presentation, independent of the website's layout.
+"""Synoptic charts using the same visual language as the public website.
 
 The same physical fields and rendering rules apply to every map domain.
 No temperature/rainfall inference is made from colour alone; the returned
@@ -26,8 +26,11 @@ from .fields import WeatherGrid
 from .models import CycloneMarker
 
 FONT_SIZE = 17
-INK = '#29494a'
-TEAL = '#147f78'
+PAPER = '#fbfbf8'
+INK = '#24343a'
+INK_SOFT = '#707876'
+TEAL = '#126e68'
+ORANGE = '#d9a083'
 VIOLET = '#746489'
 BRICK = '#a5574f'
 HALO = [pe.withStroke(linewidth=2.2, foreground='white', alpha=.94)]
@@ -134,7 +137,7 @@ def draw_chart(grid, *, layer, domain, font_path=None, cyclones=(), base_map=Non
     with plt.rc_context({'font.family':font.get_name(), 'font.size':FONT_SIZE}):
         ratio=(domain.east-domain.west)*np.cos(np.radians((domain.north+domain.south)/2))/(domain.north-domain.south)
         regional_width=max(10.5,min(16,ratio*10*.79/.8))
-        fig = plt.figure(figsize=(18,9) if global_map else (regional_width,10), facecolor='white')
+        fig = plt.figure(figsize=(18,9) if global_map else (regional_width,10), facecolor=PAPER)
         ax = fig.add_axes([.055,.105,.80,.79])
         ax.set(xlim=(domain.west,domain.east), ylim=(domain.south,domain.north), facecolor='white')
         ax.set_aspect(1 if global_map else 1/max(.35,np.cos(np.radians((domain.north+domain.south)/2))), adjustable='box')
@@ -263,8 +266,8 @@ def draw_chart(grid, *, layer, domain, font_path=None, cyclones=(), base_map=Non
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_:f'{abs((x+180)%360-180):g}°'+('W' if (x+180)%360-180<0 else 'E')))
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_:f'{abs(y):g}°'+('S' if y<0 else 'N')))
         ax.tick_params(labelsize=FONT_SIZE,colors=INK,length=2,width=.5)
-        ax.grid(alpha=.13,color=INK,lw=.4,ls=':')
-        for spine in ax.spines.values():spine.set(color='#839890',linewidth=.55)
+        ax.grid(alpha=.10,color=INK,lw=.45,ls='-')
+        for spine in ax.spines.values():spine.set(color='#8fa39d',linewidth=.65)
         fig.canvas.draw(); pos=ax.get_position()
         cax=fig.add_axes([pos.x1+.025,pos.y0,.016,pos.height])
         ticks=([-16,-8,-4,0,4,8,16] if layer=='composite' and 'anomaly' in colour_label else [0,60,80,100] if 'RH' in colour_label else levels[::2])
@@ -274,14 +277,21 @@ def draw_chart(grid, *, layer, domain, font_path=None, cyclones=(), base_map=Non
         bar.set_label(colour_label,fontsize=FONT_SIZE,color=INK,labelpad=10)
         bar.ax.tick_params(labelsize=FONT_SIZE,colors=INK,length=2)
         bar.outline.set_linewidth(.4)
-        titles={'composite':'COMPOSITE | 850 T / Wind · 500 Z','surface':'SURFACE | 2-m T · MSLP · 10-m Wind','850':'850 hPa | Moisture · Height · Wind','500':'500 hPa | Circulation','200':'200 hPa | Jet stream'}
+        titles={'composite':'COMPOSITE / 850 T + WIND / 500 Z','surface':'SURFACE / 2-m T / MSLP / 10-m WIND','850':'850 hPa / MOISTURE / HEIGHT / WIND','500':'500 hPa / CIRCULATION','200':'200 hPa / JET STREAM'}
         if layer=='surface' and grid.metadata.get('precipitation'): titles['surface']='SURFACE | Rain · MSLP · 10-m Wind'
-        fig.text(pos.x0,pos.y1+.015,titles[layer],ha='left',va='bottom',fontproperties=font,color=INK)
-        fig.text(pos.x1,pos.y1+.015,f'{grid.valid_at:%Y-%m-%d %H:%M UTC}',ha='right',va='bottom',fontproperties=font,color=INK)
+        if layer=='surface' and grid.metadata.get('precipitation'): titles['surface']='SURFACE / ACCUMULATED RAIN / MSLP / 10-m WIND'
+        title_font=font.copy();title_font.set_size(18);title_font.set_weight(700)
+        meta_font=font.copy();meta_font.set_size(13)
+        fig.add_artist(plt.Line2D([pos.x0,pos.x1+.041],[pos.y1+.063,pos.y1+.063],transform=fig.transFigure,color='#c9d3cf',lw=.8))
+        fig.add_artist(plt.Line2D([pos.x0,pos.x0+.055],[pos.y1+.063,pos.y1+.063],transform=fig.transFigure,color=ORANGE,lw=3))
+        fig.text(pos.x0,pos.y1+.018,titles[layer],ha='left',va='bottom',fontproperties=title_font,color=INK)
+        fig.text(pos.x1,pos.y1+.019,f'VALID / {grid.valid_at:%Y-%m-%d %H:%M UTC}',ha='right',va='bottom',fontproperties=meta_font,color=INK_SOFT)
         init=grid.metadata.get('initialized_at')
         init_text=f" · INIT {str(init)[5:16].replace('T',' ')}Z +{grid.metadata.get('forecast_step_hours',0)}h" if init else ''
-        fig.text(pos.x0,.025,'IFS 0.25°'+init_text+' · meteostation.top',fontproperties=font,color='#697e75')
-        notes=[recipe_note,'风羽：半划 2.5 m/s、长划 5 m/s、旗形 25 m/s；高空高度线为十位势米。']
+        display_text=' · DISPLAY 1°' if global_map else ''
+        fig.add_artist(plt.Line2D([pos.x0,pos.x1+.041],[.079,.079],transform=fig.transFigure,color='#c9d3cf',lw=.7))
+        fig.text(pos.x0,.035,'ECMWF OPEN DATA / IFS 0.25°'+display_text+init_text+' · meteostation.top',fontproperties=meta_font,color=INK_SOFT)
+        notes=['模式天气场来源：ECMWF Open Data IFS；有效时刻、起报时刻与预报时效见图内。',recipe_note,'风羽：半划 2.5 m/s、长划 5 m/s、旗形 25 m/s；高空高度线为十位势米。']
         if 'RH' in colour_label: notes.append('湿度保留模式原值，寒冷环境可能超过 100%；色条顶端延伸表示超出 100%，不强制截断。')
         if global_map: notes.append('全球采用 1° 网格展示，原始资料为 IFS 0.25°；极区与小尺度系统需使用区域产品。')
         if 'anomaly' in colour_label: notes.append('距平基准：ERA5 1991—2020 年同月平均；不是逐日气候态。')
@@ -290,7 +300,8 @@ def draw_chart(grid, *, layer, domain, font_path=None, cyclones=(), base_map=Non
             details=[f'{m.id} {m.name or ""}'.strip(),f'{m.valid_at:%m-%d %H:%M} UTC']
             if m.central_pressure_hpa is not None:details.append(f'{m.central_pressure_hpa:g} hPa')
             if m.maximum_wind_kt is not None:details.append(f'{m.maximum_wind_kt:g} kt')
-            agency='NHC/CPHC' if 'NHC' in (m.source or '') else 'JTWC'
+            source_upper=(m.source or '').upper()
+            agency='NHC/CPHC' if ('NHC' in source_upper and 'CPHC' in source_upper) else 'CPHC' if 'CPHC' in source_upper else 'NHC' if 'NHC' in source_upper else 'JTWC'
             mirror='NRL 备用镜像' if 'NRL' in m.source else 'UCAR 镜像'
             notes.append(f'热带气旋（{agency}，经 {mirror}）：'+' · '.join(details))
         if centres or features:notes.append('H/L、槽脊与锋面为模式场自动诊断候选，不代表人工分析或官方预警。')

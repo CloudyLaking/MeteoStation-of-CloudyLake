@@ -748,10 +748,16 @@ async def project_status() -> dict[str, object]:
         ],
         "sources": [
             {
+                "id": "wis2",
+                "label": "WIS 2.0 实时 TEMP 探空（优先）",
+                "role": "primary",
+                "url": "https://community.wmo.int/en/activity-areas/wis/wis2-overview",
+            },
+            {
                 "id": "wyoming",
-                "label": "全球探空档案（历史回退）",
+                "label": "University of Wyoming 探空（回填）",
                 "role": "fallback",
-                "url": "https://www.ncei.noaa.gov/products/weather-balloon/integrated-global-radiosonde-archive",
+                "url": "https://weather.uwyo.edu/upperair/sounding.html",
             },
             {
                 "id": "metar",
@@ -766,14 +772,8 @@ async def project_status() -> dict[str, object]:
                 "url": "https://q-weather.info/",
             },
             {
-                "id": "wis2",
-                "label": "世界气象组织资料交换 2.0",
-                "role": "primary",
-                "url": "https://community.wmo.int/en/activity-areas/wis/wis2-overview",
-            },
-            {
                 "id": "ecmwf-open-data",
-                "label": "欧洲中期天气预报中心开放资料",
+                "label": "ECMWF IFS 模式天气场",
                 "role": "background",
                 "url": "https://www.ecmwf.int/en/forecasts/datasets/open-data",
             },

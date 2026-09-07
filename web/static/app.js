@@ -45,9 +45,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const STANDARD_LEVELS = [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100];
 const CHART = {
   width: 1400,
-  height: 820,
-  top: 78,
-  bottom: 760,
+  height: 900,
+  top: 112,
+  bottom: 830,
   plotLeft: 160,
   plotRight: 780,
   humidityLeft: 42,
@@ -58,15 +58,15 @@ const CHART = {
   barbsRight: 900,
   hodoLeft: 910,
   hodoRight: 1190,
-  hodoTop: 78,
-  hodoBottom: 300,
+  hodoTop: 112,
+  hodoBottom: 340,
   thetaeLeft: 1200,
   thetaeRight: 1382,
-  thetaeTop: 78,
-  thetaeBottom: 300,
-  diagnosticsTop: 312,
+  thetaeTop: 112,
+  thetaeBottom: 340,
+  diagnosticsTop: 352,
   // The diagnostic groups and their favourability key share one framed column.
-  diagnosticsBottom: 760,
+  diagnosticsBottom: 830,
 };
 
 let selectedView = "skewt";
@@ -964,9 +964,9 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     "text",
     {
       x: CHART.humidityLeft,
-      y: 31,
-      fill: "#263943",
-      "font-size": "23",
+      y: 34,
+      fill: "#24343a",
+      "font-size": "24",
       "font-weight": "700",
     },
     `${profile.station_id} | ${mode === "skewt" ? "Skew-T" : "Stüve"}`,
@@ -975,18 +975,18 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     "text",
     {
       x: CHART.humidityLeft,
-      y: 52,
-      fill: "#788286",
+      y: 59,
+      fill: "#707876",
       "font-size": "12.5",
-      "letter-spacing": "0.5",
+      "letter-spacing": "0.25",
     },
-    `WMO ${profile.station_id}  |  ${formatUtc(profile.valid_at)}  |  ${profile.level_count} observed levels  |  ${profile.source}`,
+    `${formatUtc(profile.valid_at)}  ·  ${profile.level_count} OBSERVED LEVELS  ·  SOURCE / ${profile.source}`,
   );
   appendSvg(
     "text",
     {
       x: CHART.thetaeRight,
-      y: 31,
+      y: 34,
       fill: "#126e68",
       "font-size": "13",
       "font-weight": "700",
@@ -994,6 +994,22 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     },
     "@CloudyLake",
   );
+  appendSvg("line", {
+    x1: CHART.humidityLeft,
+    x2: CHART.thetaeRight,
+    y1: 74,
+    y2: 74,
+    stroke: "#c9d3cf",
+    "stroke-width": "1",
+  });
+  appendSvg("line", {
+    x1: CHART.humidityLeft,
+    x2: CHART.humidityLeft + 82,
+    y1: 74,
+    y2: 74,
+    stroke: "#d9a083",
+    "stroke-width": "3",
+  });
   appendSvg("rect", {
     x: CHART.plotLeft,
     y: CHART.top,
@@ -1157,31 +1173,31 @@ function renderProfileChart(profile, mode, stationName, diagnostics) {
     "text",
     {
       x: (CHART.humidityLeft + CHART.humidityRight) / 2,
-      y: 69,
+      y: 103,
       fill: "#617276",
       "font-size": "12.5",
       "font-weight": "650",
       "text-anchor": "middle",
     },
-    "Humidity / cloud reference",
+    "RH",
   );
   appendSvg(
     "text",
     {
       x: (CHART.windLeft + CHART.windRight) / 2,
-      y: 69,
+      y: 103,
       fill: "#617276",
       "font-size": "12.5",
       "font-weight": "650",
       "text-anchor": "middle",
     },
-    "Speed (m/s)",
+    "m/s",
   );
   appendSvg(
     "text",
     {
       x: (CHART.barbsLeft + CHART.barbsRight) / 2,
-      y: 69,
+      y: 103,
       fill: "#29363c",
       "font-size": "12.5",
       "font-weight": "700",
@@ -2239,6 +2255,11 @@ function drawDiagnosticLevel(
     return;
   }
   const y = yForPressure(pressure);
+  const labelY = clamp(
+    y - 5 - labelIndex * 15,
+    CHART.top + 16,
+    CHART.bottom - 8,
+  );
   appendSvg("line", {
     x1: CHART.plotLeft,
     x2: CHART.plotRight,
@@ -2253,7 +2274,7 @@ function drawDiagnosticLevel(
     "text",
     {
       x: CHART.plotRight - 7,
-      y: y - 5 - labelIndex * 15,
+      y: labelY,
       fill: color,
       "font-size": "10.5",
       "font-weight": "650",
@@ -2287,13 +2308,13 @@ function drawChartLegend() {
     ["CAPE", "#eaa66c", ""],
     ["CIN", "#77a7c9", ""],
   ];
-  let x = 250;
+  let x = 205;
   entries.forEach(([label, color, dash]) => {
     appendSvg("line", {
       x1: x,
       x2: x + 14,
-      y1: 67,
-      y2: 67,
+      y1: 99,
+      y2: 99,
       stroke: color,
       "stroke-width": label === "CAPE" || label === "CIN" ? "6" : "2",
       "stroke-dasharray": dash,
@@ -2303,13 +2324,13 @@ function drawChartLegend() {
       "text",
       {
         x: x + 19,
-        y: 70,
+        y: 103,
         fill: "#657175",
         "font-size": "13",
       },
       label,
     );
-    x += label === "Parcel" ? 86 : 66;
+    x += label === "Parcel" ? 78 : 60;
   });
 }
 
