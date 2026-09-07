@@ -119,243 +119,14 @@ def render_weather_map_preview(
     """Render one China weather-analysis preview."""
     subset = grid.subset(domain)
     validate_weather_fields(subset, layer_id)
-    figure, axis = plt.subplots(
-        figsize=FIGURE_SIZE_INCHES,
-        facecolor="white",
-    )
-    figure.subplots_adjust(
-        left=MAP_FIGURE_BOUNDS["left"],
-        right=MAP_FIGURE_BOUNDS["right"],
-        top=MAP_FIGURE_BOUNDS["top"],
-        bottom=MAP_FIGURE_BOUNDS["bottom"],
-    )
-    font = (
-        FontProperties(fname=str(font_path), size=MAP_FONT_SIZE)
-        if font_path and Path(font_path).exists()
-        else None
-    )
-    if font is not None:
-        fontManager.addfont(str(font_path))
-        plt.rcParams["font.family"] = font.get_name()
-    plt.rcParams["font.size"] = MAP_FONT_SIZE
-    longitude_grid, latitude_grid = np.meshgrid(
-        subset.longitude,
-        subset.latitude,
-    )
-    if base_map is not None:
-        axis.imshow(
-            base_map.vector,
-            extent=base_map.extent,
-            origin="upper",
-            zorder=-20,
-            interpolation="bilinear",
-        )
-    if layer_id == "composite":
-        draw_composite(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "COMPOSITE | 850-hPa T Anomaly + Wind / 500-hPa Height"
-    elif layer_id == "surface":
-        draw_surface(axis, figure, longitude_grid, latitude_grid, subset)
-        title = "SURFACE | 2-m Temperature / MSLP / 10-m Wind"
-    elif layer_id == "850":
-        draw_pressure_level(
-            axis, figure, longitude_grid, latitude_grid, subset,
-            pressure_hpa=850, shade="humidity",
-        )
-        title = "850 hPa | Relative Humidity / Geopotential Height / Wind"
-    elif layer_id == "500":
-        draw_pressure_level(
-            axis, figure, longitude_grid, latitude_grid, subset,
-            pressure_hpa=500, shade="height_anomaly",
-        )
-        title = "500 hPa | Geopotential Height Anomaly / Height / Wind"
-    elif layer_id == "200":
-        draw_pressure_level(
-            axis, figure, longitude_grid, latitude_grid, subset,
-            pressure_hpa=200, shade="wind",
-        )
-        title = "200 hPa | Wind Speed / Geopotential Height"
-    else:
-        plt.close(figure)
-        raise ValueError(f"Unsupported weather-map preview layer: {layer_id}")
-
-    # Lock the published domain before selecting annotations. Contour artists
-    # are decoded on a slightly larger retrieval area; using their temporary
-    # autoscale limits used to admit labels that were clipped at the final
-    # China-domain edge.
-    axis.set_xlim(domain.west, domain.east)
-    axis.set_ylim(domain.south, domain.north)
-
-    # Build an objective analysis layer from the same valid-time background.
-    # Explicit caller-supplied features still take precedence for reviewed
-    # products and tests.
-    if synoptic_features is not None:
-        diagnosed_features = synoptic_features
-    elif layer_id == "surface":
-        diagnosed_features = detect_surface_fronts(subset, domain=domain)
-    elif layer_id in {"composite", "500"}:
-        diagnosed_features = detect_height_axes(
-            subset,
-            domain=domain,
-            pressure_hpa=500,
-        )
-    else:
-        diagnosed_features = []
-    tropical_markers = [
-        marker
-        for marker in (cyclone_markers or [])
-        if marker.kind == "tropical"
-    ]
-    diagnosed_features = [
-        feature
-        for feature in diagnosed_features
-        if not _feature_near_tropical_cyclone(
-            feature,
-            tropical_markers,
-            radius_degrees=(8.0 if "front" in feature.kind else 6.0),
-        )
-    ]
-    draw_synoptic_features(
-        axis,
-        diagnosed_features,
-        font=font,
-    )
-
-    if base_map is not None:
-        axis.imshow(
-            base_map.boundaries,
-            extent=base_map.extent,
-            origin="upper",
-            zorder=6,
-            interpolation="bilinear",
-        )
-        axis.imshow(
-            base_map.labels,
-            extent=base_map.extent,
-            origin="upper",
-            zorder=6.2,
-            interpolation="bilinear",
-        )
-    if boundary_layer is not None:
-        draw_local_boundaries(axis, boundary_layer)
-        draw_south_china_sea_inset(
-            axis,
-            boundary_layer,
-            font=font,
-        )
-    objective_centres: list[CycloneMarker]
-    if layer_id == "surface":
-        objective_centres = [
-            *detect_low_pressure_centres(subset, domain=domain),
-            *detect_high_pressure_centres(subset, domain=domain),
-        ]
-    else:
-        centre_level = 500 if layer_id == "composite" else int(layer_id)
-        objective_centres = detect_pressure_level_centres(
-            subset,
-            domain=domain,
-            pressure_hpa=centre_level,
-        )
-    objective_centres = [
-        marker
-        for marker in objective_centres
-        if not any(
-            np.hypot(
-                marker.latitude - tropical.latitude,
-                marker.longitude - tropical.longitude,
-            ) < 6.0
-            for tropical in tropical_markers
-        )
-    ]
-    analysed_markers = [*tropical_markers, *objective_centres]
-    suppress_conflicting_contour_labels(
-        axis,
-        markers=analysed_markers,
-        features=diagnosed_features,
-    )
-    draw_cyclone_markers(axis, analysed_markers, font=font)
-    # At the domain midpoint, one degree of longitude is about cos(latitude)
-    # times one degree of latitude. This keeps China from looking either
-    # vertically squeezed or unnaturally narrow.
-    central_latitude = (domain.south + domain.north) / 2
-    axis.set_aspect(
-        1 / np.cos(np.radians(central_latitude)),
-        adjustable="box",
-    )
-    axis.set_facecolor("#ffffff")
-    axis.set_xlabel("")
-    axis.set_ylabel("")
-    axis.xaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}°E")
-    )
-    axis.yaxis.set_major_formatter(
-        FuncFormatter(lambda value, _: f"{value:.0f}°N")
-    )
-    axis.xaxis.set_major_locator(MaxNLocator(nbins=9, integer=True))
-    axis.yaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
-    axis.tick_params(
-        labelsize=TYPE_SIZE["tick"],
-        colors="#31464d",
-        length=3.2,
-        width=0.7,
-        direction="out",
-    )
-    axis.grid(
-        color="#728b8b",
-        linestyle="--",
-        linewidth=0.42,
-        alpha=0.20,
-    )
-    for spine in axis.spines.values():
-        spine.set_color("#264b4a")
-        spine.set_linewidth(0.55)
-    axis.set_title(
-        title,
-        loc="left",
-        fontsize=TYPE_SIZE["title"],
-        fontweight=700,
-        fontproperties=font,
-        color="#263943",
-        pad=12,
-    )
-    source_parts = ["ECMWF IFS 0.25°"]
-    if layer_id in {"composite", "500"}:
-        normal_metadata = subset.metadata.get("height_climatology_500", {})
-        if isinstance(normal_metadata, dict):
-            normal_period = normal_metadata.get("normal_period", "1991-2020")
-            source_parts.append(f"ERA5 {normal_period} normals")
-    if tropical_markers:
-        source_parts.append("JTWC best track")
-    source_parts.append("meteostation.top")
-    # Preserving the geographic aspect ratio can shrink the axes inside the
-    # requested subplot rectangle. Persist the actual plot box so browser
-    # overlays use the identical geographic frame instead of guessed margins.
-    figure.canvas.draw()
-    plot_position = axis.get_position()
-    plot_bounds_fraction = {
-        "left": float(plot_position.x0),
-        "right": float(plot_position.x1),
-        "bottom": float(plot_position.y0),
-        "top": float(plot_position.y1),
-    }
-    figure.text(
-        plot_position.x1,
-        plot_position.y1 + 0.014,
-        f"{subset.valid_at:%Y-%m-%d %H:00 UTC}",
-        ha="right",
-        va="bottom",
-        fontsize=TYPE_SIZE["title"],
-        fontweight=700,
-        color="#263943",
-        fontproperties=font,
-    )
-    figure.text(
-        plot_position.x0,
-        max(0.014, plot_position.y0 - 0.056),
-        "Source: " + " · ".join(source_parts),
-        fontsize=TYPE_SIZE["footer"],
-        color="#607176",
-        fontproperties=font,
-    )
+    from .presentation import draw_chart
+    chart = draw_chart(subset, layer=layer_id, domain=domain,
+        font_path=font_path, cyclones=cyclone_markers or [],
+        base_map=base_map, boundary=boundary_layer, supplied_features=synoptic_features)
+    figure = chart.figure
+    plot_bounds_fraction = chart.bounds
+    analysed_markers = chart.markers
+    diagnosed_features = chart.features
 
     directory = (
         Path(preview_root)
@@ -405,7 +176,7 @@ def render_weather_map_preview(
         "base_map": (
             {
                 "source": "国家地理信息公共服务平台（天地图）",
-                "layers": ["vec_w", "cva_w", "ibo_w"],
+                "layers": ["ibo_w"],
                 "zoom": base_map.zoom,
                 "service_review_number": base_map.source_review_number,
                 "thematic_map_review_status": "pending",
@@ -425,15 +196,16 @@ def render_weather_map_preview(
             else None
         ),
         "domain": domain.model_dump(),
+        "coastline_source": "Natural Earth public domain coastline; 110m global / 50m regional",
         "fields": sorted(subset.fields),
         "source_metadata": subset.metadata,
         "rendering": {
             "projection": "plate-carree",
+            "recipe": chart.recipe,
+            "reading_notes": chart.notes,
             "plot_bounds_fraction": plot_bounds_fraction,
             "height_contour_unit": "dagpm",
-            "smoothing_sigma_gridpoints": (
-                SMOOTHING_SIGMA_GRIDPOINTS
-            ),
+            "smoothing_sigma_gridpoints": {"contours":2,"wind":.5,"shading":1.4,"precipitation":0},
             "cyclone_markers": [
                 marker.model_dump(mode="json")
                 for marker in analysed_markers
@@ -1415,11 +1187,25 @@ def validate_weather_fields(grid: WeatherGrid, layer_id: str) -> None:
             f"wind_v_{pressure}_ms": (-200, 200),
         }
         if pressure == 850:
-            required["relative_humidity_850_pct"] = (0, 105)
+            required["relative_humidity_850_pct"] = (0, 200)
         elif pressure == 500:
             required["geopotential_height_500_climatology_gpm"] = (3500, 7000)
+    # Regional products explicitly switch to absolute fields when a monthly
+    # climate normal is unavailable; never extrapolate a China normal worldwide.
+    for climatology in ("temperature_850_climatology_c", "geopotential_height_500_climatology_gpm"):
+        if climatology not in grid.fields:
+            required.pop(climatology, None)
+    if layer_id == '500' and 'geopotential_height_500_climatology_gpm' not in grid.fields:
+        required['relative_humidity_500_pct'] = (0, 200)
     for name, (minimum, maximum) in required.items():
         values = require_field(grid, name)
+        pressure = next((p for p in (850,500,200) if f'_{p}_' in name), None)
+        if pressure and 'surface_pressure_hpa' in grid.fields:
+            # Underground pressure-level extrapolations are not displayed and
+            # must not determine the quality of the above-ground field.
+            values = values[grid.fields['surface_pressure_hpa'] >= pressure+5]
+            if not values.size:
+                raise ValueError(f'No above-ground coverage for {name}')
         finite = values[np.isfinite(values)]
         if finite.size < values.size * 0.9:
             raise ValueError(f"Weather field has insufficient valid coverage: {name}")

@@ -132,6 +132,7 @@ class WeatherMapCatalogTests(unittest.TestCase):
                     "ecmwf-surface",
                     "ecmwf-pressure",
                     "ecmwf-tropical-cyclone-tracks",
+                    "ecmwf-precipitation",
                 ],
             )
             self.assertEqual(
@@ -275,7 +276,7 @@ MINIMUM CENTRAL PRESSURE AT 250000Z IS 980 MB.
             valid_at=datetime(
                 2026,
                 7,
-                26,
+                25,
                 tzinfo=timezone.utc,
             ),
             source_url="https://example.invalid/wp112026.wrn",
@@ -284,8 +285,8 @@ MINIMUM CENTRAL PRESSURE AT 250000Z IS 980 MB.
         assert marker is not None
         self.assertEqual(marker.id, "11W")
         self.assertEqual(marker.name, "NOUL")
-        self.assertEqual(marker.latitude, 23.4)
-        self.assertEqual(marker.longitude, 115.0)
+        self.assertEqual(marker.latitude, 20.8)
+        self.assertEqual(marker.longitude, 118.3)
         self.assertEqual(marker.maximum_wind_kt, 70)
 
     def test_nmc_active_typhoon_position_is_selected_for_analysis_time(self) -> None:
@@ -516,7 +517,7 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         ).configuration()
         markers = detect_low_pressure_centres(
             grid,
-            domain=configuration.domain,
+            domain=configuration.domain.model_copy(update={"west":float(longitude.min()),"east":float(longitude.max()),"south":float(latitude.min()),"north":float(latitude.max())}),
         )
         self.assertTrue(markers)
         self.assertAlmostEqual(markers[0].longitude, 112, delta=0.5)
@@ -550,7 +551,7 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         ).configuration()
         markers = detect_high_pressure_centres(
             grid,
-            domain=configuration.domain,
+            domain=configuration.domain.model_copy(update={"west":float(longitude.min()),"east":float(longitude.max()),"south":float(latitude.min()),"north":float(latitude.max())}),
         )
         self.assertTrue(markers)
         self.assertAlmostEqual(markers[0].longitude, 112, delta=0.5)
@@ -591,7 +592,7 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         ).configuration()
         markers = detect_pressure_level_centres(
             grid,
-            domain=configuration.domain,
+            domain=configuration.domain.model_copy(update={"west":float(longitude.min()),"east":float(longitude.max()),"south":float(latitude.min()),"north":float(latitude.max())}),
             pressure_hpa=500,
         )
         kinds = {marker.kind for marker in markers}
@@ -627,7 +628,7 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         ).configuration()
         fronts = detect_surface_fronts(
             grid,
-            domain=configuration.domain,
+            domain=configuration.domain.model_copy(update={"west":float(longitude.min()),"east":float(longitude.max()),"south":float(latitude.min()),"north":float(latitude.max())}),
         )
         self.assertTrue(fronts)
         self.assertIn("cold-front", {feature.kind for feature in fronts})
@@ -662,7 +663,7 @@ WP, 17, 2026090200,   , BEST,   0, 221N, 1167E,  30, 994, XX,  34, NEQ, 0, 0, 0,
         ).configuration()
 
         self.assertEqual(
-            detect_surface_fronts(grid, domain=configuration.domain),
+            detect_surface_fronts(grid, domain=configuration.domain.model_copy(update={"west":float(longitude.min()),"east":float(longitude.max()),"south":float(latitude.min()),"north":float(latitude.max())})),
             [],
         )
 

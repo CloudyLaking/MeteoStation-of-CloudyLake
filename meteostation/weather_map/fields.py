@@ -41,9 +41,12 @@ class WeatherGrid:
         object.__setattr__(self, "fields", normalized_fields)
 
     def subset(self, domain: WeatherMapDomain) -> WeatherGrid:
+        # Unwrap around the requested western edge, including dateline-crossing
+        # regions such as 150E..210E. Never silently return half a global map.
+        wrapped = (self.longitude - domain.west) % 360 + domain.west
         longitude_mask = (
-            (self.longitude >= domain.west)
-            & (self.longitude <= domain.east)
+            (wrapped >= domain.west)
+            & (wrapped <= domain.east)
         )
         latitude_mask = (
             (self.latitude >= domain.south)
@@ -51,13 +54,22 @@ class WeatherGrid:
         )
         if longitude_mask.sum() < 2 or latitude_mask.sum() < 2:
             raise ValueError("Weather grid does not cover the configured domain")
+        selected = np.flatnonzero(longitude_mask)
+        selected = selected[np.argsort(wrapped[selected])]
+        step = max(domain.resolution_degrees, float(np.median(np.diff(wrapped[selected]))))
+        if (wrapped[selected][0] > domain.west + step * 1.1
+            or wrapped[selected][-1] < domain.east - step * 1.1
+            or np.max(np.diff(wrapped[selected])) > step * 1.5
+            or self.latitude[latitude_mask].min() > domain.south + step * 1.1
+            or self.latitude[latitude_mask].max() < domain.north - step * 1.1):
+            raise ValueError("Weather grid does not cover the full requested domain")
         return WeatherGrid(
             valid_at=self.valid_at,
             source=self.source,
-            longitude=self.longitude[longitude_mask],
+            longitude=wrapped[selected],
             latitude=self.latitude[latitude_mask],
             fields={
-                name: values[np.ix_(latitude_mask, longitude_mask)]
+                name: values[np.ix_(latitude_mask, selected)]
                 for name, values in self.fields.items()
             },
             metadata=self.metadata,

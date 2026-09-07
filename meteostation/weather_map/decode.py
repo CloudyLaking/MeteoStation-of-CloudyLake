@@ -24,6 +24,7 @@ def decode_ecmwf_background(
     domain: WeatherMapDomain,
     forecast_step_hours: int = 0,
     initialized_at: datetime | None = None,
+    precipitation_path: Path | None = None,
 ) -> WeatherGrid:
     """Decode planned ECMWF GRIB files into the normalized field schema."""
     try:
@@ -39,6 +40,31 @@ def decode_ecmwf_background(
     ]
     longitude, latitude = find_coordinates(datasets)
     fields: dict[str, np.ndarray] = {}
+    precipitation_metadata = None
+    if precipitation_path and precipitation_path.is_file():
+        try:
+            rain_datasets = cfgrib.open_datasets(str(precipitation_path), backend_kwargs={"read_keys":["startStep","endStep","stepType"]})
+        except Exception:
+            # Precipitation is optional. A corrupt or unverifiable GRIB must
+            # fall back to 2-m temperature without blocking the whole chart.
+            rain_datasets = []
+        for rain_dataset in rain_datasets:
+            if "tp" not in rain_dataset:
+                continue
+            rain = rain_dataset["tp"]
+            start = rain.attrs.get("GRIB_startStep")
+            end = rain.attrs.get("GRIB_endStep")
+            # Display only an explicitly known accumulation interval and grid.
+            if (rain.attrs.get("GRIB_stepType") == "accum" and rain.attrs.get("units") == "m"
+                and rain.attrs.get("GRIB_stepUnits") == 1 and start is not None
+                and end is not None and float(end) == forecast_step_hours and float(end) > float(start)
+                and np.datetime64(valid_at.replace(tzinfo=None)) == rain_dataset.valid_time.values
+                and np.array_equal(rain_dataset.longitude.values, longitude)
+                and np.array_equal(rain_dataset.latitude.values, latitude)):
+                values = np.asarray(rain.values, dtype=float).squeeze() * 1000
+                if np.isfinite(values).all() and np.min(values) >= -0.01 and np.max(values) <= 3000:
+                    fields["precipitation_accumulation_mm"] = np.maximum(values, 0)
+                    precipitation_metadata = {"start_step":float(start),"end_step":float(end),"hours":float(end)-float(start),"source":"IFS model accumulation, not observed rainfall"}
     copy_surface_field(
         datasets,
         fields,
@@ -164,6 +190,7 @@ def decode_ecmwf_background(
                 else None
             ),
             "license": "CC BY 4.0",
+            "precipitation": precipitation_metadata,
         },
     ).subset(domain)
 
@@ -244,14 +271,13 @@ def find_data_values(
                 if pressure_coordinate is None:
                     continue
                 try:
-                    data = data.sel(
-                        {pressure_coordinate: pressure_hpa},
-                        method="nearest",
-                    )
+                    data = data.sel({pressure_coordinate: pressure_hpa})
                 except (KeyError, ValueError):
                     continue
             values = np.asarray(data.values, dtype=float).squeeze()
             if values.ndim == 2:
+                if alias == "z":
+                    values = values / STANDARD_GRAVITY_MS2
                 return values
     return None
 

@@ -69,6 +69,16 @@ def fetch_jtwc_tropical_cyclones(
     NOAA/NCEP. Only storms with an analysis within six hours of the requested
     map time are returned, so old invests cannot linger on a current chart.
     """
+    cache_path=Path(archive_directory)/'active-systems.json' if archive_directory else None
+    if cache_path and cache_path.is_file():
+        try:
+            cached=json.loads(cache_path.read_text(encoding='utf8'))
+            age=(datetime.now(timezone.utc)-datetime.fromisoformat(cached['fetched_at'])).total_seconds()
+            if cached['valid_at']==valid_at.isoformat() and 0<=age<1200:
+                return [m for item in cached['markers']
+                        if _marker_in_domain(m:=CycloneMarker.model_validate(item),domain)]
+        except (OSError,ValueError,KeyError,TypeError):
+            pass
     directory_url = JTWC_UCAR_BDECK_DIRECTORY.format(year=valid_at.year)
     headers = {
         "User-Agent": (
@@ -89,7 +99,7 @@ def fetch_jtwc_tropical_cyclones(
         ) from exc
     soup = BeautifulSoup(response.text, "html.parser")
     filenames: list[str] = []
-    pattern = re.compile(rf"^bwp\d{{2}}{valid_at.year}\.dat$", re.IGNORECASE)
+    pattern = re.compile(rf"^b(?:wp|io|sh|al|ep|cp)\d{{2}}{valid_at.year}\.dat$", re.IGNORECASE)
     for link in soup.find_all("a", href=True):
         filename = Path(str(link["href"])).name
         if pattern.fullmatch(filename) and filename not in filenames:
@@ -122,7 +132,7 @@ def fetch_jtwc_tropical_cyclones(
                 valid_at=valid_at,
                 source_url=source_url,
             )
-            if marker is None or not _marker_in_domain(marker, domain):
+            if marker is None:
                 continue
             markers.append(marker)
             if archive_directory is not None:
@@ -133,7 +143,11 @@ def fetch_jtwc_tropical_cyclones(
     if not markers and failures == len(filenames):
         raise JtwcCycloneUnavailable("all JTWC/UCAR b-deck downloads failed")
     markers.sort(key=lambda marker: marker.id)
-    return markers
+    if cache_path and not failures:
+        _archive_text(cache_path,json.dumps({'valid_at':valid_at.isoformat(),
+            'fetched_at':datetime.now(timezone.utc).isoformat(),
+            'markers':[m.model_dump(mode='json') for m in markers]},ensure_ascii=False))
+    return [m for m in markers if _marker_in_domain(m,domain)]
 
 
 def parse_jtwc_bdeck(
@@ -146,7 +160,7 @@ def parse_jtwc_bdeck(
     candidates: list[tuple[float, datetime, list[str]]] = []
     for row in csv.reader(bdeck_text.splitlines(), skipinitialspace=True):
         fields = [item.strip() for item in row]
-        if len(fields) < 28 or fields[0].upper() != "WP":
+        if len(fields) < 28 or fields[0].upper() not in {"WP", "IO", "SH", "AL", "EP", "CP"}:
             continue
         if fields[4].upper() != "BEST":
             continue
@@ -155,6 +169,8 @@ def parse_jtwc_bdeck(
                 tzinfo=timezone.utc
             )
         except ValueError:
+            continue
+        if point_time > valid_at:
             continue
         candidates.append(
             (abs((point_time - valid_at).total_seconds()), point_time, fields)
@@ -171,10 +187,15 @@ def parse_jtwc_bdeck(
         pressure = float(fields[9])
     except (ValueError, IndexError):
         return None
+    basin = fields[0].upper()
+    suffix = {"WP":"W", "AL":"L", "EP":"E", "CP":"C",
+              "IO":"B" if longitude >= 80 else "A",
+              "SH":"P" if longitude >= 135 or longitude < 0 else "S"}[basin]
+    agency = "NHC/CPHC" if basin in {"AL","EP","CP"} else "JTWC"
     storm_number = fields[1].zfill(2)
     name = fields[27].upper() or None
     return CycloneMarker(
-        id=f"{storm_number}W",
+        id=f"{storm_number}{suffix}",
         kind="tropical",
         valid_at=point_time,
         latitude=latitude,
@@ -183,7 +204,7 @@ def parse_jtwc_bdeck(
         central_pressure_hpa=pressure if pressure > 0 else None,
         maximum_wind_kt=wind_knots,
         source=(
-            "JTWC operational best track via UCAR TCGP mirror · "
+            f"{agency} operational best track via UCAR TCGP mirror · "
             f"{source_url}"
         ),
         confidence="high",
@@ -436,7 +457,10 @@ def parse_nrl_warning(
     storm_match = STORM_PATTERN.search(warning_text)
     if storm_match is None:
         return None
-    position_matches = list(POSITION_PATTERN.finditer(warning_text))
+    # Only the warning analysis position is an observed operational fix.
+    # Later positions in the same warning are forecasts, even if their valid
+    # time happens to match the requested chart.
+    position_matches = list(POSITION_PATTERN.finditer(warning_text))[:1]
     candidates: list[
         tuple[float, datetime, float, float, float | None]
     ] = []
@@ -445,6 +469,8 @@ def parse_nrl_warning(
             match.group("time"),
             reference=valid_at,
         )
+        if point_time > valid_at:
+            continue
         latitude = _signed_coordinate(
             match.group("latitude"),
             match.group("latitude_hemisphere"),
@@ -565,7 +591,7 @@ def _marker_in_domain(
     domain: WeatherMapDomain,
 ) -> bool:
     return (
-        domain.west <= marker.longitude <= domain.east
+        domain.west <= (marker.longitude-domain.west)%360+domain.west <= domain.east
         and domain.south <= marker.latitude <= domain.north
     )
 

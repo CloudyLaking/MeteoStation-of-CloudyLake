@@ -1,3 +1,5 @@
+const weatherMapRegion = new URLSearchParams(location.search).get("region") || "china";
+let weatherMapRequestId = 0;
 const sourceStrip = document.querySelector("#source-strip");
 const stationForm = document.querySelector(".station-form");
 const soundingResult = document.querySelector("#sounding-result");
@@ -126,13 +128,18 @@ async function loadProjectStatus() {
 
 async function loadWeatherMapConfig() {
   try {
-    const response = await fetch("/api/v1/weather-maps/config", {
+    const response = await fetch(`/api/v1/weather-maps/config?region=${encodeURIComponent(weatherMapRegion)}`, {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
     weatherMapConfig = await response.json();
+    if (weatherMapRegion !== "china") {
+      document.querySelector("#map-title").textContent = weatherMapRegion === "world" ? "全球天气分析" : weatherMapRegion === "east-china" ? "华东与近海天气分析" : "区域天气分析";
+      document.querySelector("#home-method-heading").textContent = "天气场说明";
+      weatherMapConfig.sounding_stations = [];
+    }
     const baseMap = weatherMapConfig.base_map ?? {};
     const attribution = [baseMap.source, baseMap.service_review_number]
       .filter(Boolean)
@@ -155,7 +162,7 @@ async function loadWeatherMapConfig() {
 async function selectLatestWeatherMapCycle() {
   try {
     const response = await fetch(
-      `/api/v1/weather-maps/latest?layer=${encodeURIComponent(selectedWeatherLayer)}`,
+      `/api/v1/weather-maps/latest?layer=${encodeURIComponent(selectedWeatherLayer)}&region=${encodeURIComponent(weatherMapRegion)}`,
       { headers: { Accept: "application/json" } },
     );
     if (!response.ok) return;
@@ -176,6 +183,8 @@ async function selectLatestWeatherMapCycle() {
 }
 
 async function loadWeatherMapProduct() {
+  const requestId = ++weatherMapRequestId;
+  document.querySelector("#weather-reading-notes")?.replaceChildren();
   if (!weatherMapConfig || !archiveDate.value) {
     return;
   }
@@ -194,6 +203,7 @@ async function loadWeatherMapProduct() {
     date: archiveDate.value,
     cycle: selectedCycle(),
     layer: selectedWeatherLayer,
+    region: weatherMapRegion,
   });
   try {
     const response = await fetch(
@@ -201,6 +211,7 @@ async function loadWeatherMapProduct() {
       { headers: { Accept: "application/json" } },
     );
     const data = await response.json();
+    if (requestId !== weatherMapRequestId) return;
     if (!response.ok) {
       throw new Error(data.detail ?? `HTTP ${response.status}`);
     }
@@ -227,6 +238,7 @@ async function loadWeatherMapProduct() {
       );
       if (previewResponse.ok) {
         const previewData = await previewResponse.json();
+        if (requestId !== weatherMapRequestId) return;
         const preview = previewData.previews[0];
         if (preview) {
           void loadWeatherMapGeometry(preview.metadata_url);
@@ -237,14 +249,7 @@ async function loadWeatherMapProduct() {
           weatherMapPlaceholder.hidden = true;
           weatherMapBadge.hidden = true;
           weatherMapStatus.textContent = "ECMWF 天气场开发预览";
-          weatherMapDescription.textContent =
-            preview.base_map_status === "official-service-preview"
-              ? "已合成天地图标准地图服务、国省界、城市与水系注记。"
-              : (
-                  preview.base_map_status === "official-boundary-preview"
-                    ? "已叠加天地图省级行政区与境界数据。"
-                    : "当前仅显示 ECMWF 连续场。"
-                );
+          weatherMapDescription.textContent = layer?.description ?? "模式天气场，具体要素和资料时效见图注。";
           mapSoundingStations.hidden = false;
           void refreshMapStationData();
           return;
@@ -276,6 +281,7 @@ async function loadWeatherMapProduct() {
     weatherMapDescription.textContent =
       `${layer?.description ?? ""} 当前尚缺：${missingInputs || blockers || "本时次分析产品"}。`;
   } catch (error) {
+    if (requestId !== weatherMapRequestId) return;
     weatherMapImage.hidden = true;
     mapSoundingStations.hidden = true;
     weatherMapBadge.hidden = true;
@@ -311,6 +317,33 @@ async function loadWeatherMapGeometry(metadataUrl) {
     if (weatherMapMetadataUrl !== requestedMetadataUrl) {
       return;
     }
+    let notes = document.querySelector("#weather-reading-notes");
+    if (!notes) {
+      notes = document.createElement("div"); notes.id = "weather-reading-notes";
+      notes.className = "weather-reading-notes"; notes.setAttribute("aria-live", "polite");
+      document.querySelector(".map-legend").after(notes);
+    }
+    notes.replaceChildren();
+    for (const line of metadata?.rendering?.reading_notes || []) {
+      const p = document.createElement("p"); p.textContent = line; notes.append(p);
+    }
+    if (weatherMapRegion === "china") {
+      const p = document.createElement("p");
+      p.textContent = selectedWeatherLayer === "composite"
+        ? "实测站模：左上为 850 hPa 温度，左下为露点，右上为 500 hPa 高度；风羽取 850 hPa。点击站点查看探空。"
+        : selectedWeatherLayer === "surface"
+          ? "实测站模：温度、露点、站压和风；站压与底图海平面气压不是同一量。点击站点查看探空。"
+          : "实测站模：本层温度、露点、高度和风；没有本层实测值的站点不填数。点击站点查看探空。";
+      notes.append(p);
+    }
+    const links = document.createElement("p");
+    for (const [label,href] of [["中国","/analysis"],["全球","/analysis?region=world"],["华东与近海","/analysis?region=east-china"],["查看原图",weatherMapImage.src]]) {
+      if (links.childNodes.length) links.append(" · ");
+      const link=document.createElement("a");link.href=href;link.textContent=label;
+      if(label==="查看原图") {link.target="_blank";link.rel="noopener";}
+      links.append(link);
+    }
+    notes.append(links);
     const bounds = metadata?.rendering?.plot_bounds_fraction;
     if (
       [bounds?.left, bounds?.right, bounds?.bottom, bounds?.top]
@@ -368,29 +401,29 @@ function updateMapStationPositions() {
   ) {
     return;
   }
-  const stage = weatherMapImage.parentElement;
-  const stageWidth = stage.clientWidth;
-  const stageHeight = stage.clientHeight;
-  const imageRatio =
-    weatherMapImage.naturalWidth / weatherMapImage.naturalHeight;
-  const stageRatio = stageWidth / stageHeight;
-  const renderedWidth =
-    stageRatio > imageRatio ? stageHeight * imageRatio : stageWidth;
-  const renderedHeight =
-    stageRatio > imageRatio ? stageHeight : stageWidth / imageRatio;
-  const offsetX = (stageWidth - renderedWidth) / 2;
-  const offsetY = (stageHeight - renderedHeight) / 2;
+  // Follow the image's actual rendered box. On narrow screens the image is a
+  // 600 px scrollable canvas rather than an object-fit image in the viewport.
+  const renderedWidth = weatherMapImage.offsetWidth;
+  const renderedHeight = weatherMapImage.offsetHeight;
+  const offsetX = weatherMapImage.offsetLeft;
+  const offsetY = weatherMapImage.offsetTop;
+  Object.assign(mapSoundingStations.style, {
+    inset: "auto",
+    left: `${offsetX}px`,
+    top: `${offsetY}px`,
+    width: `${renderedWidth}px`,
+    height: `${renderedHeight}px`,
+  });
   const domain = weatherMapConfig.domain;
   const bounds = weatherMapPlotBounds ?? DEFAULT_WEATHER_MAP_PLOT_BOUNDS;
-  const stationModelSize = Math.max(
-    12,
-    Math.min(36, (renderedWidth / weatherMapImage.naturalWidth) * 68),
-  );
+  const stationModelSize = Math.max(42, Math.min(60, renderedWidth * 0.065));
   mapSoundingStations.style.setProperty(
     "--station-model-size",
     `${stationModelSize.toFixed(2)}px`,
   );
-  for (const button of mapSoundingStations.children) {
+  const occupied = [];
+  const buttons = [...mapSoundingStations.children].sort((a,b) => Number(b.style.zIndex)-Number(a.style.zIndex));
+  for (const button of buttons) {
     const longitude = Number(button.dataset.longitude);
     const latitude = Number(button.dataset.latitude);
     const longitudeFraction =
@@ -403,6 +436,14 @@ function updateMapStationPositions() {
       1 - (bounds.bottom + latitudeFraction * (bounds.top - bounds.bottom));
     button.style.left = `${offsetX + renderedWidth * figureX}px`;
     button.style.top = `${offsetY + renderedHeight * figureY}px`;
+    const x = renderedWidth * figureX, y = renderedHeight * figureY;
+    const radius = stationModelSize * .48;
+    const fits = x-radius >= renderedWidth*bounds.left && x+radius <= renderedWidth*bounds.right &&
+      y-radius >= renderedHeight*(1-bounds.top) && y+radius <= renderedHeight*(1-bounds.bottom);
+    const overlaps = occupied.some(p => Math.abs(x-p.x)<stationModelSize && Math.abs(y-p.y)<stationModelSize*.85);
+    const unavailable = button.dataset.levelUnavailable === "true";
+    button.hidden = !fits || overlaps || unavailable;
+    if (!button.hidden) occupied.push({x,y});
   }
 }
 
@@ -419,7 +460,7 @@ function updateMapStationLabels() {
       const levels = [...profile.levels].sort(
         (first, second) => second.pressure_hpa - first.pressure_hpa,
       );
-      const targetPressure = ["850", "500", "200"].includes(
+      const targetPressure = selectedWeatherLayer === "composite" ? 850 : ["850", "500", "200"].includes(
         selectedWeatherLayer,
       )
         ? Number(selectedWeatherLayer)
@@ -433,10 +474,13 @@ function updateMapStationLabels() {
           )
         : levels[0];
       levelLabel = targetPressure ? `${targetPressure} hPa` : "surface";
+      if (targetPressure && (levels[0].pressure_hpa < targetPressure || Math.abs(level.pressure_hpa-targetPressure)>20)) level = null;
     }
+    button.dataset.levelUnavailable = String(isReady && !level);
     const formatValue = (value) =>
       Number.isFinite(value) ? String(Math.round(value)) : "—";
-    const secondaryValue = ["850", "500", "200"].includes(
+    const compositeHeight = profile?.levels?.find(item => Math.abs(item.pressure_hpa-500)<1)?.geopotential_height_m;
+    const secondaryValue = selectedWeatherLayer === "composite" ? (Number.isFinite(compositeHeight) ? String(Math.round(compositeHeight/10)) : "—") : ["850", "500", "200"].includes(
       selectedWeatherLayer,
     )
       ? (
@@ -488,8 +532,8 @@ function updateMapStationLabels() {
       button.innerHTML = `
         <svg class="station-value-model ${item.className}" viewBox="0 0 74 74" aria-hidden="true">
           <circle cx="37" cy="54" r="2.5" fill="${statusColor}"></circle>
-          <text x="37" y="34" text-anchor="middle" font-size="16" font-weight="800">${item.value}</text>
-          <text x="37" y="47" text-anchor="middle" font-size="6.5" font-weight="650">${item.unit}</text>
+          <text x="37" y="31" text-anchor="middle" font-size="13" font-weight="650">${item.value}</text>
+          <text x="37" y="48" text-anchor="middle" font-size="13" font-weight="650">${item.unit}</text>
         </svg>
       `;
       button.title = `${station?.name ?? ""} ${station?.wmo_id ?? button.dataset.stationId} · ${levelLabel} · ${item.value} ${item.unit}`;
@@ -503,10 +547,9 @@ function updateMapStationLabels() {
       <svg viewBox="0 0 74 74" aria-hidden="true">
         ${windBarb}
         <circle cx="37" cy="37" r="3.2" fill="${statusColor}"></circle>
-        <text class="station-model__temperature" x="29" y="31" text-anchor="end" font-size="10.5" font-weight="700">${formatValue(level?.temperature_c)}</text>
-        <text class="station-model__dewpoint" x="29" y="48" text-anchor="end" font-size="10.5" font-weight="700">${formatValue(level?.dewpoint_c)}</text>
-        <text class="station-model__secondary" x="45" y="31" font-size="9" font-weight="650">${secondaryValue}</text>
-        <text class="station-model__id" x="44" y="48" font-size="7.5" font-weight="550">${escapeHtml(station?.wmo_id ?? button.dataset.stationId)}</text>
+        <text class="station-model__temperature" x="29" y="31" text-anchor="end" font-size="13" font-weight="650">${formatValue(level?.temperature_c)}</text>
+        <text class="station-model__dewpoint" x="29" y="49" text-anchor="end" font-size="13" font-weight="650">${formatValue(level?.dewpoint_c)}</text>
+        <text class="station-model__secondary" x="44" y="31" font-size="13" font-weight="650">${secondaryValue}</text>
       </svg>
     `;
     const statusText = isReady ? "已更新" : "尚未更新";
@@ -524,6 +567,7 @@ function updateMapStationLabels() {
     button.title = detail;
     button.setAttribute("aria-label", `${detail}；点击打开探空`);
   }
+  updateMapStationPositions();
 }
 
 function weatherStationBarbSvg(directionDegrees, speedMs) {
@@ -540,12 +584,12 @@ function weatherStationBarbSvg(directionDegrees, speedMs) {
   const perpendicularY = unitX;
   const endX = centreX + unitX * shaftLength;
   const endY = centreY + unitY * shaftLength;
-  let remainingKnots = Math.max(0, speedMs * 1.94384);
+  let remainingWind = Math.round(Math.max(0, speedMs) / 2.5) * 2.5;
   let offset = 1;
   const parts = [
     `<line x1="${centreX}" y1="${centreY}" x2="${endX.toFixed(2)}" y2="${endY.toFixed(2)}" stroke="#111" stroke-width="1.7" stroke-linecap="round"></line>`,
   ];
-  while (remainingKnots >= 47.5) {
+  while (remainingWind >= 25) {
     const baseX = endX - unitX * offset;
     const baseY = endY - unitY * offset;
     const nextX = baseX - unitX * 5;
@@ -553,19 +597,19 @@ function weatherStationBarbSvg(directionDegrees, speedMs) {
     parts.push(
       `<polygon points="${baseX.toFixed(2)},${baseY.toFixed(2)} ${(baseX + perpendicularX * 9).toFixed(2)},${(baseY + perpendicularY * 9).toFixed(2)} ${nextX.toFixed(2)},${nextY.toFixed(2)}" fill="#111"></polygon>`,
     );
-    remainingKnots -= 50;
+    remainingWind -= 25;
     offset += 6;
   }
-  while (remainingKnots >= 7.5) {
+  while (remainingWind >= 5) {
     const baseX = endX - unitX * offset;
     const baseY = endY - unitY * offset;
     parts.push(
       `<line x1="${baseX.toFixed(2)}" y1="${baseY.toFixed(2)}" x2="${(baseX + perpendicularX * 9).toFixed(2)}" y2="${(baseY + perpendicularY * 9).toFixed(2)}" stroke="#111" stroke-width="1.6"></line>`,
     );
-    remainingKnots -= 10;
+    remainingWind -= 5;
     offset += 4;
   }
-  if (remainingKnots >= 2.5) {
+  if (remainingWind >= 2.5) {
     const baseX = endX - unitX * offset;
     const baseY = endY - unitY * offset;
     parts.push(
@@ -602,6 +646,9 @@ async function refreshMapStationData() {
 }
 
 weatherMapImage?.addEventListener("load", () => {
+  if (weatherMapImage.naturalWidth && weatherMapImage.naturalHeight) {
+    weatherMapImage.closest(".map-stage").style.setProperty("--weather-chart-ratio", String(weatherMapImage.naturalWidth/weatherMapImage.naturalHeight));
+  }
   updateMapStationPositions();
 });
 window.addEventListener("resize", updateMapStationPositions);

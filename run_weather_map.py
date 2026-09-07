@@ -75,6 +75,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not refresh JTWC ATCF cyclone positions while rendering.",
     )
+    parser.add_argument("--region", default="china", help="Output scope: china, world, or a safe region name with --bounds")
+    parser.add_argument("--bounds", type=float, nargs=4, metavar=("WEST","SOUTH","EAST","NORTH"))
+    parser.add_argument("--preview-root", type=Path, help="Optional isolated preview output directory for visual review")
     return parser.parse_args()
 
 
@@ -98,6 +101,9 @@ def main() -> None:
         raw_data_root=raw_data_root,
     )
     configuration = catalog.configuration()
+    from meteostation.weather_map.regions import region_domain
+    requested_domain = region_domain(args.region, args.bounds, configuration.domain)
+    configuration = configuration.model_copy(update={"domain":requested_domain,"region":args.region})
     height_climatology_configuration = configuration.climatology.get(
         "500_height",
         {},
@@ -162,19 +168,19 @@ def main() -> None:
         for request in plan.requests:
             if request.status == "archived":
                 continue
-            if not request.required and not args.include_cyclone_tracks:
+            if not request.required and request.id != "ecmwf-precipitation" and not args.include_cyclone_tracks:
                 continue
             try:
                 path = retrieve_ecmwf_input(
                     request,
                     raw_data_root=raw_data_root,
                 )
-            except EcmwfProductNotAvailable:
+            except Exception:
                 if request.required:
                     raise
                 print(
                     "可选资料不可用："
-                    f"{request.id}；本时次可能没有热带气旋轨迹。"
+                    f"{request.id}；继续绘制已核验的字段，不补造缺失资料。"
                 )
                 continue
             print(f"已归档：{path}")
@@ -196,6 +202,7 @@ def main() -> None:
                 "无法绘制：缺少 " + "、".join(missing)
             )
         grid = decode_ecmwf_background(
+            precipitation_path=raw_data_root / request_by_id["ecmwf-precipitation"].target_path,
             surface_path=(
                 raw_data_root
                 / request_by_id["ecmwf-surface"].target_path
@@ -217,64 +224,69 @@ def main() -> None:
                 tzinfo=timezone.utc,
             ),
         )
-        height_climatology = load_era5_height_climatology(
-            height_climatology_path,
-            longitude=grid.longitude,
-            latitude=grid.latitude,
-            month=args.date.month,
-            pressure_hpa=500,
-            normal_period=str(
-                height_climatology_configuration.get(
-                    "normal_period",
-                    "1991-2020",
-                )
-            ),
-        )
-        temperature_climatology = load_era5_temperature_climatology(
-            temperature_climatology_path,
-            longitude=grid.longitude,
-            latitude=grid.latitude,
-            month=args.date.month,
-            pressure_hpa=850,
-            normal_period=str(
-                temperature_climatology_configuration.get("normal_period", "1991-2020")
-            ),
-        )
-        grid = WeatherGrid(
-            valid_at=grid.valid_at,
-            source=grid.source,
-            longitude=grid.longitude,
-            latitude=grid.latitude,
-            fields={
-                **grid.fields,
-                "geopotential_height_500_climatology_gpm": (
-                    height_climatology.values_gpm
+        if 70 <= requested_domain.west < requested_domain.east <= 145 and 15 <= requested_domain.south < requested_domain.north <= 60:
+            height_climatology = load_era5_height_climatology(
+                height_climatology_path,
+                longitude=grid.longitude,
+                latitude=grid.latitude,
+                month=args.date.month,
+                pressure_hpa=500,
+                normal_period=str(
+                    height_climatology_configuration.get(
+                        "normal_period",
+                        "1991-2020",
+                    )
                 ),
-                "temperature_850_climatology_c": temperature_climatology.values_c,
-            },
-            metadata={
-                **grid.metadata,
-                "height_climatology_500": {
-                    "source": height_climatology.source,
-                    "normal_period": height_climatology.normal_period,
-                    "month": height_climatology.month,
-                    "path": height_climatology.path,
+            )
+            temperature_climatology = load_era5_temperature_climatology(
+                temperature_climatology_path,
+                longitude=grid.longitude,
+                latitude=grid.latitude,
+                month=args.date.month,
+                pressure_hpa=850,
+                normal_period=str(
+                    temperature_climatology_configuration.get("normal_period", "1991-2020")
+                ),
+            )
+            grid = WeatherGrid(
+                valid_at=grid.valid_at,
+                source=grid.source,
+                longitude=grid.longitude,
+                latitude=grid.latitude,
+                fields={
+                    **grid.fields,
+                    "geopotential_height_500_climatology_gpm": (
+                        height_climatology.values_gpm
+                    ),
+                    "temperature_850_climatology_c": temperature_climatology.values_c,
                 },
-                "temperature_climatology_850": {
-                    "source": temperature_climatology.source,
-                    "normal_period": temperature_climatology.normal_period,
-                    "month": temperature_climatology.month,
-                    "path": temperature_climatology.path,
+                metadata={
+                    **grid.metadata,
+                    "height_climatology_500": {
+                        "source": height_climatology.source,
+                        "normal_period": height_climatology.normal_period,
+                        "month": height_climatology.month,
+                        "path": height_climatology.path,
+                    },
+                    "temperature_climatology_850": {
+                        "source": temperature_climatology.source,
+                        "normal_period": temperature_climatology.normal_period,
+                        "month": temperature_climatology.month,
+                        "path": temperature_climatology.path,
+                    },
                 },
-            },
-        )
+            )
+        if args.region == "world":
+            grid = WeatherGrid(valid_at=grid.valid_at,source=grid.source,
+                longitude=grid.longitude[::4],latitude=grid.latitude[::4],
+                fields={k:v[::4,::4] for k,v in grid.fields.items()},metadata=grid.metadata)
         base_map = None
         boundary_layer = None
         boundary_configuration = configuration.base_map.get(
             "local_boundary",
             {},
         )
-        if isinstance(boundary_configuration, dict):
+        if args.region != "world" and isinstance(boundary_configuration, dict):
             boundary_path = PROJECT_ROOT / str(
                 boundary_configuration.get("path", "")
             )
@@ -289,7 +301,7 @@ def main() -> None:
                     ),
                 )
         tianditu_token = os.environ.get("TIANDITU_TOKEN", "").strip()
-        if tianditu_token:
+        if tianditu_token and args.region == "china":
             try:
                 base_map = load_tianditu_basemap(
                     domain=configuration.domain,
@@ -333,7 +345,33 @@ def main() -> None:
                     ))
                 except NrlCycloneUnavailable as exc:
                     print(f"JTWC/NRL 备用资料暂不可用：{exc}")
-        preview_root = PROJECT_ROOT / "data" / "previews"
+        preview_root = args.preview_root or PROJECT_ROOT / "data" / "previews"
+        if args.region != "china":
+            preview_root = preview_root / "regions" / args.region
+        preview_root.mkdir(parents=True, exist_ok=True)
+        if args.region != "china":
+            regional_layers = []
+            for layer in configuration.layers:
+                if (layer.id == "composite"
+                    and "temperature_850_climatology_c" not in grid.fields):
+                    layer = layer.model_copy(update={
+                        "description":"850 hPa 实际温度填色、850 hPa 风场与 500 hPa 位势高度等值线",
+                        "recipe":{"fields":["850_temperature","850_wind","500_geopotential_height"]},
+                    })
+                elif (layer.id == "500"
+                      and "geopotential_height_500_climatology_gpm" not in grid.fields):
+                    layer = layer.model_copy(update={
+                        "description":"500 hPa 相对湿度、位势高度等值线与风场",
+                        "recipe":{"pressure_hpa":500,"fields":["relative_humidity","geopotential","wind"]},
+                    })
+                regional_layers.append(layer)
+            configuration=configuration.model_copy(update={"layers":regional_layers,"sounding_stations":[],"base_map":{
+                **configuration.base_map,"source":"Natural Earth 海岸线；中国境界沿用天地图资料",
+                "service_review_number":None}})
+            region_path=preview_root / "region.json"
+            temporary_region=region_path.with_suffix('.json.tmp')
+            temporary_region.write_text(json.dumps(configuration.model_dump(mode="json"),ensure_ascii=False),encoding="utf8")
+            os.replace(temporary_region,region_path)
         previews = [
             render_weather_map_preview(
                 grid,
@@ -347,6 +385,8 @@ def main() -> None:
             )
             for layer in ("composite", "surface", "850", "500", "200")
         ]
+        if args.region != "china":
+            previews = [p.model_copy(update={"image_url":p.image_url.replace("/previews/",f"/previews/regions/{args.region}/",1), "metadata_url":p.metadata_url.replace("/previews/",f"/previews/regions/{args.region}/",1)}) for p in previews]
         update_preview_catalog(
             preview_root / "weather_maps" / "catalog.json",
             previews,

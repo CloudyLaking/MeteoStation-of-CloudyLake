@@ -1,5 +1,5 @@
 {
-  "version": "V2.4.4",
+  "version": "V3.0.0",
   "region": "china-and-neighbours",
   "cycles": [
     "00",
@@ -76,7 +76,7 @@
       "physical-range validation",
       "explicit valid time and source"
     ],
-    "publication_rule": "heuristic fronts, pressure centres and height axes are not published without separate validation"
+    "publication_rule": "Experimental diagnostics are explicitly labelled candidates; thematic-map review and independent synoptic validation remain pending."
   },
   "layers": [
     {
@@ -94,12 +94,12 @@
     },
     {
       "id": "surface",
-      "label": "地面气压与温度",
-      "description": "二米温度填色、海平面气压等值线与十米风场",
+      "label": "地面天气",
+      "description": "模式累计降水、海平面气压和十米风；降水时段无法核验时明确回退二米温度",
       "status": "pipeline-ready",
       "recipe": {
         "fields": [
-          "2m_temperature",
+          "accumulated_precipitation_or_2m_temperature",
           "mean_sea_level_pressure",
           "10m_wind"
         ]

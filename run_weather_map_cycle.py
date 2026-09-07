@@ -45,6 +45,8 @@ def cleanup_old_products(now: datetime) -> None:
         PROJECT_ROOT / "data" / "previews" / "weather_maps",
         PROJECT_ROOT / "data" / "raw" / "ecmwf",
     ]
+    roots.extend(PROJECT_ROOT / 'data' / 'previews' / 'regions' / name / 'weather_maps'
+                 for name in ('world', 'east-china'))
     for root in roots:
         if not root.is_dir():
             continue
@@ -104,6 +106,22 @@ def main() -> int:
     }
     write_state(payload)
     if completed.returncode == 0:
+        regional_results = {}
+        # Share China's downloaded global GRIB inputs. Regional failures must
+        # never remove a complete China cycle or trigger another full download.
+        for name, bounds in [('world', []), ('east-china', ['105','18','135','43'])]:
+            regional_command = [sys.executable, str(PROJECT_ROOT / 'run_weather_map.py'),
+                '--date', valid_at.date().isoformat(), '--cycle', cycle,
+                '--render-preview', '--region', name]
+            if bounds: regional_command += ['--bounds', *bounds]
+            try:
+                result = subprocess.run(regional_command, cwd=PROJECT_ROOT,
+                    capture_output=True, text=True, timeout=12*60, check=False)
+                regional_results[name] = {'return_code':result.returncode,'stderr_tail':result.stderr[-1500:]}
+            except subprocess.TimeoutExpired:
+                regional_results[name] = {'return_code':-1,'stderr_tail':'regional rendering timed out'}
+        payload['regions'] = regional_results
+        write_state(payload)
         cleanup_old_products(checked_at)
     else:
         print(completed.stderr, file=sys.stderr)

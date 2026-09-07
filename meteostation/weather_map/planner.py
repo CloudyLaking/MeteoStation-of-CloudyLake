@@ -98,6 +98,12 @@ def build_weather_map_plan(
             "data_type": "tf",
             "step_hours": 240,
         },
+        {
+            "id": "ecmwf-precipitation", "format": "grib2", "levtype": "sfc",
+            "parameters": ["tp"], "levelist": [], "area": [], "grid": "0.25/0.25",
+            "target": archive_directory / f"{stem}_precipitation.grib2",
+            "required": False, "purposes": ["surface", "composite"],
+        },
     ]
 
     requests: list[WeatherMapInputRequest] = []

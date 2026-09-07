@@ -953,13 +953,31 @@ async def refresh_data_pipeline(
     return result
 
 
+def _regional_weather_configuration(region: str) -> WeatherMapConfig:
+    if region == "china":
+        return weather_map_catalog.configuration()
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", region):
+        raise HTTPException(status_code=422, detail="invalid region")
+    path = WEATHER_MAP_PREVIEW_CATALOG_PATH.parent.parent / "regions" / region / "region.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="该区域尚未生成天气图。")
+    return WeatherMapConfig.model_validate_json(path.read_text(encoding="utf8"))
+
+
+def _regional_weather_catalog(region: str) -> Path:
+    _regional_weather_configuration(region)
+    if region == "china":
+        return WEATHER_MAP_PREVIEW_CATALOG_PATH
+    return WEATHER_MAP_PREVIEW_CATALOG_PATH.parent.parent / "regions" / region / "weather_maps" / "catalog.json"
+
+
 @app.get(
     "/api/v1/weather-maps/config",
     response_model=WeatherMapConfig,
     summary="读取中国天气图图层、时次和底图接入状态",
 )
-async def weather_map_configuration() -> WeatherMapConfig:
-    configuration = weather_map_catalog.configuration()
+async def weather_map_configuration(region: str = Query(default="china", max_length=40)) -> WeatherMapConfig:
+    configuration = _regional_weather_configuration(region)
     base_map = dict(configuration.base_map)
     token_variable = str(
         base_map.get(
@@ -995,6 +1013,7 @@ async def weather_map_plan(
     summary="读取天气场开发预览",
 )
 async def weather_map_previews(
+    region: str = Query(default="china", max_length=40),
     valid_date: date = Query(alias="date"),
     cycle: Literal["00", "12"] = Query(default="00"),
     layer: str | None = Query(default=None, max_length=40),
@@ -1003,7 +1022,7 @@ async def weather_map_previews(
     previews = [
         preview
         for preview in read_preview_catalog(
-            WEATHER_MAP_PREVIEW_CATALOG_PATH
+            _regional_weather_catalog(region)
         )
         if preview.valid_at.isoformat().startswith(target_prefix)
         and (layer is None or preview.layer_id == layer)
@@ -1033,14 +1052,22 @@ async def weather_map_previews(
     summary="按日期、时次和图层读取已保存天气图",
 )
 async def weather_map_products(
+    region: str = Query(default="china", max_length=40),
     valid_date: date = Query(alias="date"),
     cycle: Literal["00", "12"] = Query(default="00"),
     layer: str = Query(default="composite", min_length=1, max_length=40),
 ) -> dict[str, object]:
-    configuration = weather_map_catalog.configuration()
+    configuration = _regional_weather_configuration(region)
     known_layers = {item.id for item in configuration.layers}
     if layer not in known_layers:
         raise HTTPException(status_code=422, detail="unknown weather-map layer")
+    if region != "china":
+        prefix = f"{valid_date.isoformat()}T{cycle}:"
+        products = [p for p in read_preview_catalog(_regional_weather_catalog(region))
+                    if p.layer_id == layer and p.valid_at.isoformat().startswith(prefix)]
+        return {"products":[p.model_dump(mode="json") for p in products],
+                "job":{"blockers":[]},"input_plan":{"missing_required_inputs":[]},
+                "base_map":configuration.base_map}
     products = weather_map_catalog.products(
         valid_date=valid_date,
         cycle=cycle,
@@ -1080,20 +1107,21 @@ async def weather_map_products(
     summary="读取最近完成的中国天气图产品",
 )
 async def latest_weather_map_product(
+    region: str = Query(default="china", max_length=40),
     layer: str = Query(default="composite", min_length=1, max_length=40),
 ) -> dict[str, object]:
-    configuration = weather_map_catalog.configuration()
+    configuration = _regional_weather_configuration(region)
     known_layers = {item.id for item in configuration.layers}
     if layer not in known_layers:
         raise HTTPException(status_code=422, detail="unknown weather-map layer")
 
     previews = [
         item
-        for item in read_preview_catalog(WEATHER_MAP_PREVIEW_CATALOG_PATH)
+        for item in read_preview_catalog(_regional_weather_catalog(region))
         if item.layer_id == layer
     ]
     preview = max(previews, key=lambda item: item.valid_at, default=None)
-    product = weather_map_catalog.latest_product(layer_id=layer)
+    product = weather_map_catalog.latest_product(layer_id=layer) if region == "china" else None
     freshness_cutoff = datetime.now(timezone.utc) - timedelta(hours=36)
     if preview is not None and preview.valid_at < freshness_cutoff:
         preview = None
