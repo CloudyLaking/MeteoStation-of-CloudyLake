@@ -56,8 +56,8 @@
   `max_stale_hours`、`retire_grace_hours` 可调。
 - 测试：+14 项（manifest 发布/校验/租约/剪枝保护/延迟退役、API 合约
   200/降级/结构化 503），全量 83 通过。
-- 文档：新增 `docs/PRODUCTION_AUDIT.md` 审计基线、`CHANGELOG.md`；
-  更新 `PROJECT_STATUS.md`、`OPERATIONS.md`。
+- 文档：生产审计基线现已整合到项目总说明 `README.md`；
+  当时的状态与运维说明现已整合到 `README.md`。
 
 ### 部署
 - 生产回滚点：`/opt/backups/meteostation/pre-p0-20260818-1726.tar.gz`。
@@ -77,4 +77,4 @@
 
 ## V2.2.1 · 2026-08-10 — 快速资料读取、全球选站与历史再分析工作台
 
-（详见 `docs/PROJECT_STATUS.md` 历史完成记录）
+（当前状态与维护要求统一见 `README.md`，历史变化见本文件。）
