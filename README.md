@@ -1,6 +1,6 @@
-# 云湖气象站
+# 云海观象台
 
-云湖气象站（MeteoStation of CloudyLake）是一个个人气象资料站，集中展示探空、地面实况、数值预报、天气分析图和历史再分析工具。生产站点：[https://meteostation.top/](https://meteostation.top/)。
+云海观象台（CloudyLake's Observatory，项目仓库名为 MeteoStation of CloudyLake）是一个个人气象资料站，集中展示探空、地面实况、数值预报、天气分析图和历史再分析工具。生产站点：[https://meteostation.top/](https://meteostation.top/)。
 
 本文件是项目总说明，也是当前状态的唯一权威文档。代码、配置、数据源、页面、接口、部署方式或待办发生变化时，必须在同一次修改中同步更新 README。不能只改代码而留下失效说明。版本变化另记于 `CHANGELOG.md`。
 
